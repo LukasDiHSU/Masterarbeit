@@ -1,0 +1,49 @@
+% Diese Datei erweitert die Citavi-Kurzbelege um die hochgestellten Sonderzeichen (bei eigenen und studentischen Arbeiten sowie Internetquellen)
+\usepackage[style = alphabetic, labelnumber, defernumbers = true,  backend = biber, locallabelwidth]{biblatex}
+
+% Hinzufügen der einzelnen Bibtex-Dateien
+\addbibresource{Literatur/EigenePublikationen.bib}
+\addbibresource{Literatur/Normen.bib}
+\addbibresource{Literatur/InternetquellenSoftware.bib}
+\addbibresource{Literatur/StudentischeArbeiten.bib}
+\addbibresource{Literatur/WissenschaftlichePublikationen.bib}
+
+% Doppelpunkt statt Punkt nach den Autoren
+\renewcommand{\labelnamepunct}{:\addspace}
+\DeclareFieldFormat{title}{"#1"}
+\DeclareFieldFormat{booktitle}{"#1"}
+\DeclareFieldFormat{isbn}{}
+\DeclareFieldFormat{issn}{}
+\DeclareFieldFormat{doi}{}
+
+% Fügt relevante Keywords für Sortierung in Einzl-Literaturverzeichnisse hinzu und ergänzt Kurzbeleg um Sonderzeichen
+\DeclareSourcemap{
+  \maps[datatype=bibtex, overwrite]{
+	% Eigene Publikationen können in Citavi nicht unterschieden werden -> Erweitere Kurzbeleg um hochgestelltes "*"
+    \map{
+      \perdatasource{Literatur/EigenePublikationen.bib}
+      \step[fieldset=KEYWORDS, fieldvalue=EigenePublikationen, append]
+      \step[fieldset=shorthand, fieldvalue={\textsuperscript{*}}, append]
+    }
+    \map{
+      \perdatasource{Literatur/Normen.bib}
+      \step[fieldset=KEYWORDS, fieldvalue=Normen, append]
+	}
+	% Bei Kurzbelegen können in Citavi keine hochgestellten "@" ergänzt werden -> Hier Erweiterung
+	\map{
+      \perdatasource{Literatur/InternetquellenSoftware.bib}
+      \step[fieldset=KEYWORDS, fieldvalue=InternetquellenSoftware, append]
+      \step[fieldset=shorthand, fieldvalue={\textsuperscript{@}}, append]
+	}
+	% Studentische Arbeiten können in Citavi nicht unterschieden werden -> Erweitere Kurzbeleg um hochgestelltes"%"
+   \map{
+      \perdatasource{Literatur/StudentischeArbeiten.bib}
+      \step[fieldset=KEYWORDS, fieldvalue=StudentischeArbeiten, append]
+      \step[fieldset=shorthand, fieldvalue={\textsuperscript{\%}}, append]
+    }
+    \map{
+      \perdatasource{Literatur/WissenschaftlichePublikationen.bib}
+      \step[fieldset=KEYWORDS, fieldvalue=WissenschaftlichePublikationen, append]
+    }
+  }
+}

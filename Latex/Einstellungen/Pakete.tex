@@ -1,0 +1,50 @@
+\usepackage[ngerman]{babel}					% TeX-Ausgabe-Sprache
+\usepackage[backend=biber, style=alphabetic]{biblatex}	% Paket fuer Literaturverzeichnisse
+\usepackage{blindtext}						% Blindtext um den Grauwert der Schrift zu pruefen
+\usepackage{booktabs}						% Linien für Tabellenpaket
+\usepackage{csquotes}						% Kontextsensitive Zitate (Wird von biblatex gefordert)
+\usepackage{graphicx}						% Einbinden von Grafiken
+\usepackage{listings} 						% Quellcode darstellen
+\usepackage{setspace}						% Durchschuss
+\usepackage{siunitx}						% Schoene Einheiten
+\usepackage{subcaption}						% Aufgeteilte Bilder
+\usepackage{xcolor}							% Farben
+\usepackage{textpos}						% Zur absoluten Positionierung von Textblöcken (Titelseite)
+\usepackage{geometry}						% Zur freien Anpassung der Dokumenteneigenschaften (Titelseite)
+
+% DAS HYPERREF- UND GLOSSARIES-PAKET SOLLTE ALS LETZTE EINGEBUNDEN WERDEN
+\usepackage{hyperref}						% Hyperlinks im Dokument
+\usepackage{xurl}							% Erstellt Zeilenumbrüche bei URLs
+\usepackage[toc, acronyms, automake]{glossaries}	% Glossar erstellen
+
+% EINSTELLUNGEN
+
+\hypersetup{
+			unicode		=false,				% Ermöglicht nicht-latin Schriftzeichen
+			pdftitle	={\theTitle},		% Titel der Arbeit für die Dokumenteninfo
+			pdfauthor	={\theAuthor},		% Name des Autors
+			pdfsubject	={\theAbstractEng},	% Abstract der Arbeit
+			pdfcreator	={\theAuthor},		% Name des Erstellers
+			pdfproducer	={\theAuthor},		% Name des Produzenten
+			pdfkeywords	={\theKeywordsEng},	% Schlüsselwörter des Dokuments
+			pdfdisplaydoctitle = true,		% Zeigt den Titel in der Titelzeile statt Dateinamen
+			pdfmenubar	=true,				% Menuleiste im PDF-Viewer anzeigen
+			pdftoolbar	=true,				% PDF-Toolbar im PDF-Viewer anzeigen
+			colorlinks	=true,				% farbiger Rahmen um die Links Schrift farbig
+			linkcolor	=red,				% Farbe für die Links
+			linktoc		=all,				% none,section,page,all
+			citecolor	=green,				% Farbe für die Quelllinks
+			filecolor	=magenta,			% Farbe für Dateilinks
+			urlcolor	=cyan,				% Farbe für URL-Links (Web, Mail)
+%			hidelinks,						% Hyperlinks unmarkiert
+			%	linkbordercolor	={1 0 0}, 	% Farbe für den Rahmen um die Links
+			%	citebordercolor	={0 1 0}, 	% Farbe für den Rahmen um die Links für Zitate
+			%	urlbordercolor	={0 1 1}, 	% Farbe für den Rahmen um die URL-Links
+}
+
+\sisetup{
+			locale = DE ,
+			per-mode = symbol
+}
+
+\addtokomafont{descriptionlabel}{\rmfamily}		% glossaries-Verzeichnisse mit Serifen

@@ -1,0 +1,46 @@
+% DOKUMENTENEINSTELLUNGEN
+\documentclass[	draft=true,							% Entwurfsmodus
+				paper=a4,							% Papierformat
+				paper=portrait,						% Ausrichtung
+				fontsize=12pt,						% Schriftgroesse
+				twoside=false,						% Einseitig
+				BCOR=10mm,							% Bindekorrektur
+				DIV = 12,							% Satzspiegel
+			  ]	{scrbook}							% TeX-Klasse
+
+\input{./Einstellungen/Eigenschaften}				% Definition von Autor, Titel, Aufgabe, etc.			  
+\input{./Einstellungen/CustomCitation}
+\input{./Einstellungen/Pakete}						% Einzubindende Pakete und zugehoerige Einstellungen
+\input{./Einstellungen/Formatierung}				% Formatierungseinstellungen
+\input{./Verzeichnisse/Verzeichnisse}				% Verzeichnisse laden
+
+\begin{document}
+
+	\frontmatter									% Vorspann	
+	\include{./Inhalt/Titelseite/HWI/Titelseite}		% Titelseiten (WICHTIG: Bei HWI-Abschlussarbeiten hier "HSU" gegen "HWI" austauschen)
+	% \input{./Inhalt/01_Zitat}						% Inspirierendes Zitat
+	% \input{./Inhalt/02_Vorwort}						% Vorwort	
+	\tableofcontents								% Inhaltsverzeichnis erstellen
+	\printglossary[type=\acronymtype, title=Abkürzungsverzeichnis]	% Abkuerzungsverzeichnis erstellen
+	\printglossary[type=symbolslist]				% Symbolverzeichnis erstellen
+	\listoffigures									% Abbildungsverzeichnis erstellen
+	\listoftables									% Tabellenverzeichnis erstellen
+	\input{./Inhalt/02_Kurzfassung}					% Kurzfassung der Arbeit	
+	
+	\renewcommand{\lstlistlistingname}{Verzeichnis der Listings}
+	\lstlistoflistings								% Verzeichnis der Listings erstellen
+	
+	\mainmatter										% Hauptteil	
+	\input{./Inhalt/03_Einleitung}
+	\input{./Inhalt/04_Allgemeines}
+	\input{./Inhalt/05_Formales}
+	\input{./Inhalt/06_Weiteres}
+	
+	\appendix										% Anhang
+	% \input{./Inhalt/99_Anhang}
+	
+	\backmatter										% Nachspann	
+	\input{./Verzeichnisse/Literaturverzeichnis}	% Literaturverzeichnis erstellen
+	\printglossary[type=main]						% Glossar erstellen
+	
+\end{document}

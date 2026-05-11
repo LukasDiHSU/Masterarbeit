@@ -1,0 +1,40 @@
+% Sortierung der Literaturverzeichnisse nach Hildebrandt
+\printbibheading[title={Literaturverzeichnis}]	% Kapitelueberschrift "Literatur" ausgeben.
+
+% Allgemein wissenschaftliche Veröffentlichungen
+\defbibnote{scPub}{
+	Folgend werden referenzierte wissenschaftliche Publikationen aufgeführt.
+}
+\printbibliography[prenote=scPub, title={Wissenschaftliche Publikationen}, heading=subbibliography, keyword=WissenschaftlichePublikationen]
+
+
+% Normen und Richtlinien
+\defbibnote{Normen}{
+	Im Folgenden werden referenzierte Normen und Richtlinien aufgeführt.
+}
+\printbibliography[prenote=Normen, title={Normen und Richtlinien}, heading=subbibliography, keyword=Normen]
+
+
+% Publikationen des Autors
+\defbibnote{ownPub}{
+	Im Folgenden werden referenzierte Publikationen des Autors aufgeführt.
+}
+\printbibliography[prenote=ownPub, title={Publikationen des Autors}, heading=subbibliography, keyword=EigenePublikationen]
+
+
+% Studentische Arbeiten
+\defbibnote{StudentischeArbeiten}{
+	Im Folgenden werden studentische Arbeiten aufgeführt. Diese sind mit \textsuperscript{\%} am Ende des Kurzbelegs kenntlich gemacht.
+}
+\printbibliography[prenote=StudentischeArbeiten, title={StudentischeArbeiten}, heading=subbibliography, keyword=StudentischeArbeiten]
+
+
+% Internetquellen und Software
+\defbibnote{InternetquellenSoftware}{
+	Im Folgenden werden referenzierte Internetquellen und Software aufgeführt. Diese sind mit \textsuperscript{@} kenntlich gemacht.
+}
+\printbibliography[prenote=InternetquellenSoftware, title={Internetquellen und Software}, heading=subbibliography, keyword=InternetquellenSoftware]
+
+% Alternativ ohne Unterteilung der einzelnen Verzeichnisse (-> davor alle vorige Zeilen auskommentieren)
+% \printbibheading[title={Literaturverzeichnis}]	% Kapitelueberschrift "Literatur" ausgeben.
+%\printbibliography

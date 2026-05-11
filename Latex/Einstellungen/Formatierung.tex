@@ -1,0 +1,28 @@
+% TEXTMASSE
+%\setlength{\parindent}{0pt} 								% Einzug neuer Abstaetze
+\flushbottom
+
+% FARBEN
+\definecolor{hsurot}{RGB}{165 0 52}
+\definecolor{hwi_gruen}{RGB}{54,170,106}
+
+% SCHRIFTART
+\newenvironment{helvet}{\fontfamily{phv}\selectfont}{\par}	% Helvetica-Umgebung
+\addtokomafont{sectioning}{\rmfamily} 						% Ueberschriften in mit serifen
+
+\onehalfspacing
+
+
+\KOMAoption{appendixprefix}{false}			% Anhang vor "A"
+\KOMAoption{bibliography}{totoc}			% Literaturverzeichnis im Inhaltsverzeichnis auffuehren
+\KOMAoption{captions}{tableheading}			% Tabellenbeschriftung oberhalt
+\KOMAoption{footinclude}{false}				% Gehoert der Fuss zum Textkoerper?
+\KOMAoption{footsepline}{false}				% Horizontale Linie ueber dem Fuss
+\KOMAoption{headinclude}{false}				% Gehoert der Kopf zum Textkoerper?
+\KOMAoption{headsepline}{true}				% Horizontale Linie unter dem Kolumnentitel
+\KOMAoption{listof}{totoc}					% Verzeichnisse im Inhaltsverzeichnis auffuehren
+%\KOMAoption{numbers}{noenddot}				% Punkt am Ende der Kapitelnummern. Nach DUDEN steht in Gliederungen, in denen ausschließlich arabische Ziffern für die Nummerierung verwendet werden, am Ende der Gliederungsnummern kein abschließender Punkt. Wird hingegen innerhalb der Gliederung auch mit römischen Zahlen oder Groß- oder Kleinbuchstaben gearbeitet, so steht am Ende aller Gliederungsnummern ein abschließender Punkt. [KOMA-Script Dokumentation zu "numbers=Einstellung"]
+\KOMAoption{parskip}{false}					% Leerzeilen zwischen Absaetzen
+\KOMAoption{twocolumn}{false}				% Einspaltig
+
+\KOMAoptions{DIV=last}	% Satzspiegel auf Basis der verwendeten Schrift neu berechnen	

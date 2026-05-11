@@ -1,0 +1,72 @@
+\begin{titlepage}
+%Logos Seite 1
+\newgeometry{left=25mm, right=20mm, top=25mm, bottom=20mm}
+\begin{flushright}
+\includegraphics[width=4.5cm]{Inhalt/Titelseite/HSU/HSU_Logo.jpg}
+\par
+\vspace*{5mm}
+\includegraphics[width=4.5cm]{Inhalt/Titelseite/HSU/AT_Logo_Untertitel_ohne_Hintergrund.png}
+\end{flushright}
+
+\vspace*{5cm}
+
+%Text Seite 1
+\begin{textblock*}{\textwidth}(0cm, 1cm)
+	\begin{flushleft}
+		\bfseries{\Large{\theAuthor}}
+		\vspace{10mm}
+
+		\bfseries{\LARGE{\theTitle}}
+	\end{flushleft}
+\end{textblock*}
+
+%Layout Seite 1 unten
+\begin{textblock*}{\pdfpagewidth}(-30mm, 7.2cm)
+	\includegraphics[width=218mm]{Inhalt/Titelseite/HSU/HSU-Curve.pdf}
+\end{textblock*}
+
+\begin{textblock*}{\textwidth}(0cm, 13cm)
+	\begin{flushleft}
+		\textbf{\Large{\textcolor{white}{\theType}}}
+		\hfill
+		\textbf{\Large{\textcolor{white}{Hamburg \theJahr}}}
+	\end{flushleft}
+\end{textblock*}
+
+\newpage
+%Seite 2
+
+\thispagestyle{empty}
+\begin{flushleft}
+	\vspace*{4cm}
+	\textbf{\Large{\theType}}
+
+	\vspace*{15mm}
+	\textbf{\large{\theAuthor}} \\
+
+	\vspace*{10mm}
+	\large{
+		\begin{tabular}[t]{ll}
+		Matrikelnummer & \theMatrikelnummer \\
+   		Studienjahrgang & \theStudienjahrgang \\
+		\end{tabular}
+	}
+\end{flushleft}
+\begin{center}
+ 	\vspace*{2cm}
+ 	\textbf{\LARGE{\theTitle}} \par
+ 	\vspace*{10mm}
+ 	\textbf{\textit{\Large{\theTitleEng}}} \par
+ 	\vspace*{25mm}
+\end{center}
+\begin{flushleft}
+	\textbf{\Large{Institut für Automatisierungstechnik\linebreak
+	Professur für Automatisierungstechnik\linebreak}}
+	\large{Univ.-Prof. Dr.-Ing. Alexander Fay} \par
+	\vspace*{20mm}
+	\textbf{\Large{Betreuer: \theBetreuer }}
+\end{flushleft}
+\end{titlepage}
+\restoregeometry
+% \pagenumbering{Roman}
+\input{Inhalt/Titelseite/HSU/EidestattlicheErklaerung.tex}
