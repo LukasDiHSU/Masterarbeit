@@ -1,0 +1,71 @@
+# TB1
+ros2 topic pub --once /tb1/initialpose geometry_msgs/msg/PoseWithCovarianceStamped "header:
+  frame_id: 'map'
+pose:
+  pose:
+    position: {x: -1.500653720729433, y: -0.5000000060919606, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -1.9562638e-06, w: 0.99999595}
+  covariance: [0.25, 0, 0, 0, 0, 0,
+               0, 0.25, 0, 0, 0, 0,
+               0, 0, 0.0001, 0, 0, 0,
+               0, 0, 0, 0.0001, 0, 0,
+               0, 0, 0, 0, 0.0001, 0,
+               0, 0, 0, 0, 0, 0.06853892]"
+               
+# TB2
+ros2 topic pub --once /tb2/initialpose geometry_msgs/msg/PoseWithCovarianceStamped "header:
+  frame_id: 'map'
+pose:
+  pose:
+    position: {x: -1.500653720729433, y: 0.49999999390803895, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -1.9562638e-06, w: 0.99999595}
+  covariance: [0.25, 0, 0, 0, 0, 0,
+               0, 0.25, 0, 0, 0, 0,
+               0, 0, 0.0001, 0, 0, 0,
+               0, 0, 0, 0.0001, 0, 0,
+               0, 0, 0, 0, 0.0001, 0,
+               0, 0, 0, 0, 0, 0.06853892]"
+   
+# TB3
+ros2 topic pub --once /tb3/initialpose geometry_msgs/msg/PoseWithCovarianceStamped "header:
+  frame_id: 'map'
+pose:
+  pose:
+    position: {x: 1.499346279270567, y: -0.50000000609196049, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -1.9562638e-06, w: 0.99999595}
+  covariance: [0.25, 0, 0, 0, 0, 0,
+               0, 0.25, 0, 0, 0, 0,
+               0, 0, 0.0001, 0, 0, 0,
+               0, 0, 0, 0.0001, 0, 0,
+               0, 0, 0, 0, 0.0001, 0,
+               0, 0, 0, 0, 0, 0.06853892]"
+  
+# TB4
+ros2 topic pub --once /tb4/initialpose geometry_msgs/msg/PoseWithCovarianceStamped "header:
+  frame_id: 'map'
+pose:
+  pose:
+    position: {x: 1.499346279270567, y: 0.499999993908039, z: 0.0}
+    orientation: {x: 0.0, y: 0.0, z: -1.9562638e-06, w: 0.99999595}
+  covariance: [0.25, 0, 0, 0, 0, 0,
+               0, 0.25, 0, 0, 0, 0,
+               0, 0, 0.0001, 0, 0, 0,
+               0, 0, 0, 0.0001, 0, 0,
+               0, 0, 0, 0, 0.0001, 0,
+               0, 0, 0, 0, 0, 0.06853892]"
+
+
+
+
+#################################################################
+For Launching Simulation
+#################################################################
+
+pkill -9 -f 'ros2|gz|gazebo|rviz|nav2|component_container' || true
+
+cd ~/GitHub/Masterarbeit/agent_project
+source /opt/ros/jazzy/setup.bash
+source ~/robot_ws/install/setup.bash
+export TURTLEBOT3_MODEL=burger
+
+SCENARIO=stations ./launch_tb3_stack.sh

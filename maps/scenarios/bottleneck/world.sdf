@@ -1,0 +1,154 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="default">
+    <physics type="ode">
+      <real_time_update_rate>1000.0</real_time_update_rate>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>150</iters>
+          <precon_iters>0</precon_iters>
+          <sor>1.400000</sor>
+          <use_dynamic_moi_rescaling>1</use_dynamic_moi_rescaling>
+        </solver>
+        <constraints>
+          <cfm>0.00001</cfm>
+          <erp>0.2</erp>
+          <contact_max_correcting_vel>2000.000000</contact_max_correcting_vel>
+          <contact_surface_layer>0.01000</contact_surface_layer>
+        </constraints>
+      </ode>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
+    </include>
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+
+    <model name="turtlebot3_arena_walls">
+      <static>1</static>
+      <include>
+        <uri>model://turtlebot3_arena_walls</uri>
+      </include>
+    </model>
+
+    <model name="divider_north">
+      <static>true</static>
+      <pose>0.000 1.400 0.400 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.550 2.350 0.800</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.550 2.350 0.800</size></box></geometry>
+          <material>
+            <ambient>0.950 0.250 0.100 1</ambient>
+            <diffuse>0.950 0.250 0.100 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="divider_south">
+      <static>true</static>
+      <pose>0.000 -1.400 0.400 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.550 2.350 0.800</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.550 2.350 0.800</size></box></geometry>
+          <material>
+            <ambient>0.950 0.250 0.100 1</ambient>
+            <diffuse>0.950 0.250 0.100 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="flange_n_l">
+      <static>true</static>
+      <pose>-0.450 0.550 0.250 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+          <material>
+            <ambient>0.900 0.150 0.050 1</ambient>
+            <diffuse>0.900 0.150 0.050 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="flange_n_r">
+      <static>true</static>
+      <pose>0.450 0.550 0.250 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+          <material>
+            <ambient>0.900 0.150 0.050 1</ambient>
+            <diffuse>0.900 0.150 0.050 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="flange_s_l">
+      <static>true</static>
+      <pose>-0.450 -0.550 0.250 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+          <material>
+            <ambient>0.900 0.150 0.050 1</ambient>
+            <diffuse>0.900 0.150 0.050 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="flange_s_r">
+      <static>true</static>
+      <pose>0.450 -0.550 0.250 0 0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>0.350 0.450 0.500</size></box></geometry>
+          <material>
+            <ambient>0.900 0.150 0.050 1</ambient>
+            <diffuse>0.900 0.150 0.050 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

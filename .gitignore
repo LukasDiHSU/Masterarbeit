@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# Secrets - never commit API keys
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.vscode/
+.cursor/
+
+# OS
+.DS_Store

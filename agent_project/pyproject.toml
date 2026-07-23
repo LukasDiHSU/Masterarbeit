@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentpackage"
+version = "0.2.0"
+description = "Multi-agent robot fleet system: centralized, decentralized, and hybrid coordination architectures"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain",
+    "langchain-openai",
+    "langgraph",
+    "mcp>=1.8.0",
+    "langchain-mcp-adapters>=0.1.0",
+    "uvicorn>=0.30.0",
+]
+
+[tool.setuptools]
+packages = [
+    "agentpackage",
+    "agentpackage.architectures",
+    "agentpackage.architectures.centralized",
+    "agentpackage.architectures.decentralized",
+    "agentpackage.architectures.hybrid",
+    "agentpackage.architectures.shared_pool",
+]
