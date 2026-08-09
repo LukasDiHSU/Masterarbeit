@@ -120,7 +120,10 @@ def write_scenario(name: str, body: str, items: list[dict]) -> Path:
 
 
 def fill_free_rect(pgm: Path, x0: float, x1: float, y0: float, y1: float) -> None:
-    """Force a rectangle to free (254), used to keep passages open."""
+    """Force a rectangle to free (254), used to keep passages open.
+
+    Never overwrites occupied cells — arena walls always take priority.
+    """
     raw = pgm.read_bytes()
     assert raw[:2] == b"P5"
     i = 2
@@ -152,7 +155,11 @@ def fill_free_rect(pgm: Path, x0: float, x1: float, y0: float, y1: float) -> Non
         for col in range(w):
             wx = ox + (col + 0.5) * res
             if x0 <= wx <= x1:
-                pixels[row * w + col] = 254
+                idx = row * w + col
+                # Walls / occupied cells win over station free-pads.
+                if pixels[idx] < 50:
+                    continue
+                pixels[idx] = 254
     pgm.write_bytes(header + bytes(pixels))
 
 

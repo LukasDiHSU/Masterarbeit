@@ -56,16 +56,3 @@ pose:
 
 
 
-
-#################################################################
-For Launching Simulation
-#################################################################
-
-pkill -9 -f 'ros2|gz|gazebo|rviz|nav2|component_container' || true
-
-cd ~/GitHub/Masterarbeit/agent_project
-source /opt/ros/jazzy/setup.bash
-source ~/robot_ws/install/setup.bash
-export TURTLEBOT3_MODEL=burger
-
-SCENARIO=stations ./launch_tb3_stack.sh
