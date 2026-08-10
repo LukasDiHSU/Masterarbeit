@@ -1,7 +1,7 @@
 """Live usage dashboard shared by all four architectures.
 
 Every agent (via ``BaseAgent``) and every transport (the centralized broker
-client, the decentralized mesh, and the shared message pool) fires small
+client, the conflict-based mesh, and the shared message pool) fires small
 UDP telemetry packets at this module's reporting helpers. A separate
 process -- ``python -m agentpackage.monitor`` -- listens for those packets
 and renders a live table: token usage and inter-agent message counts per

@@ -1,28 +1,30 @@
-# agentpackage — three multi-agent robot fleet architectures
+# agentpackage — multi-agent robot fleet architectures
 
 This project controls a fleet of four TurtleBot3 robots (`tb1`..`tb4`) over
 ROS 2 / Nav2, exposed to LLM agents through an MCP tool server
 (`agentpackage/mcpserver.py`). On top of that shared, architecture-agnostic
-tool layer, three different multi-agent coordination strategies are
-implemented so they can be compared directly (see `agentpackage/architectures/`):
+tool layer, several multi-agent coordination strategies are implemented so
+they can be compared directly (see `agentpackage/architectures/`):
 
 1. **Centralized** — a single master agent is the only one that may
    delegate; every message is routed through one central broker (star
    topology).
-2. **Decentralized** — there is no master and no broker; every robot agent
-   is a symmetric peer that can talk directly to any other peer (full mesh).
-3. **Hybrid** — starts centralized (a planner collects the goal, drafts a
-   plan, and gives the first round of instructions through the broker),
-   then hands out a peer address table so every agent — including the
-   former planner — opens direct mesh links and keeps collaborating
-   decentrally for the rest of the mission.
-4. **Shared pool (blackboard, turn-based)** — decentralized with no
+2. **Conflict-based** — peers work alone by default (no master/broker for
+   routine work); mesh negotiation opens only when MCP events such as
+   conflicts involve them, and only toward that event’s participants.
+3. **HMAS-1** — central planner primes an initial plan; robots then discuss
+   in fixed turn order (each turn sees the plan plus prior comments) until
+   one outputs EXECUTE; actions are dispatched over the star broker.
+4. **HMAS-2** — central planner proposes a fleet plan; each robot’s local
+   LLM reviews its assignment (`AGREE` / `DISAGREE`); the planner re-plans
+   until consensus, then sends execute instructions (star broker only).
+5. **Shared pool (blackboard, turn-based)** — shared log with no
    addressing. Every agent and the human user connect to one shared
    broadcast log; new joiners are replayed the full history, and every post
    goes to everyone. The pool itself enforces a fixed speaking order
    (`robot_tb1 -> robot_tb2 -> robot_tb3 -> robot_tb4 -> repeat`); a user
-   message always restarts the round at the front, and the round ends once
-   every agent has voted to stop in a row.
+   message always restarts the round at the front, and the round ends as
+   soon as any agent posts the token `DONE`.
 
 ## Usage monitor: token usage + message counts
 
@@ -51,10 +53,10 @@ How it works:
   single request) after every `invoke()`.
 - Each transport also counts **inter-agent messages** and reports its
   cumulative count: `agent_bus.BusClient.send()` (centralized),
-  `mesh_bus.MeshNode.send()` (decentralized), and the shared pool server's
+  `mesh_bus.MeshNode.send()` (conflict_based), and the shared pool server's
   accepted-post handler (rejected out-of-turn posts don't count, since they
-  never reached anyone). The hybrid architecture's `PhasedBus` reuses both
-  of these directly, tagged `architecture="hybrid"`.
+  never reached anyone). HMAS-1 and HMAS-2 reuse the centralized `BusClient`
+  tagged `architecture="HMAS-1"` / `"HMAS-2"`.
 - Reporting is one-way UDP, fire-and-forget: nothing breaks if the monitor
   isn't running, and cumulative (not delta) snapshots make it robust to any
   dropped packet -- you just miss one intermediate update, never drift.
@@ -72,7 +74,7 @@ How it works:
   `langchain.agents.create_agent` with a per-agent checkpointer, blocking
   `invoke()`, and a simple REPL (`run_persistent_chat`).
 - `agentpackage/config.py` — model name, `tb*` ↔ fleet-id mapping, and the
-  deterministic peer/port tables used by the decentralized and hybrid mesh.
+  deterministic peer/port tables used by the conflict-based mesh.
 
 ## Setup
 
@@ -96,13 +98,16 @@ printing the commands if no graphical terminal is available):
 # Centralized: 1 broker + 4 robot workers + 1 master
 ./agentpackage/architectures/centralized/launch_centralized.sh
 
-# Decentralized: 4 symmetric peers, no broker, no master
-./agentpackage/architectures/decentralized/launch_decentralized.sh
+# Conflict-based: 4 solo peers + mission CLI; negotiate only on events
+./agentpackage/architectures/conflict_based/launch_conflict_based.sh
 
-# Hybrid: 1 broker + 4 robots + 1 planner; starts centralized, then
-# call `activate_decentralized_phase` (a tool the planner calls itself)
-# to switch every agent onto a direct peer mesh.
-./agentpackage/architectures/hybrid/launch_hybrid.sh
+# HMAS-1: 1 broker + 4 robots + 1 planner; central initial plan then
+# turn-based robot dialogue until EXECUTE.
+./agentpackage/architectures/hmas1/launch_hmas1.sh
+
+# HMAS-2: 1 broker + 4 local reviewers + 1 planner; plan → AGREE/DISAGREE
+# feedback loop → execute (no mesh).
+./agentpackage/architectures/hmas2/launch_hmas2.sh
 
 # Shared pool: 1 pool server + 4 pool agents + 1 human CLI, no addressing
 ./agentpackage/architectures/shared_pool/launch_shared_pool.sh
@@ -115,12 +120,12 @@ below).
 
 ## Testing the coordination logic without an LLM or ROS 2
 
-The transports (`agent_bus.py`, `mesh_bus.py`, `phase_bus.py`) are plain
+The transports (`agent_bus.py`, `mesh_bus.py`) are plain
 Python/socket code with no LLM dependency, so they can be exercised
 directly, e.g.:
 
 ```python
-from agentpackage.architectures.decentralized.mesh_bus import MeshNode
+from agentpackage.architectures.conflict_based.mesh_bus import MeshNode
 
 peers = {"a": ("127.0.0.1", 19101), "b": ("127.0.0.1", 19102)}
 a = MeshNode("a", *peers["a"], {"b": peers["b"]})

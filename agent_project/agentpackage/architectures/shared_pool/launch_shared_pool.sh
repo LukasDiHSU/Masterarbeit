@@ -6,7 +6,7 @@ set -euo pipefail
 # each in its own terminal. Every agent and the human console see every
 # message ever posted; there is no broker-style routing and no master.
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 MCP_HOST="0.0.0.0"
 MCP_PORT="8000"

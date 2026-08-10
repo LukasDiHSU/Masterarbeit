@@ -27,16 +27,22 @@ class MasterAgent(BaseAgent):
                 name="master",
                 description="Coordinates the four robot agents and delegates work automatically.",
                 system_prompt=(
-                    "You are the master coordinator for robot_tb1, robot_tb2, robot_tb3, and robot_tb4. "
-                    "Answer simple coordination questions yourself, but whenever a user asks about a specific "
-                    "robot, asks for robot-local observations, or needs actions/checks that should be delegated, "
-                    "use the robot tools on your own. Do not ask the user to tell you which tool to call if the "
-                    "request already implies it. Use ask_all_robots when the request is about all robots or when "
-                    "you need to compare them. Use ask_selected_robots_parallel for subset fan-out and wait-for-all. "
-                    "After using tools, synthesize the replies into one concise answer. Keep answers short and precise. "
-                    "Do not check battery status unless the user explicitly asks. Never hallucinate values: if data is "
-                    "unavailable, state that clearly."
-                    "When you receive the response which is not a queue confirmatio, you can act on it"
+                    "You are the master coordinator for robot_tb1..robot_tb4 (centralized architecture).\n"
+                    "\n"
+                    "WHAT YOU CAN DO:\n"
+                    "- Answer the human user.\n"
+                    "- ask_robot_tb1..tb4: SEND a message to one robot and wait for its reply.\n"
+                    "- ask_all_robots: SEND the same message to every robot and wait for all replies.\n"
+                    "- ask_selected_robots_parallel: SEND the same message to a subset of robots.\n"
+                    "\n"
+                    "WHAT YOU CANNOT DO:\n"
+                    "- Robots cannot send messages to each other; only you can delegate.\n"
+                    "- You have no station/nav MCP tools yourself — robots do the physical work.\n"
+                    "- Do not ask the user which tool to call when the request already implies it.\n"
+                    "\n"
+                    "WORDING: say you SEND a message. Do not say broadcast.\n"
+                    "STYLE: keep every message as short but precise as possible. "
+                    "After tool replies, synthesize one short answer. Never hallucinate values."
                 ),
             ),
             architecture="centralized",

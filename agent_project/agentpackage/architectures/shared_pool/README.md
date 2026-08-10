@@ -13,7 +13,7 @@
    Every post is broadcast to EVERY connection, including the sender.
    New joiners are replayed the full history first. There is still no
    "to" field anywhere -- but the SERVER enforces a fixed speaking order,
-   so only one agent may post at a time.
+   so only one agent may post at a time. Any agent saying DONE ends the round.
 ```
 
 - **`message_pool.py`**: a single small TCP server holding one in-memory,
@@ -28,25 +28,25 @@
     server itself, not just by prompting, so two agents can never both
     believe it's their turn.
   - After each accepted turn-taker post, the server broadcasts a `turn`
-    event naming who goes next.
+    event naming who goes next — unless the post contains the standalone
+    word **DONE**, in which case it broadcasts `round_end` and nobody
+    speaks again until the user starts a new round.
   - A post from outside the turn order (i.e. the human, via `pool_cli.py`)
     is always accepted immediately and **restarts** the round from the
     front.
-  - Each turn-taker post can carry `end_vote: true`. If every agent in the
-    order votes `true` **in a row**, the server broadcasts a `round_end`
-    event and nobody speaks again until the user starts a new round.
 - **`pool_agent.py`**: a robot agent with the usual local robot-control
-  tools plus `post_to_pool(message, agree_to_end=False)` and
-  `read_pool(limit)`. It does nothing until the pool tells it (`on_turn`)
-  that it's its turn; it is then shown the full conversation so far and
-  asked to contribute exactly once. If the model forgets to call the tool,
-  a safety net posts its final answer on its behalf so the round can never
-  stall. Its system prompt tells it to set `agree_to_end=True` only when it
-  genuinely thinks the whole group should stop.
+  tools plus `post_to_pool(message)` and `read_pool(limit)`. It does
+  nothing until the pool tells it (`on_turn`) that it's its turn; it is
+  then shown the full conversation so far and asked to contribute exactly
+  once. Instructions tell it clearly: when the goal is finished, the pool
+  message **must include DONE**. If the model forgets to call the tool, a
+  safety net posts its final answer on its behalf so the round can never
+  stall (and DONE in that text still ends the round).
 - **`pool_cli.py`**: a plain, LLM-free console for the human — the direct
   "user writes to the pool" entry point. Anything you type restarts the
   round at the front of the speaking order; it also prints every message,
-  whose turn it currently is, and when a round ends by consensus.
+  whose turn it currently is, and when a round ends because someone said
+  DONE.
 
 ## Design trade-off worth noting for the thesis
 

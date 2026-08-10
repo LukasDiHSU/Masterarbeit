@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Launches the centralized (star) architecture: one shared MCP server, one
-# central broker, four robot agents (workers only), and the master
-# (the only agent allowed to delegate), each in its own terminal.
+# Conflict-based architecture: shared MCP server, four solo
+# peer agents, and a mission CLI. Peers work alone by default; mesh
+# negotiation opens only when MCP events (box_missing, conflict, ...) involve
+# them. No fleet-wide broadcast roundtable.
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
 MCP_HOST="0.0.0.0"
 MCP_PORT="8000"
 MCP_CONNECT_HOST="127.0.0.1"
-BROKER_HOST="127.0.0.1"
-BROKER_PORT="8765"
+MESH_HOST="127.0.0.1"
+MESH_BASE_PORT="9101"
+MESH_CLI_PORT="9099"
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="9900"
 USE_TABS=1
@@ -23,12 +25,11 @@ Run these in separate shells or inside tmux:
 
 cd "$PROJECT_ROOT" && python -m agentpackage.monitor --host "$MONITOR_HOST" --port "$MONITOR_PORT"
 cd "$PROJECT_ROOT" && python -m agentpackage.mcpserver --host "$MCP_HOST" --port "$MCP_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.centralized.agent_broker --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb1 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb2 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb3 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb4 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.centralized.master_agent --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb1 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb2 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb3 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb4 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
+cd "$PROJECT_ROOT" && python -m agentpackage.architectures.conflict_based.mission_cli --host "$MESH_HOST" --base-port "$MESH_BASE_PORT" --cli-port "$MESH_CLI_PORT"
 EOF
   exit 1
 fi
@@ -132,30 +133,35 @@ PY
   return 1
 }
 
-echo "Launching CENTRALIZED (star) architecture..."
+echo "Launching CONFLICT-BASED architecture..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
-echo "  Broker: $BROKER_HOST:$BROKER_PORT"
+echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (tb1..tb4 use consecutive ports)"
+echo "  Mission CLI: $MESH_HOST:$MESH_CLI_PORT"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
 
 launch_window "Usage Monitor" \
   "python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
 launch_window "MCP Server (shared)" \
   "python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
-launch_window "Agent Broker" \
-  "python -m agentpackage.architectures.centralized.agent_broker --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
-wait_for_tcp "$BROKER_HOST" "$BROKER_PORT" "Agent broker"
-launch_window "Robot tb1" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb1 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb2" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb2 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb3" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb3 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb4" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb4 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Master Agent" \
-  "python -m agentpackage.architectures.centralized.master_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 
-echo "Done. Check the opened terminal windows."
+launch_window "Peer tb4" \
+  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb4 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+launch_window "Peer tb3" \
+  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb3 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+launch_window "Peer tb2" \
+  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb2 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+launch_window "Peer tb1" \
+  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb1 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+
+wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 0))" "peer tb1"
+wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 1))" "peer tb2"
+wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 2))" "peer tb3"
+wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 3))" "peer tb4"
+
+launch_window "Mission CLI" \
+  "python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
+
+echo "Done. Assign solo missions with the Mission CLI; peers negotiate only on events."

@@ -27,7 +27,7 @@
   whichever `from` sent them — they have no tools to talk to each other.
 
 This is the architecture carried over unchanged (module names aside) from
-the Studienarbeit; it is the baseline the `decentralized` and `hybrid`
-architectures are compared against.
+the Studienarbeit; it is the baseline the `conflict_based` and `hmas1`
+(HMAS-1) architectures build on.
 
 Run: `./launch_centralized.sh`

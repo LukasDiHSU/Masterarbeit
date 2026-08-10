@@ -8,8 +8,8 @@ and can post a new message that is broadcast to everyone, including the
 poster. On top of that broadcast layer, the pool server enforces a fixed
 round-robin speaking order (``config.POOL_TURN_ORDER``): only the agent
 whose turn it is may post, and a message from the user always restarts the
-round. If every agent votes to end in a row, the round ends. What each
-agent *says* on its turn is still entirely its own decision -- only *when*
-it may speak is centrally enforced, by the pool itself rather than by any
-one privileged agent.
+round. As soon as any agent posts a message containing the word ``DONE``,
+the round ends. What each agent *says* on its turn is still entirely its
+own decision -- only *when* it may speak is centrally enforced, by the pool
+itself rather than by any one privileged agent.
 """

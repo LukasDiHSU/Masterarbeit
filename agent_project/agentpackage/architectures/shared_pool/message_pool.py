@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 import socket
 import socketserver
 import threading
@@ -14,6 +15,15 @@ from ...monitor import report_messages
 
 DEFAULT_HOST = DEFAULT_POOL_HOST
 DEFAULT_PORT = DEFAULT_POOL_PORT
+
+# Any turn-taker post whose text contains the standalone token DONE (uppercase)
+# ends the round. Lowercase "done" in normal prose does not count.
+_DONE_RE = re.compile(r"(?:^|\s)DONE(?:\s|$|[.!,;:])")
+
+
+def message_says_done(text: str) -> bool:
+    """True if the post signals the conversation should stop (token DONE)."""
+    return bool(_DONE_RE.search(text or ""))
 
 
 def _send_line(wfile: BinaryIO, lock: threading.Lock, obj: dict[str, Any]) -> None:
@@ -47,7 +57,6 @@ _turn_order: list[str] = list(POOL_TURN_ORDER)
 _turn_lock = threading.Lock()
 _turn_index = 0
 _round_active = True
-_consecutive_end_votes = 0
 
 
 def _broadcast(obj: dict[str, Any]) -> None:
@@ -109,10 +118,11 @@ class PoolHandler(socketserver.StreamRequestHandler):
         wfile: BinaryIO,
         sub_lock: threading.Lock,
     ) -> None:
-        global _turn_index, _round_active, _consecutive_end_votes
+        global _turn_index, _round_active
 
         is_turn_taker = name in _turn_order
-        end_vote = bool(envelope.get("end_vote", False))
+        text = str(envelope.get("text", ""))
+        done = message_says_done(text)
 
         with _turn_lock:
             if is_turn_taker:
@@ -139,14 +149,13 @@ class PoolHandler(socketserver.StreamRequestHandler):
                 # user) always (re)starts a fresh round at the front.
                 _turn_index = 0
                 _round_active = True
-                _consecutive_end_votes = 0
 
             message = {
                 "seq": next(_seq_counter),
                 "from": name,
-                "text": str(envelope.get("text", "")),
+                "text": text,
                 "thread_id": envelope.get("thread_id", "pool"),
-                "end_vote": end_vote,
+                "done": done,
                 "timestamp": time.time(),
             }
             with _log_lock:
@@ -157,14 +166,18 @@ class PoolHandler(socketserver.StreamRequestHandler):
             report_messages(agent=name, architecture="shared_pool", count=count)
             _broadcast({"type": "message", **message})
 
-            if is_turn_taker:
-                _consecutive_end_votes = _consecutive_end_votes + 1 if end_vote else 0
-                if _consecutive_end_votes >= len(_turn_order):
-                    _round_active = False
-                    _broadcast({"type": "round_end", "reason": "all_agents_agreed_to_end"})
-                else:
-                    _turn_index = (_turn_index + 1) % len(_turn_order)
-                    _broadcast({"type": "turn", "name": _current_turn_locked(), "round_active": True})
+            if is_turn_taker and done:
+                _round_active = False
+                _broadcast(
+                    {
+                        "type": "round_end",
+                        "reason": "agent_said_done",
+                        "from": name,
+                    }
+                )
+            elif is_turn_taker:
+                _turn_index = (_turn_index + 1) % len(_turn_order)
+                _broadcast({"type": "turn", "name": _current_turn_locked(), "round_active": True})
             else:
                 _broadcast({"type": "turn", "name": _current_turn_locked(), "round_active": True})
 
@@ -202,8 +215,8 @@ class PoolClient:
     agent whose turn it is not is rejected with a private ``error`` message
     (never added to the shared log); a post from outside the turn order
     (e.g. the human user) always starts a fresh round. ``on_turn`` tells you
-    whose turn it currently is; ``on_round_end`` fires once every
-    turn-taker in a row has posted with ``end_vote=True``.
+    whose turn it currently is; ``on_round_end`` fires as soon as any
+    turn-taker posts a message containing the word ``DONE``.
     """
 
     def __init__(self, name: str, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
@@ -268,7 +281,7 @@ class PoolClient:
         self._turn_handlers.append(handler)
 
     def on_round_end(self, handler: Callable[[dict[str, Any]], None]) -> None:
-        """Called once every turn-taker in a row has posted with end_vote=True."""
+        """Called when a turn-taker posts a message containing DONE."""
         self._round_end_handlers.append(handler)
 
     def on_error(self, handler: Callable[[str], None]) -> None:
@@ -278,8 +291,8 @@ class PoolClient:
     def wait_for_history(self, timeout: float = 5.0) -> None:
         self._history_ready.wait(timeout)
 
-    def post(self, text: str, *, thread_id: str = "pool", end_vote: bool = False) -> None:
-        self._send_json({"type": "post", "text": text, "thread_id": thread_id, "end_vote": end_vote})
+    def post(self, text: str, *, thread_id: str = "pool") -> None:
+        self._send_json({"type": "post", "text": text, "thread_id": thread_id})
 
     def recent(self, limit: int = 20) -> list[dict[str, Any]]:
         return self.history[-limit:]

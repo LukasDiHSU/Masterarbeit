@@ -32,22 +32,26 @@ def main() -> None:
     def show(msg: dict) -> None:
         if msg.get("from") == args.name:
             return
-        marker = " [END VOTE]" if msg.get("end_vote") else ""
+        marker = " [DONE]" if msg.get("done") else ""
         print(f"\n[{msg['from']}] {msg['text']}{marker}")
 
     def show_turn(name: str | None) -> None:
         print(f"\n... it is now {name}'s turn ...")
 
     def show_round_end(envelope: dict) -> None:
-        print(f"\n=== round ended: {envelope.get('reason', 'unknown')} — send a message to start a new round ===")
-
+        who = envelope.get("from", "?")
+        print(
+            f"\n=== round ended: {envelope.get('reason', 'unknown')} "
+            f"(by {who}) — send a message to start a new round ==="
+        )
     client.on_message(show)
     client.on_turn(show_turn)
     client.on_round_end(show_round_end)
 
     print(f"Connected to the shared pool as {args.name!r}.")
     print("Type a message and press Enter to broadcast it directly to every agent -- this starts a new")
-    print("turn-based round beginning with the first agent in the fixed speaking order. Ctrl+C to quit.\n")
+    print("turn-based round beginning with the first agent in the fixed speaking order.")
+    print("The round stops as soon as any agent posts a message containing DONE. Ctrl+C to quit.\n")
 
     try:
         while True:

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Launches the centralized (star) architecture: one shared MCP server, one
-# central broker, four robot agents (workers only), and the master
-# (the only agent allowed to delegate), each in its own terminal.
+# Launches HMAS-1: shared MCP, central broker, four robot agents, and a
+# central planner. The planner primes an initial plan, then robots discuss
+# turn-by-turn until EXECUTE (paper HMAS-1 / DMAS hybrid). Star broker only.
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
@@ -24,11 +24,11 @@ Run these in separate shells or inside tmux:
 cd "$PROJECT_ROOT" && python -m agentpackage.monitor --host "$MONITOR_HOST" --port "$MONITOR_PORT"
 cd "$PROJECT_ROOT" && python -m agentpackage.mcpserver --host "$MCP_HOST" --port "$MCP_PORT"
 cd "$PROJECT_ROOT" && python -m agentpackage.architectures.centralized.agent_broker --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb1 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb2 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb3 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.centralized.robot_agent --tb-id tb4 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.centralized.master_agent --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb1 --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb2 --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb3 --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb4 --host "$BROKER_HOST" --port "$BROKER_PORT"
+cd "$PROJECT_ROOT" && python -m agentpackage.architectures.hmas1.planner_agent --host "$BROKER_HOST" --port "$BROKER_PORT"
 EOF
   exit 1
 fi
@@ -132,7 +132,7 @@ PY
   return 1
 }
 
-echo "Launching CENTRALIZED (star) architecture..."
+echo "Launching HMAS-1 architecture (central prime + turn-based dialogue)..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
 echo "  Broker: $BROKER_HOST:$BROKER_PORT"
@@ -148,14 +148,14 @@ launch_window "Agent Broker" \
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
 wait_for_tcp "$BROKER_HOST" "$BROKER_PORT" "Agent broker"
 launch_window "Robot tb1" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb1 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb1 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 launch_window "Robot tb2" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb2 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb2 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 launch_window "Robot tb3" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb3 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb3 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 launch_window "Robot tb4" \
-  "$SHARED_ENV python -m agentpackage.architectures.centralized.robot_agent --tb-id tb4 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Master Agent" \
-  "python -m agentpackage.architectures.centralized.master_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb4 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+launch_window "Planner (HMAS-1)" \
+  "python -m agentpackage.architectures.hmas1.planner_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 
 echo "Done. Check the opened terminal windows."
