@@ -30,4 +30,4 @@ the centralized star broker.
 Contrast with **HMAS-1** (central plan primes turn-based dialogue until EXECUTE)
 and plain **centralized** / CMAS (central assigns with no local review loop).
 
-Run: `./launch_hmas2.sh`
+Run: `./launch_hmas2.sh` (optional `--agents 2|4|6|8`)

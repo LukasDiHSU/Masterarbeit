@@ -30,4 +30,4 @@ This is the architecture carried over unchanged (module names aside) from
 the Studienarbeit; it is the baseline the `conflict_based` and `hmas1`
 (HMAS-1) architectures build on.
 
-Run: `./launch_centralized.sh`
+Run: `./launch_centralized.sh` (optional `--agents 2|4|6|8`)

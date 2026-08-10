@@ -4,7 +4,6 @@ import argparse
 import json
 import threading
 from functools import cached_property
-from typing import Literal
 
 from langchain.tools import tool
 
@@ -13,13 +12,12 @@ from ...config import (
     DEFAULT_POOL_HOST,
     DEFAULT_POOL_PORT,
     POOL_TURN_ORDER,
+    TB_IDS,
     TB_TO_ROBOT_ID,
     robot_peer_name,
 )
 from ...mcp_client import load_mcp_tools_safe
 from .message_pool import PoolClient, message_says_done
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 
 class PoolAgent(BaseAgent):
@@ -33,7 +31,9 @@ class PoolAgent(BaseAgent):
     ends immediately until the user starts a new one.
     """
 
-    def __init__(self, tb_id: TB_ID, *, pool: PoolClient):
+    def __init__(self, tb_id: str, *, pool: PoolClient):
+        if tb_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
         self.tb_id = tb_id
         self.pool = pool
         self.posted_this_turn = False
@@ -107,7 +107,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run one robot agent that coordinates via the turn-based shared message pool (blackboard architecture)."
     )
-    parser.add_argument("--tb-id", choices=["tb1", "tb2", "tb3", "tb4"], required=True)
+    parser.add_argument("--tb-id", choices=list(TB_IDS), required=True)
     parser.add_argument("--host", default=DEFAULT_POOL_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_POOL_PORT)
     args = parser.parse_args()

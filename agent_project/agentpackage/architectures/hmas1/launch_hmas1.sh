@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Launches HMAS-1: shared MCP, central broker, four robot agents, and a
-# central planner. The planner primes an initial plan, then robots discuss
-# turn-by-turn until EXECUTE (paper HMAS-1 / DMAS hybrid). Star broker only.
+# Launches HMAS-1: MCP + broker + AGENT_COUNT robots + planner.
+# Fleet size: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# shellcheck source=../_parse_agents.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_parse_agents.sh"
+parse_agent_count "$@" || exit 1
+set -- "${LAUNCH_ARGS[@]}"
 
 MCP_HOST="0.0.0.0"
 MCP_PORT="8000"
@@ -17,19 +20,16 @@ MONITOR_PORT="9900"
 USE_TABS=1
 
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  cat <<EOF
-No graphical terminal detected (DISPLAY/WAYLAND_DISPLAY unset).
-Run these in separate shells or inside tmux:
-
-cd "$PROJECT_ROOT" && python -m agentpackage.monitor --host "$MONITOR_HOST" --port "$MONITOR_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.mcpserver --host "$MCP_HOST" --port "$MCP_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.centralized.agent_broker --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb1 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb2 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb3 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb4 --host "$BROKER_HOST" --port "$BROKER_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.hmas1.planner_agent --host "$BROKER_HOST" --port "$BROKER_PORT"
-EOF
+  echo "No graphical terminal detected (DISPLAY/WAYLAND_DISPLAY unset)."
+  echo "Run these in separate shells or inside tmux (AGENT_COUNT=$AGENT_COUNT):"
+  echo
+  echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+  echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
+  echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.architectures.centralized.agent_broker --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  for ((i=1; i<=AGENT_COUNT; i++)); do
+    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb$i --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  done
+  echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.hmas1.planner_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
   exit 1
 fi
 
@@ -98,7 +98,7 @@ launch_window() {
 }
 
 MCP_URL="http://$MCP_CONNECT_HOST:$MCP_PORT/sse"
-SHARED_ENV="AGENT_MCP_URL=$MCP_URL"
+SHARED_ENV="AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=$MCP_URL"
 
 wait_for_tcp() {
   local host="$1"
@@ -108,7 +108,7 @@ wait_for_tcp() {
   local delay="${5:-0.25}"
 
   for ((i=1; i<=tries; i++)); do
-    if python - "$host" "$port" <<'PY' >/dev/null 2>&1
+    if python - "$host" "$port" <<'WAITPY' >/dev/null 2>&1
 import socket, sys
 h = sys.argv[1]
 p = int(sys.argv[2])
@@ -121,7 +121,7 @@ except Exception:
     raise SystemExit(1)
 finally:
     s.close()
-PY
+WAITPY
     then
       return 0
     fi
@@ -132,10 +132,11 @@ PY
   return 1
 }
 
-echo "Launching HMAS-1 architecture (central prime + turn-based dialogue)..."
+echo "Launching HMAS-1 architecture..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
 echo "  Broker: $BROKER_HOST:$BROKER_PORT"
+echo "  Agents: $AGENT_COUNT robots + planner"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
 
 launch_window "Usage Monitor" \
@@ -147,15 +148,12 @@ launch_window "Agent Broker" \
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
 wait_for_tcp "$BROKER_HOST" "$BROKER_PORT" "Agent broker"
-launch_window "Robot tb1" \
-  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb1 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb2" \
-  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb2 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb3" \
-  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb3 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
-launch_window "Robot tb4" \
-  "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb4 --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+for ((i=1; i<=AGENT_COUNT; i++)); do
+  launch_window "Robot tb$i" \
+    "$SHARED_ENV python -m agentpackage.architectures.hmas1.robot_agent --tb-id tb$i --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+done
 launch_window "Planner (HMAS-1)" \
-  "python -m agentpackage.architectures.hmas1.planner_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
+  "AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.hmas1.planner_agent --host \"$BROKER_HOST\" --port \"$BROKER_PORT\""
 
 echo "Done. Check the opened terminal windows."
+

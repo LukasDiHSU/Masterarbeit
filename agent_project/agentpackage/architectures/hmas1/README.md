@@ -30,4 +30,4 @@ for execution. Robots do not free-form mesh-chat.
 Contrast with **HMAS-2** (central plan → parallel AGREE/DISAGREE → re-plan)
 and plain **conflict_based** (event-gated mesh peers, no central primer).
 
-Run: `./launch_hmas1.sh`
+Run: `./launch_hmas1.sh` (optional `--agents 2|4|6|8`)

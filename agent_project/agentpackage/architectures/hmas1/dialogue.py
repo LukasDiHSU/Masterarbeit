@@ -45,7 +45,7 @@ def resolve_participants(recipients: str) -> list[str] | dict[str, Any]:
             "unknown": unknown,
             "valid": list(TB_IDS),
         }
-    # Keep fleet order (tb1..tb4), not input order — paper turn-taking is ordered.
+    # Keep fleet order (tb1..tbN), not input order — paper turn-taking is ordered.
     order = [robot_peer_name(tb) for tb in TB_IDS]
     return [p for p in order if p in peers]
 
@@ -73,6 +73,7 @@ def build_turn_prompt(
     max_rounds: int,
 ) -> str:
     order = " -> ".join(participants)
+    example_lines = "\n".join(f"  {p}: ..." for p in participants[: min(2, len(participants))])
     return (
         "HMAS-1 TURN-BASED DIALOGUE (after the planner's single priming plan).\n"
         f"Participants (speak in this order): {order}\n"
@@ -91,8 +92,7 @@ def build_turn_prompt(
         "- OR, if the fleet should act now, reply starting with EXECUTE on its own "
         "line, then one action line per participant, e.g.:\n"
         "  EXECUTE\n"
-        "  robot_tb1: ...\n"
-        "  robot_tb2: ...\n"
+        f"{example_lines}\n"
         "Do not execute MCP navigation/pickup yet during discussion — only after "
         "EXECUTE has been decided and you later receive an execute instruction.\n"
     )

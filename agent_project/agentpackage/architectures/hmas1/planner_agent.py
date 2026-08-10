@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-from typing import Literal
 
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import PLANNER_NAME, TB_IDS, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, robot_peer_name
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 from .dialogue import (
     DEFAULT_MAX_ROUNDS,
@@ -15,8 +14,6 @@ from .dialogue import (
     parse_execute_actions,
     resolve_participants,
 )
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 
 class PlannerAgent(BaseAgent):
@@ -29,6 +26,7 @@ class PlannerAgent(BaseAgent):
         self.bus = bus
         self._active_thread_id = "default"
         self._plan_sent_this_turn = False
+        fleet = fleet_prompt_range()
 
         super().__init__(
             AgentSpec(
@@ -38,7 +36,8 @@ class PlannerAgent(BaseAgent):
                     "then robots discuss turn-based until EXECUTE."
                 ),
                 system_prompt=(
-                    "You are the central planner for robot_tb1..robot_tb4 (HMAS-1 architecture).\n"
+                    f"You are the central planner for {fleet} (HMAS-1 architecture, "
+                    f"{AGENT_COUNT} robots).\n"
                     "\n"
                     "YOUR ONLY JOB: draft ONE short initial plan and SEND it once. That plan "
                     "primes the robots. After that, robots discuss among themselves in turn "

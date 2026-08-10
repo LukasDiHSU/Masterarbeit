@@ -1,6 +1,7 @@
 # agentpackage — multi-agent robot fleet architectures
 
-This project controls a fleet of four TurtleBot3 robots (`tb1`..`tb4`) over
+This project controls a fleet of TurtleBot3 robots (`tb1`..`tbN`, where
+`N` is `AGENT_COUNT` ∈ {2,4,6,8}, default 4) over
 ROS 2 / Nav2, exposed to LLM agents through an MCP tool server
 (`agentpackage/mcpserver.py`). On top of that shared, architecture-agnostic
 tool layer, several multi-agent coordination strategies are implemented so
@@ -95,23 +96,26 @@ MCP server plus every agent process in its own terminal (falls back to
 printing the commands if no graphical terminal is available):
 
 ```bash
-# Centralized: 1 broker + 4 robot workers + 1 master
-./agentpackage/architectures/centralized/launch_centralized.sh
+# Centralized: 1 broker + N robot workers + 1 master
+./agentpackage/architectures/centralized/launch_centralized.sh --agents 4
 
-# Conflict-based: 4 solo peers + mission CLI; negotiate only on events
-./agentpackage/architectures/conflict_based/launch_conflict_based.sh
+# Conflict-based: N solo peers + mission CLI; negotiate only on events
+./agentpackage/architectures/conflict_based/launch_conflict_based.sh --agents 4
 
-# HMAS-1: 1 broker + 4 robots + 1 planner; central initial plan then
+# HMAS-1: 1 broker + N robots + 1 planner; central initial plan then
 # turn-based robot dialogue until EXECUTE.
-./agentpackage/architectures/hmas1/launch_hmas1.sh
+./agentpackage/architectures/hmas1/launch_hmas1.sh --agents 4
 
-# HMAS-2: 1 broker + 4 local reviewers + 1 planner; plan → AGREE/DISAGREE
+# HMAS-2: 1 broker + N local reviewers + 1 planner; plan → AGREE/DISAGREE
 # feedback loop → execute (no mesh).
-./agentpackage/architectures/hmas2/launch_hmas2.sh
+./agentpackage/architectures/hmas2/launch_hmas2.sh --agents 4
 
-# Shared pool: 1 pool server + 4 pool agents + 1 human CLI, no addressing
-./agentpackage/architectures/shared_pool/launch_shared_pool.sh
+# Shared pool: 1 pool server + N pool agents + 1 human CLI, no addressing
+./agentpackage/architectures/shared_pool/launch_shared_pool.sh --agents 4
 ```
+
+Fleet size `N` is `AGENT_COUNT` (also `AGENTS=N` or `--agents N`), allowed
+values **2, 4, 6, 8** (default 4). Leaders/planners are extra where used.
 
 Without ROS 2 running, the robot-control MCP tools simply come back empty
 and the agents fall back to their peer/delegation tools only — useful for

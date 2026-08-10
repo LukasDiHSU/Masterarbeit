@@ -60,8 +60,9 @@ def main() -> None:
         mesh._wait_for_link(peer, timeout=60.0)
         print(f"  linked: {peer}")
     print()
+    tb_help = "|".join(TB_IDS)
     print("Commands:")
-    print("  mission <tb1|tb2|tb3|tb4> <text>   — solo mission to one peer")
+    print(f"  mission <{tb_help}> <text>   — solo mission to one peer")
     print("  conflict <tb_a>,<tb_b>[,...] [reason] — emit conflict event (MCP)")
     print("  events [since]                     — show MCP event log")
     print("  stations                           — list stations/boxes")
@@ -126,7 +127,7 @@ def main() -> None:
                 rest = line[len("mission ") :].strip()
                 parts = rest.split(maxsplit=1)
                 if len(parts) < 2:
-                    print("usage: mission <tb1|tb2|tb3|tb4> <text>")
+                    print(f"usage: mission <{'|'.join(TB_IDS)}> <text>")
                     continue
                 target_tok, text = parts[0], parts[1]
                 if target_tok in TB_IDS:

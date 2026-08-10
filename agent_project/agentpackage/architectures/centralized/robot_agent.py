@@ -1,24 +1,21 @@
-
 from __future__ import annotations
 
 import argparse
 from functools import cached_property
-from typing import Literal
 
 from ...BaseAgents import BaseAgent, AgentSpec
-from ...config import TB_TO_ROBOT_ID, nav_id_for_tb
+from ...config import TB_IDS, TB_TO_ROBOT_ID, nav_id_for_tb
 from ...mcp_client import load_mcp_tools_safe
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 
 class RobotAgent(BaseAgent):
     """A worker agent with no delegation authority: it only ever reacts to
     requests coming from the master through the central broker."""
 
-    def __init__(self, tb_id: TB_ID):
+    def __init__(self, tb_id: str):
+        if tb_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
         self.tb_id = tb_id
         rid = TB_TO_ROBOT_ID[tb_id]
         nav_id = nav_id_for_tb(tb_id)
@@ -57,7 +54,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run one robot agent that can answer local user input and master requests (centralized architecture)."
     )
-    parser.add_argument("--tb-id", choices=["tb1", "tb2", "tb3", "tb4"], required=True)
+    parser.add_argument("--tb-id", choices=list(TB_IDS), required=True)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--thread-id", default="local")

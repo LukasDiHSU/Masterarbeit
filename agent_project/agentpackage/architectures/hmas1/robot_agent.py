@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import argparse
 from functools import cached_property
-from typing import Literal
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import TB_IDS, TB_TO_ROBOT_ID, nav_id_for_tb, robot_peer_name
+from ...config import AGENT_COUNT, TB_IDS, TB_TO_ROBOT_ID, nav_id_for_tb, robot_peer_name
 from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 
 class HMAS1RobotAgent(BaseAgent):
@@ -17,10 +14,13 @@ class HMAS1RobotAgent(BaseAgent):
     may output EXECUTE, then carries out its action when dispatched.
     """
 
-    def __init__(self, tb_id: TB_ID):
+    def __init__(self, tb_id: str):
+        if tb_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
         self.tb_id = tb_id
         self.nav_id = nav_id_for_tb(tb_id)
         rid = TB_TO_ROBOT_ID[tb_id]
+        example_peers = "\n".join(f"  {robot_peer_name(t)}: ..." for t in TB_IDS[: min(2, len(TB_IDS))])
 
         super().__init__(
             AgentSpec(
@@ -30,7 +30,7 @@ class HMAS1RobotAgent(BaseAgent):
                 ),
                 system_prompt=(
                     f"You are {robot_peer_name(tb_id)} (nav id {self.nav_id}, fleet id {rid}) "
-                    "in the HMAS-1 architecture.\n"
+                    f"in the HMAS-1 architecture ({AGENT_COUNT} robots).\n"
                     "\n"
                     "ROLE SPLIT:\n"
                     "- The central planner ONLY sends ONE initial priming plan (to everyone or "
@@ -47,8 +47,7 @@ class HMAS1RobotAgent(BaseAgent):
                     "- When the group should act, start your reply with EXECUTE, then one "
                     "action line per participant, e.g.:\n"
                     "  EXECUTE\n"
-                    f"  {robot_peer_name(tb_id)}: ...\n"
-                    "  robot_tb2: ...\n"
+                    f"{example_peers}\n"
                     "- On a later EXECUTE APPROVED message: carry out YOUR action with MCP: "
                     f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
                     "pickup_box/drop_box with that robot_id, etc.\n"

@@ -2,15 +2,12 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Literal
 
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import PLANNER_NAME, TB_IDS, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, robot_peer_name
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 _REVIEW_PREFIX = (
     "PLAN REVIEW REQUEST — do NOT execute yet. "
@@ -30,6 +27,7 @@ class PlannerAgent(BaseAgent):
     def __init__(self, *, bus: BusClient):
         self.bus = bus
         self._active_thread_id = "default"
+        fleet = fleet_prompt_range()
 
         super().__init__(
             AgentSpec(
@@ -39,7 +37,8 @@ class PlannerAgent(BaseAgent):
                     "feedback, re-plans until consensus, then sends execute messages."
                 ),
                 system_prompt=(
-                    "You are the central planner for robot_tb1..robot_tb4 (HMAS-2 architecture).\n"
+                    f"You are the central planner for {fleet} (HMAS-2 architecture, "
+                    f"{AGENT_COUNT} robots).\n"
                     "\n"
                     "WHAT YOU CAN DO:\n"
                     "- Talk to the human user and draft ONE short fleet plan with clear "

@@ -5,7 +5,7 @@ import json
 import threading
 import time
 from functools import cached_property
-from typing import Any, Literal
+from typing import Any
 
 from langchain.tools import tool
 
@@ -23,8 +23,6 @@ from ...mcp_client import load_mcp_tools_safe
 from .event_gate import format_event_prompt, parse_mcp_json, participants_for_event
 from .mesh_bus import MeshNode
 
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
-
 
 class RobotPeerAgent(BaseAgent):
     """Conflict-based peer.
@@ -34,7 +32,9 @@ class RobotPeerAgent(BaseAgent):
     only toward the event's participant subset.
     """
 
-    def __init__(self, tb_id: TB_ID, *, mesh: MeshNode, peer_names: list[str]):
+    def __init__(self, tb_id: str, *, mesh: MeshNode, peer_names: list[str]):
+        if tb_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
         self.tb_id = tb_id
         self.nav_id = nav_id_for_tb(tb_id)
         self.mesh = mesh

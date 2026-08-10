@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Conflict-based architecture: shared MCP server, four solo
-# peer agents, and a mission CLI. Peers work alone by default; mesh
-# negotiation opens only when MCP events (box_missing, conflict, ...) involve
-# them. No fleet-wide broadcast roundtable.
+# Launches conflict-based mesh: MCP + AGENT_COUNT solo peers + mission CLI.
+# Fleet size: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# shellcheck source=../_parse_agents.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_parse_agents.sh"
+parse_agent_count "$@" || exit 1
+set -- "${LAUNCH_ARGS[@]}"
 
 MCP_HOST="0.0.0.0"
 MCP_PORT="8000"
@@ -19,18 +21,15 @@ MONITOR_PORT="9900"
 USE_TABS=1
 
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
-  cat <<EOF
-No graphical terminal detected (DISPLAY/WAYLAND_DISPLAY unset).
-Run these in separate shells or inside tmux:
-
-cd "$PROJECT_ROOT" && python -m agentpackage.monitor --host "$MONITOR_HOST" --port "$MONITOR_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.mcpserver --host "$MCP_HOST" --port "$MCP_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb1 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb2 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb3 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
-cd "$PROJECT_ROOT" && AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb4 --host "$MESH_HOST" --base-port "$MESH_BASE_PORT"
-cd "$PROJECT_ROOT" && python -m agentpackage.architectures.conflict_based.mission_cli --host "$MESH_HOST" --base-port "$MESH_BASE_PORT" --cli-port "$MESH_CLI_PORT"
-EOF
+  echo "No graphical terminal detected (DISPLAY/WAYLAND_DISPLAY unset)."
+  echo "Run these in separate shells or inside tmux (AGENT_COUNT=$AGENT_COUNT):"
+  echo
+  echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+  echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
+  for ((i=1; i<=AGENT_COUNT; i++)); do
+    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+  done
+  echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
   exit 1
 fi
 
@@ -99,7 +98,7 @@ launch_window() {
 }
 
 MCP_URL="http://$MCP_CONNECT_HOST:$MCP_PORT/sse"
-SHARED_ENV="AGENT_MCP_URL=$MCP_URL"
+SHARED_ENV="AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=$MCP_URL"
 
 wait_for_tcp() {
   local host="$1"
@@ -109,7 +108,7 @@ wait_for_tcp() {
   local delay="${5:-0.25}"
 
   for ((i=1; i<=tries; i++)); do
-    if python - "$host" "$port" <<'PY' >/dev/null 2>&1
+    if python - "$host" "$port" <<'WAITPY' >/dev/null 2>&1
 import socket, sys
 h = sys.argv[1]
 p = int(sys.argv[2])
@@ -122,7 +121,7 @@ except Exception:
     raise SystemExit(1)
 finally:
     s.close()
-PY
+WAITPY
     then
       return 0
     fi
@@ -136,8 +135,8 @@ PY
 echo "Launching CONFLICT-BASED architecture..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
-echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (tb1..tb4 use consecutive ports)"
-echo "  Mission CLI: $MESH_HOST:$MESH_CLI_PORT"
+echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (tb1..tb$AGENT_COUNT)"
+echo "  Agents: $AGENT_COUNT peers + mission CLI"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
 
 launch_window "Usage Monitor" \
@@ -146,22 +145,13 @@ launch_window "MCP Server (shared)" \
   "python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
-
-launch_window "Peer tb4" \
-  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb4 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
-launch_window "Peer tb3" \
-  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb3 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
-launch_window "Peer tb2" \
-  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb2 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
-launch_window "Peer tb1" \
-  "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb1 --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
-
-wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 0))" "peer tb1"
-wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 1))" "peer tb2"
-wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 2))" "peer tb3"
-wait_for_tcp "$MESH_HOST" "$((MESH_BASE_PORT + 3))" "peer tb4"
-
+for ((i=AGENT_COUNT; i>=1; i--)); do
+  launch_window "Peer tb$i" \
+    "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+done
+sleep 1
 launch_window "Mission CLI" \
-  "python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
+  "AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
 
-echo "Done. Assign solo missions with the Mission CLI; peers negotiate only on events."
+echo "Done. Check the opened terminal windows."
+

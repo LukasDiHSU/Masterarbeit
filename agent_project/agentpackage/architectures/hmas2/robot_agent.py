@@ -2,14 +2,11 @@ from __future__ import annotations
 
 import argparse
 from functools import cached_property
-from typing import Literal
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import TB_TO_ROBOT_ID, nav_id_for_tb, robot_peer_name
+from ...config import TB_IDS, TB_TO_ROBOT_ID, nav_id_for_tb, robot_peer_name
 from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-TB_ID = Literal["tb1", "tb2", "tb3", "tb4"]
 
 
 class HMAS2RobotAgent(BaseAgent):
@@ -17,7 +14,9 @@ class HMAS2RobotAgent(BaseAgent):
     executes only after the planner sends an EXECUTE message. No peer tools.
     """
 
-    def __init__(self, tb_id: TB_ID):
+    def __init__(self, tb_id: str):
+        if tb_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
         self.tb_id = tb_id
         self.nav_id = nav_id_for_tb(tb_id)
         rid = TB_TO_ROBOT_ID[tb_id]
@@ -69,7 +68,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run one HMAS-2 robot agent (local review + execute via central planner)."
     )
-    parser.add_argument("--tb-id", choices=["tb1", "tb2", "tb3", "tb4"], required=True)
+    parser.add_argument("--tb-id", choices=list(TB_IDS), required=True)
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--thread-id", default="local")

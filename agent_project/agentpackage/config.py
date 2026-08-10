@@ -2,22 +2,39 @@ import os
 
 DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5")
 
-TB_TO_ROBOT_ID = {
-    "tb1": "robot_1",
-    "tb2": "robot_2",
-    "tb3": "robot_3",
-    "tb4": "robot_4",
+# Number of working robots (tb1..tbN). Leaders/planners are separate where used.
+ALLOWED_AGENT_COUNTS = (2, 4, 6, 8)
+
+
+def _parse_agent_count() -> int:
+    raw = os.getenv("AGENT_COUNT", "4").strip()
+    try:
+        n = int(raw)
+    except ValueError as e:
+        raise ValueError(
+            f"AGENT_COUNT must be one of {ALLOWED_AGENT_COUNTS}, got {raw!r}"
+        ) from e
+    if n not in ALLOWED_AGENT_COUNTS:
+        raise ValueError(
+            f"AGENT_COUNT must be one of {ALLOWED_AGENT_COUNTS}, got {n}"
+        )
+    return n
+
+
+AGENT_COUNT = _parse_agent_count()
+
+TB_IDS: tuple[str, ...] = tuple(f"tb{i}" for i in range(1, AGENT_COUNT + 1))
+
+TB_TO_ROBOT_ID: dict[str, str] = {
+    tb_id: f"robot_{i}" for i, tb_id in enumerate(TB_IDS, start=1)
 }
 
 # Nav2 action namespace used by navigate_to_pose / pickup_box robot_id.
-TB_TO_NAV_ID = {
-    "tb1": os.getenv("AGENT_NAV_TB1", "SmallDeliveryRobot_0"),
-    "tb2": os.getenv("AGENT_NAV_TB2", "SmallDeliveryRobot_1"),
-    "tb3": os.getenv("AGENT_NAV_TB3", "SmallDeliveryRobot_2"),
-    "tb4": os.getenv("AGENT_NAV_TB4", "SmallDeliveryRobot_3"),
+TB_TO_NAV_ID: dict[str, str] = {
+    tb_id: os.getenv(f"AGENT_NAV_TB{i}", f"SmallDeliveryRobot_{i - 1}")
+    for i, tb_id in enumerate(TB_IDS, start=1)
 }
 
-TB_IDS = tuple(TB_TO_ROBOT_ID.keys())
 NAV_ID_TO_TB = {nav: tb for tb, nav in TB_TO_NAV_ID.items()}
 
 # --- Centralized architecture (star broker) -------------------------------
@@ -43,9 +60,9 @@ DEFAULT_MESH_CLI_PORT = int(os.getenv("AGENT_MESH_CLI_PORT", "9099"))
 DEFAULT_POOL_HOST = os.getenv("AGENT_POOL_HOST", "127.0.0.1")
 DEFAULT_POOL_PORT = int(os.getenv("AGENT_POOL_PORT", "8866"))
 
-# Fixed round-robin speaking order for the pool's turn-based mode:
-# robot_tb1 -> robot_tb2 -> robot_tb3 -> robot_tb4 -> repeat. A user post
-# (any name outside this order) always restarts the round at the front.
+# Fixed round-robin speaking order for the pool's turn-based mode
+# (robot_tb1 -> … -> robot_tbN -> repeat). A user post (any name outside
+# this order) always restarts the round at the front.
 POOL_TURN_ORDER = tuple(f"robot_{tb_id}" for tb_id in TB_IDS)
 
 # --- Usage monitor ----------------------------------------------------------
@@ -60,6 +77,15 @@ DEFAULT_MONITOR_PORT = int(os.getenv("AGENT_MONITOR_PORT", "9900"))
 def robot_peer_name(tb_id: str) -> str:
     """Canonical peer/agent name used on the bus/mesh for a given robot."""
     return f"robot_{tb_id}"
+
+
+def fleet_prompt_range() -> str:
+    """Human-readable range like robot_tb1..robot_tb4 for system prompts."""
+    if not TB_IDS:
+        return "(no robots)"
+    if len(TB_IDS) == 1:
+        return robot_peer_name(TB_IDS[0])
+    return f"{robot_peer_name(TB_IDS[0])}..{robot_peer_name(TB_IDS[-1])}"
 
 
 def nav_id_for_tb(tb_id: str) -> str:

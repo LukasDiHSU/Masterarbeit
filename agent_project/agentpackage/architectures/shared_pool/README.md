@@ -61,4 +61,4 @@ you want to add one for the thesis). The speaking order itself is
 configurable (`message_pool.py --turn-order robot_tb2,robot_tb1,...` or
 `config.POOL_TURN_ORDER`) in case you want to compare different orderings.
 
-Run: `./launch_shared_pool.sh`
+Run: `./launch_shared_pool.sh` (optional `--agents 2|4|6|8`)

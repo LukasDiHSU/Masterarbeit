@@ -31,4 +31,4 @@ Event-triggered coordination should use fewer inter-agent messages and LLM
 tokens than round-based shared-pool deliberation when conflicts are sparse,
 while still negotiating when bottlenecks / missing boxes involve a subset.
 
-Run: `./launch_conflict_based.sh`
+Run: `./launch_conflict_based.sh` (optional `--agents 2|4|6|8`)

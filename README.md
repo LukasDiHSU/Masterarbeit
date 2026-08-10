@@ -17,3 +17,7 @@ base class:
 See [`agent_project/README.md`](agent_project/README.md) for setup and how
 to run each architecture, and the `README.md` inside each architecture
 folder for the design rationale behind that specific variant.
+
+Fleet size is configurable via `AGENT_COUNT` / `--agents` (**2, 4, 6, or 8**
+working robots; default 4). Architectures that have a master/planner add
+that leader on top of N workers.
