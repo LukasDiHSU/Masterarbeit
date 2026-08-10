@@ -1,0 +1,30 @@
+[
+  {
+    "id": "center",
+    "name": "arena center",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  },
+  {
+    "id": "north",
+    "name": "north point",
+    "x": 0.0,
+    "y": 5.4,
+    "z": 0.0
+  },
+  {
+    "id": "south",
+    "name": "south point",
+    "x": 0.0,
+    "y": -5.4,
+    "z": 0.0
+  },
+  {
+    "id": "east",
+    "name": "east point",
+    "x": 5.4,
+    "y": 0.0,
+    "z": 0.0
+  }
+]

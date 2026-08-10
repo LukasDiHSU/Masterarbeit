@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
@@ -12,7 +13,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
 from .config import DEFAULT_MODEL
-from .monitor import report_tokens
+from .monitor import report_tokens, report_trace
 
 
 @dataclass(slots=True)
@@ -48,31 +49,124 @@ class TokenUsage:
         )
 
 
-class _TokenUsageCallback(BaseCallbackHandler):
-    """Reads ``usage_metadata`` off every chat model response as it comes
-    back. This fires exactly once per actual LLM call (including the
-    intermediate calls an agentic tool-calling loop makes within a single
-    ``invoke()``), so usage is counted correctly no matter how many tool
-    round-trips a request needed -- unlike summing over the checkpointer's
-    message history, which would double-count on every later call."""
+def _content_to_text(content: Any) -> str:
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                if block.get("type") == "text" and "text" in block:
+                    parts.append(str(block["text"]))
+                else:
+                    parts.append(json.dumps(block, default=str))
+            else:
+                text = getattr(block, "text", None)
+                parts.append(str(text) if text is not None else str(block))
+        return " ".join(p for p in parts if p)
+    return str(content)
 
-    def __init__(self, usage: TokenUsage):
+
+def _format_tool_calls(tool_calls: Any) -> str:
+    if not tool_calls:
+        return ""
+    bits: list[str] = []
+    for tc in tool_calls:
+        if isinstance(tc, dict):
+            name = tc.get("name") or tc.get("function", {}).get("name") or "?"
+            args = tc.get("args")
+            if args is None and isinstance(tc.get("function"), dict):
+                args = tc["function"].get("arguments")
+        else:
+            name = getattr(tc, "name", None) or "?"
+            args = getattr(tc, "args", None)
+        if not isinstance(args, str):
+            try:
+                args = json.dumps(args, default=str)
+            except Exception:
+                args = str(args)
+        bits.append(f"{name}({args})")
+    return "; ".join(bits)
+
+
+class _AgentTelemetryCallback(BaseCallbackHandler):
+    """Token accounting plus live LLM/tool traces for the Agent Trace window."""
+
+    def __init__(self, usage: TokenUsage, *, agent: str, architecture: str):
         self._usage = usage
+        self._agent = agent
+        self._architecture = architecture
         self._lock = threading.Lock()
+        self.thread_id: str | None = None
+
+    def _emit(self, kind: str, text: str = "", *, tool: str | None = None) -> None:
+        try:
+            report_trace(
+                agent=self._agent,
+                architecture=self._architecture,
+                kind=kind,
+                text=text,
+                tool=tool,
+                thread_id=self.thread_id,
+            )
+        except Exception:
+            pass
 
     def on_llm_end(self, response: Any, **kwargs: Any) -> None:
         for generations in getattr(response, "generations", []) or []:
             for generation in generations:
                 message = getattr(generation, "message", None)
-                usage = getattr(message, "usage_metadata", None) if message is not None else None
-                if not usage:
+                if message is None:
                     continue
-                with self._lock:
-                    self._usage.add(
-                        int(usage.get("input_tokens", 0) or 0),
-                        int(usage.get("output_tokens", 0) or 0),
-                        int(usage.get("total_tokens", 0) or 0),
-                    )
+                usage = getattr(message, "usage_metadata", None)
+                if usage:
+                    with self._lock:
+                        self._usage.add(
+                            int(usage.get("input_tokens", 0) or 0),
+                            int(usage.get("output_tokens", 0) or 0),
+                            int(usage.get("total_tokens", 0) or 0),
+                        )
+                text = _content_to_text(getattr(message, "content", None))
+                tool_bits = _format_tool_calls(getattr(message, "tool_calls", None))
+                parts = [p for p in (text, f"tool_calls: {tool_bits}" if tool_bits else "") if p]
+                if parts:
+                    self._emit("llm", " | ".join(parts))
+
+    def on_tool_start(
+        self,
+        serialized: dict[str, Any],
+        input_str: str,
+        **kwargs: Any,
+    ) -> None:
+        name = (
+            (serialized or {}).get("name")
+            or kwargs.get("name")
+            or "?"
+        )
+        inputs = kwargs.get("inputs", input_str)
+        if not isinstance(inputs, str):
+            try:
+                inputs = json.dumps(inputs, default=str)
+            except Exception:
+                inputs = str(inputs)
+        self._emit("tool_start", str(inputs), tool=str(name))
+
+    def on_tool_end(self, output: Any, **kwargs: Any) -> None:
+        name = kwargs.get("name") or "?"
+        if hasattr(output, "content"):
+            text = _content_to_text(getattr(output, "content", output))
+        elif not isinstance(output, str):
+            try:
+                text = json.dumps(output, default=str)
+            except Exception:
+                text = str(output)
+        else:
+            text = output
+        self._emit("tool_end", text, tool=str(name))
 
 
 class BaseAgent:
@@ -83,7 +177,11 @@ class BaseAgent:
         self._checkpointer = InMemorySaver()
         self.token_usage = TokenUsage()
         self.last_call_usage = TokenUsage()
-        self._token_callback = _TokenUsageCallback(self.token_usage)
+        self._token_callback = _AgentTelemetryCallback(
+            self.token_usage,
+            agent=spec.name,
+            architecture=architecture,
+        )
 
     @cached_property
     def agent(self):
@@ -99,6 +197,7 @@ class BaseAgent:
         return []
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
+        self._token_callback.thread_id = self.thread_key(thread_id)
         config = {
             "configurable": {"thread_id": self.thread_key(thread_id)},
             "callbacks": [self._token_callback],
@@ -133,7 +232,15 @@ class BaseAgent:
             total_tokens=self.token_usage.total_tokens,
             llm_calls=self.token_usage.llm_calls,
         )
-        return self._extract_text(result)
+        text = self._extract_text(result)
+        report_trace(
+            agent=self.spec.name,
+            architecture=self.architecture,
+            kind="turn_end",
+            text=text,
+            thread_id=self.thread_key(thread_id),
+        )
+        return text
 
     def token_usage_line(self, *, cumulative: bool = True) -> str:
         usage = self.token_usage if cumulative else self.last_call_usage
@@ -156,7 +263,10 @@ class BaseAgent:
             "Persistent chat on thread %r. Commands: %s (or Ctrl+D / Ctrl+C)."
             % (thread_id, ", ".join(sorted(exits)))
         )
-        print("Token usage and message counts are reported to the usage monitor, not printed here.")
+        print(
+            "Token usage → usage monitor; LLM/tool traces → agent trace window "
+            "(not printed here)."
+        )
         while True:
             try:
                 line = input(prompt).strip()
@@ -178,10 +288,4 @@ class BaseAgent:
         if not messages:
             return ""
         last_message = messages[-1]
-        return (
-            last_message.content
-            if isinstance(last_message.content, str)
-            else str(last_message.content)
-            if isinstance(last_message.content, list)
-            else str(last_message.content)
-        )
+        return _content_to_text(getattr(last_message, "content", last_message))

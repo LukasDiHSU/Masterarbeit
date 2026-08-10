@@ -14,9 +14,9 @@ from ...config import (
     DEFAULT_MESH_BASE_PORT,
     DEFAULT_MESH_HOST,
     TB_IDS,
-    TB_TO_ROBOT_ID,
     build_peer_table,
     nav_id_for_tb,
+    peer_name_for_robot_id,
     robot_peer_name,
 )
 from ...mcp_client import load_mcp_tools_safe
@@ -32,31 +32,38 @@ class RobotPeerAgent(BaseAgent):
     only toward the event's participant subset.
     """
 
-    def __init__(self, tb_id: str, *, mesh: MeshNode, peer_names: list[str]):
-        if tb_id not in TB_IDS:
-            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
-        self.tb_id = tb_id
-        self.nav_id = nav_id_for_tb(tb_id)
+    def __init__(self, robot_id: str, *, mesh: MeshNode, peer_names: list[str]):
+        if robot_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {robot_id!r}; allowed: {list(TB_IDS)}")
+        self.robot_id = robot_id
+        self.nav_id = nav_id_for_tb(robot_id)
         self.mesh = mesh
         self.peer_names = peer_names
         self._active_thread_id = "default"
         self._gate_lock = threading.Lock()
         self._allowed_peers: set[str] | None = None
         self._active_event: dict[str, Any] | None = None
-        rid = TB_TO_ROBOT_ID[tb_id]
+        name = robot_peer_name(robot_id)
 
         super().__init__(
             AgentSpec(
-                name=robot_peer_name(tb_id),
-                description=f"Event-triggered peer for robot {tb_id}. Solo by default.",
+                name=name,
+                description=f"Event-triggered peer for {name}. Solo by default.",
                 system_prompt=(
-                    f"You are {robot_peer_name(tb_id)} (nav id {self.nav_id}, fleet id {rid}) in the "
-                    "CONFLICT-BASED architecture.\n"
+                    f"You are {name} in the CONFLICT-BASED architecture.\n"
                     "\n"
                     "WHAT YOU CAN DO:\n"
-                    "- Work alone with MCP tools: list_available_boxes, get_station, "
-                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), pickup_box/drop_box with that robot_id, "
+                    "- Work alone with MCP tools: list_worlds, get_map_info, list_available_boxes, get_station, "
+                    f"rank_stations_by_distance(robot_id='{self.nav_id}'), get_robot_pose, "
+                    "distance_to_station, get_laser_snapshot, get_peer_distances, "
+                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
+                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
+                    "pickup_box/drop_box with that robot_id, "
                     "get_events, whiteboard.\n"
+                    "- Station ids are station_A..station_D (short A/B/C/D also work).\n"
+                    "- ACTION: rank_stations_by_distance once → navigate_to_pose. "
+                    "Do not call get_peer_distances before navigating. "
+                    "Only after nav fails: get_peer_distances and/or drive_distance, then retry.\n"
                     "- When negotiation is open for an event: negotiate_with to SEND a message to listed peers only; "
                     "then end_negotiation.\n"
                     "\n"
@@ -66,6 +73,10 @@ class RobotPeerAgent(BaseAgent):
                     "- There is no master; do not wait for one.\n"
                     "\n"
                     "WORDING: say you SEND a message. Do not say broadcast.\n"
+                    "FLEET: Other robots share this map. Navigate first; on failure use "
+                    "get_peer_distances / drive_distance to clear peers, then retry.\n"
+                    "TOOLS: If the same tool with the same arguments fails twice, do not call "
+                    "it a third time — change the goal/approach or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. Never hallucinate values."
                 ),
             ),
@@ -131,7 +142,7 @@ class RobotPeerAgent(BaseAgent):
             """SEND a message to one peer involved in the current event. Only while negotiation is open.
 
             Args:
-                peer_name: e.g. robot_tb2
+                peer_name: e.g. SmallDeliveryRobot_1
                 message: status / proposal (who yields, who proceeds)
             """
             with self._gate_lock:
@@ -207,7 +218,13 @@ def main() -> None:
             "opens negotiation only when MCP events involve this robot."
         )
     )
-    parser.add_argument("--tb-id", choices=list(TB_IDS), required=True)
+    parser.add_argument(
+        "--robot-id",
+        "--tb-id",
+        dest="robot_id",
+        choices=list(TB_IDS),
+        required=True,
+    )
     parser.add_argument("--host", default=DEFAULT_MESH_HOST)
     parser.add_argument("--base-port", type=int, default=DEFAULT_MESH_BASE_PORT)
     parser.add_argument("--thread-id", default="local")
@@ -215,12 +232,12 @@ def main() -> None:
     args = parser.parse_args()
 
     peer_table = build_peer_table(TB_IDS, host=args.host, base_port=args.base_port)
-    my_name = robot_peer_name(args.tb_id)
+    my_name = robot_peer_name(args.robot_id)
     my_host, my_port = peer_table[my_name]
     peers_without_self = {n: hp for n, hp in peer_table.items() if n != my_name}
 
     mesh = MeshNode(my_name, my_host, my_port, peers_without_self)
-    robot = RobotPeerAgent(args.tb_id, mesh=mesh, peer_names=list(peer_table.keys()))
+    robot = RobotPeerAgent(args.robot_id, mesh=mesh, peer_names=list(peer_table.keys()))
 
     def handle_message(msg: dict) -> None:
         if msg.get("type") != "agent_request":
@@ -230,7 +247,7 @@ def main() -> None:
         thread_id = str(msg.get("thread_id", src))
 
         # Incoming peer negotiation unlocks reply to that peer only.
-        if src.startswith("robot_"):
+        if peer_name_for_robot_id(src) is not None:
             robot.allow_incoming_from(src)
 
         print(f"\n[{src} -> {my_name}] {text}")

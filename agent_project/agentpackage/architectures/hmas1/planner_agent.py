@@ -50,13 +50,14 @@ class PlannerAgent(BaseAgent):
                     "role assignment inside that single document).\n"
                     "- propose_and_discuss(plan, participants): call this EXACTLY ONCE per "
                     "user goal. participants must be 'all' (everyone) OR a single robot "
-                    "like 'tb1' — never several separate calls, never one robot after another, "
+                    "like 'SmallDeliveryRobot_0' — never several separate calls, never one robot after another, "
                     "never a different plan text per robot.\n"
                     "\n"
                     "WHAT YOU CANNOT DO:\n"
                     "- Do not wait for acknowledgements or ask robots to confirm the plan.\n"
                     "- Do not call propose_and_discuss more than once for the same user goal.\n"
-                    "- Do not send plan A to tb1 and then plan B to tb2 (or any sequence of "
+                    "- Do not send plan A to SmallDeliveryRobot_0 and then plan B to "
+                    "SmallDeliveryRobot_1 (or any sequence of "
                     "plans). One call, one plan text, recipients='all' OR one robot.\n"
                     "- Do not invent a different plan per robot.\n"
                     "- No MCP station/nav tools; robots act after their dialogue reaches EXECUTE.\n"
@@ -67,8 +68,12 @@ class PlannerAgent(BaseAgent):
                     "\n"
                     "WORKFLOW:\n"
                     "1) Write one initial plan.\n"
-                    "2) Call propose_and_discuss once (participants='all' or e.g. 'tb1').\n"
+                    "2) Call propose_and_discuss once (participants='all' or e.g. 'SmallDeliveryRobot_0').\n"
                     "3) Report the returned dialogue / EXECUTE outcome to the user.\n"
+                    "FLEET: Robots share one map; the initial plan must avoid collisions "
+                    "between peers (stagger goals / mention yielding).\n"
+                    "TOOLS: If the same tool/ask fails twice with the same args, do not retry "
+                    "a third identical call — change the plan or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. Never hallucinate values."
                 ),
             ),
@@ -185,7 +190,7 @@ class PlannerAgent(BaseAgent):
 
             Args:
                 plan: The single initial fleet plan (all role assignments in this one text).
-                participants: 'all' (everyone) OR one robot like 'tb1' — not a list of many
+                participants: 'all' (everyone) OR one robot like 'SmallDeliveryRobot_0' — not a list of many
                     robots, and not multiple sequential calls.
                 max_rounds: Max full passes through the participant order (default 3).
             """
@@ -209,7 +214,7 @@ class PlannerAgent(BaseAgent):
                         "error": "invalid_participants",
                         "message": (
                             "participants must be 'all' (every robot) or a single robot "
-                            "like 'tb1'. Do not pass several robots; do not send plans "
+                            "like 'SmallDeliveryRobot_0'. Do not pass several robots; do not send plans "
                             "one after another."
                         ),
                         "got": resolved,

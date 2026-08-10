@@ -12,7 +12,7 @@ for execution. Robots do not free-form mesh-chat.
  user ► │ planner  │  propose_and_discuss(initial plan)
         └────┬─────┘
              │ primes, then orchestrates turns (broker)
-     tb1 → tb2 → tb3 → tb4 → tb1 → …  until EXECUTE
+     SmallDeliveryRobot_0 → _1 → _2 → _3 → _0 → …  until EXECUTE
              │
              ▼
       dispatch EXECUTE actions to each participant

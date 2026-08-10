@@ -1,0 +1,164 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="stations">
+    <scene>
+      <grid>false</grid>
+    </scene>
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin
+      filename="libignition-gazebo-physics-system.so"
+      name="ignition::gazebo::systems::Physics">
+    </plugin>
+    <plugin
+      filename="libignition-gazebo-sensors-system.so"
+      name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre</render_engine>
+      <namespace>test</namespace>
+    </plugin>
+    <plugin
+        filename="ignition-gazebo-imu-system"
+        name="ignition::gazebo::systems::Imu">
+    </plugin>
+    <plugin
+      filename="libignition-gazebo-user-commands-system.so"
+      name="ignition::gazebo::systems::UserCommands">
+    </plugin>
+    <plugin
+      filename="libignition-gazebo-scene-broadcaster-system.so"
+      name="ignition::gazebo::systems::SceneBroadcaster">
+    </plugin>
+
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0.0000 0.0000 20.0000 0.0 0.0 0.0000</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0.0 0.0 1.0</normal>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0.0 0.0 1.0</normal>
+              <size>200.0000 200.0000</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+<model name="stations_arena_walls">
+      <static>1</static>
+      <include>
+        <uri>model://stations_arena_walls</uri>
+      </include>
+    </model>
+
+    <model name="center_block">
+      <static>true</static>
+      <pose>0.0000 0.0000 1.0500 0.0 0.0 0.0000</pose>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>9.6000 9.6000 2.1000</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <geometry><box><size>9.6000 9.6000 2.1000</size></box></geometry>
+          <material>
+            <ambient>0.350 0.350 0.400 1</ambient>
+            <diffuse>0.350 0.350 0.400 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+
+
+
+    <!-- Station pads are visual-only, inset inside 2x walls at ±10.0. -->
+
+    <model name="station_a">
+      <static>true</static>
+      <pose>-10.0000 -10.0000 0.0900 0 0 0.0000</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>3.0000 3.0000 0.1800</size></box></geometry>
+          <material>
+            <ambient>0.100 0.750 0.200 1</ambient>
+            <diffuse>0.100 0.750 0.200 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="station_b">
+      <static>true</static>
+      <pose>-10.0000 10.0000 0.0900 0 0 0.0000</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>3.0000 3.0000 0.1800</size></box></geometry>
+          <material>
+            <ambient>0.150 0.450 0.900 1</ambient>
+            <diffuse>0.150 0.450 0.900 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="station_c">
+      <static>true</static>
+      <pose>10.0000 10.0000 0.0900 0 0 0.0000</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>3.0000 3.0000 0.1800</size></box></geometry>
+          <material>
+            <ambient>0.950 0.800 0.100 1</ambient>
+            <diffuse>0.950 0.800 0.100 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="station_d">
+      <static>true</static>
+      <pose>10.0000 -10.0000 0.0900 0 0 0.0000</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>3.0000 3.0000 0.1800</size></box></geometry>
+          <material>
+            <ambient>0.850 0.200 0.550 1</ambient>
+            <diffuse>0.850 0.200 0.550 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

@@ -13,7 +13,7 @@ from ...config import (
     DEFAULT_POOL_PORT,
     POOL_TURN_ORDER,
     TB_IDS,
-    TB_TO_ROBOT_ID,
+    nav_id_for_tb,
     robot_peer_name,
 )
 from ...mcp_client import load_mcp_tools_safe
@@ -31,26 +31,35 @@ class PoolAgent(BaseAgent):
     ends immediately until the user starts a new one.
     """
 
-    def __init__(self, tb_id: str, *, pool: PoolClient):
-        if tb_id not in TB_IDS:
-            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
-        self.tb_id = tb_id
+    def __init__(self, robot_id: str, *, pool: PoolClient):
+        if robot_id not in TB_IDS:
+            raise ValueError(f"Unknown robot {robot_id!r}; allowed: {list(TB_IDS)}")
+        self.robot_id = robot_id
+        self.nav_id = nav_id_for_tb(robot_id)
         self.pool = pool
         self.posted_this_turn = False
-        rid = TB_TO_ROBOT_ID[tb_id]
+        name = robot_peer_name(robot_id)
         order_desc = " -> ".join(POOL_TURN_ORDER)
 
         super().__init__(
             AgentSpec(
-                name=robot_peer_name(tb_id),
-                description=f"Turn-based pool agent for robot {tb_id}. No master, no direct addressing.",
+                name=name,
+                description=f"Turn-based pool agent for {name}. No master, no direct addressing.",
                 system_prompt=(
-                    f"You are {robot_peer_name(tb_id)} (fleet id {rid}) in the SHARED POOL architecture.\n"
+                    f"You are {name} in the SHARED POOL architecture.\n"
                     "\n"
                     "WHAT YOU CAN DO:\n"
-                    "- On your turn only: use MCP tools if needed (stations/boxes, navigate_to_pose, events, whiteboard), "
+                    f"- On your turn only: use MCP tools if needed (list_worlds/get_map_info, "
+                    f"rank_stations_by_distance(robot_id='{self.nav_id}'), stations/boxes, get_robot_pose, "
+                    f"distance_to_station, get_laser_snapshot, get_peer_distances, "
+                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
+                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
+                    "events, whiteboard), "
                     "then post_to_pool EXACTLY ONCE to SEND your message into the shared pool "
                     "(everyone reads the same log).\n"
+                    "- Prefer few tools: rank stations once → navigate. "
+                    "Only after nav fails: get_peer_distances and/or drive_distance, then retry. "
+                    "Do not re-sense poses repeatedly.\n"
                     f"- Speaking order: {order_desc} (then repeats). A user message restarts at the front.\n"
                     "- read_pool if you need more history than you were shown.\n"
                     "\n"
@@ -67,6 +76,10 @@ class PoolAgent(BaseAgent):
                     "- Never call post_to_pool more than once per turn.\n"
                     "\n"
                     "WORDING: say you SEND / post a message to the pool. Do not say broadcast.\n"
+                    "FLEET: Other robots share this map. Navigate first; on failure use "
+                    "get_peer_distances / drive_distance to clear peers, then retry.\n"
+                    "TOOLS: If the same tool with the same arguments fails twice, do not call "
+                    "it a third time — change the goal/approach or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. Never hallucinate values."
                 ),
             ),
@@ -107,15 +120,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run one robot agent that coordinates via the turn-based shared message pool (blackboard architecture)."
     )
-    parser.add_argument("--tb-id", choices=list(TB_IDS), required=True)
+    parser.add_argument(
+        "--robot-id",
+        "--tb-id",
+        dest="robot_id",
+        choices=list(TB_IDS),
+        required=True,
+    )
     parser.add_argument("--host", default=DEFAULT_POOL_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_POOL_PORT)
     args = parser.parse_args()
 
-    my_name = robot_peer_name(args.tb_id)
+    my_name = robot_peer_name(args.robot_id)
     pool = PoolClient(my_name, host=args.host, port=args.port)
     pool.wait_for_history(timeout=5.0)
-    robot = PoolAgent(args.tb_id, pool=pool)
+    robot = PoolAgent(args.robot_id, pool=pool)
 
     def handle_message(msg: dict) -> None:
         marker = " [DONE]" if msg.get("done") else ""

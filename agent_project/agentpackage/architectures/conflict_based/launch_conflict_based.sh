@@ -18,6 +18,7 @@ MESH_BASE_PORT="9101"
 MESH_CLI_PORT="9099"
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="9900"
+TRACE_MONITOR_PORT="9901"
 USE_TABS=1
 
 if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
@@ -25,9 +26,10 @@ if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   echo "Run these in separate shells or inside tmux (AGENT_COUNT=$AGENT_COUNT):"
   echo
   echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.trace_monitor --host \"$MONITOR_HOST\" --port \"$TRACE_MONITOR_PORT\""
   echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
-  for ((i=1; i<=AGENT_COUNT; i++)); do
-    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+  for ((i=0; i<AGENT_COUNT; i++)); do
+    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.conflict_based.robot_peer_agent --robot-id SmallDeliveryRobot_$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
   done
   echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
   exit 1
@@ -135,19 +137,22 @@ WAITPY
 echo "Launching CONFLICT-BASED architecture..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
-echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (tb1..tb$AGENT_COUNT)"
+echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (SmallDeliveryRobot_0..N-1)"
 echo "  Agents: $AGENT_COUNT peers + mission CLI"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
+echo "  Agent trace:   $MONITOR_HOST:$TRACE_MONITOR_PORT (UDP)"
 
 launch_window "Usage Monitor" \
   "python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+launch_window "Agent Trace" \
+  "python -m agentpackage.trace_monitor --host \"$MONITOR_HOST\" --port \"$TRACE_MONITOR_PORT\""
 launch_window "MCP Server (shared)" \
   "python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
-for ((i=AGENT_COUNT; i>=1; i--)); do
-  launch_window "Peer tb$i" \
-    "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --tb-id tb$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
+for ((i=AGENT_COUNT-1; i>=0; i--)); do
+  launch_window "Peer SmallDeliveryRobot_$i" \
+    "$SHARED_ENV python -m agentpackage.architectures.conflict_based.robot_peer_agent --robot-id SmallDeliveryRobot_$i --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\""
 done
 sleep 1
 launch_window "Mission CLI" \

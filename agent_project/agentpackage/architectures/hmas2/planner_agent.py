@@ -6,15 +6,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 _REVIEW_PREFIX = (
     "PLAN REVIEW REQUEST — do NOT execute yet. "
-    "Check only YOUR assignment in the plan below against your local state "
-    "(stations, held boxes, nav feasibility, conflicts). "
-    "Reply with exactly one line starting with AGREE: or DISAGREE: "
-    "followed by a short reason.\n\n"
+    "Check only YOUR assignment. Prefer ZERO tools; reply AGREE: or DISAGREE: "
+    "in one line. If you must pick farthest/nearest station, call "
+    "rank_stations_by_distance once — do not sense peers, lasers, or events.\n\n"
     "FLEET PLAN:\n"
 )
 
@@ -44,7 +43,8 @@ class PlannerAgent(BaseAgent):
                     "- Talk to the human user and draft ONE short fleet plan with clear "
                     "per-robot assignments inside that single document.\n"
                     "- collect_feedback(plan, recipients): SEND that plan as a REVIEW "
-                    "request (not execution) to recipients='all' or e.g. 'tb1,tb3'. "
+                    "request (not execution) to recipients='all' or e.g. "
+                    "'SmallDeliveryRobot_0,SmallDeliveryRobot_2'. "
                     "Each robot replies AGREE: … or DISAGREE: …\n"
                     "- ask_robot(robot, message): SEND a follow-up or an EXECUTE instruction "
                     "to exactly one robot after consensus.\n"
@@ -63,11 +63,18 @@ class PlannerAgent(BaseAgent):
                     "WORDING: say you SEND a message / SEND the plan. Do not say broadcast.\n"
                     "\n"
                     "WORKFLOW:\n"
-                    "1) Draft one fleet plan.\n"
+                    "1) Draft one short fleet plan (who moves where; who holds).\n"
                     "2) collect_feedback until all recipients AGREE (on DISAGREE, revise and "
                     "collect again).\n"
-                    "3) Only then SEND execute instructions (ask_robot / ask_all_robots / "
-                    "ask_selected_robots), clearly marked as EXECUTE.\n"
+                    "3) Only then SEND execute instructions, clearly marked as EXECUTE.\n"
+                    "   - Moving robot: EXECUTE with concrete x/y (from their AGREE navigate_xy "
+                    "if they reported it) — one ask_robot is enough.\n"
+                    "   - Idle robots: either omit EXECUTE, or a one-line "
+                    "'EXECUTE: HOLD. Reply HOLDING. Do not use tools.' "
+                    "Do NOT ask them to laser-scan or monitor surroundings.\n"
+                    "FLEET: Robots share one map; plans must avoid collisions between peers.\n"
+                    "TOOLS: If the same tool/ask fails twice with the same args, do not retry "
+                    "a third identical call — change the plan or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. Never hallucinate values."
                 ),
             ),
@@ -82,30 +89,28 @@ class PlannerAgent(BaseAgent):
             self._active_thread_id = "default"
 
     def _resolve_recipients(self, recipients: str) -> list[str] | dict:
-        raw = recipients.strip().lower()
-        if raw in {"all", "*", "everyone", "fleet"}:
-            return [robot_peer_name(tb) for tb in TB_IDS]
+        raw = recipients.strip()
+        if raw.lower() in {"all", "*", "everyone", "fleet"}:
+            return [robot_peer_name(rid) for rid in TB_IDS]
 
         tokens = [t.strip() for t in raw.replace(";", ",").split(",") if t.strip()]
         peers: list[str] = []
         unknown: list[str] = []
         for tok in tokens:
-            if tok.startswith("robot_"):
-                tb = tok.removeprefix("robot_")
-            elif tok.startswith("tb"):
-                tb = tok
-            else:
-                tb = f"tb{tok}" if tok.isdigit() else tok
-            if tb in TB_IDS:
-                name = robot_peer_name(tb)
-                if name not in peers:
-                    peers.append(name)
-            else:
+            rid = resolve_robot_id(tok)
+            if rid is None:
                 unknown.append(tok)
+                continue
+            name = robot_peer_name(rid)
+            if name not in peers:
+                peers.append(name)
         if unknown or not peers:
             return {
                 "error": "invalid_recipients",
-                "message": "Use 'all' or a comma-separated list like tb1 or tb1,tb2.",
+                "message": (
+                    "Use 'all' or a comma-separated list like "
+                    "SmallDeliveryRobot_0 or SmallDeliveryRobot_0,SmallDeliveryRobot_1."
+                ),
                 "unknown": unknown,
                 "valid": list(TB_IDS),
             }
@@ -163,7 +168,7 @@ class PlannerAgent(BaseAgent):
 
             Args:
                 plan: Full fleet plan with per-robot role assignments in one document.
-                recipients: 'all', or e.g. 'tb1' / 'tb1,tb2'.
+                recipients: 'all', or e.g. 'SmallDeliveryRobot_0' / 'SmallDeliveryRobot_0,SmallDeliveryRobot_1'.
             """
             resolved = self._resolve_recipients(recipients)
             if isinstance(resolved, dict):
@@ -209,7 +214,7 @@ class PlannerAgent(BaseAgent):
             """SEND the same message to a subset of robots in parallel.
 
             Args:
-                robots: Comma-separated tb ids, e.g. 'tb1,tb3'.
+                robots: Comma-separated remroc ids, e.g. 'SmallDeliveryRobot_0,SmallDeliveryRobot_2'.
                 message: Message to send (typically EXECUTE after consensus).
             """
             resolved = self._resolve_recipients(robots)

@@ -22,8 +22,8 @@
 - **Mesh transport** (`mesh_bus.py`) stays as the point-to-point channel for
   those gated negotiations — not as a always-on chat fabric.
 - **`mission_cli.py`**: assign a solo mission to one robot
-  (`mission tb1 …`) or inject a multi-robot conflict
-  (`conflict tb1,tb2 bottleneck`). Replaces the old fleet-wide broadcast CLI.
+  (`mission SmallDeliveryRobot_0 …`) or inject a multi-robot conflict
+  (`conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 bottleneck`). Replaces the old fleet-wide broadcast CLI.
 
 ## Token / communication hypothesis
 

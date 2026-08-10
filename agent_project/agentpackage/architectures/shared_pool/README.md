@@ -2,11 +2,11 @@
 
 ```
                      ┌─────────────────────┐
-        user ───────►│                     │◄─────────── robot_tb1 (turn 1)
+        user ───────►│                     │◄─────────── SmallDeliveryRobot_0 (turn 1)
                       │   shared message    │
-   robot_tb4 ────────►│        pool         │◄─────────── robot_tb2 (turn 2)
+   SmallDeliveryRobot_3 ────────►│        pool         │◄─────────── SmallDeliveryRobot_1 (turn 2)
       (turn 4)        │  (append-only log,   │
-        robot_tb3 ───►│  broadcast to all,   │
+        SmallDeliveryRobot_2 ───►│  broadcast to all,   │
       (turn 3)        │  turn enforced)      │
                       └─────────────────────┘
 
@@ -22,7 +22,7 @@
   replays the full backlog to a new connection, then streams every new post
   live. On top of that broadcast layer, the server enforces a fixed
   round-robin speaking order (`config.POOL_TURN_ORDER`, default
-  `robot_tb1 -> robot_tb2 -> robot_tb3 -> robot_tb4 -> repeat`):
+  `SmallDeliveryRobot_0 -> SmallDeliveryRobot_1 -> SmallDeliveryRobot_2 -> SmallDeliveryRobot_3 -> repeat`):
   - A post from an agent whose turn it is **not** is rejected (never added
     to the log) with a private `error` reply — this is enforced by the
     server itself, not just by prompting, so two agents can never both
@@ -58,7 +58,7 @@ is that a single slow or stuck agent turn blocks the whole round — the
 per-turn safety-net post is a deliberate mitigation for that, not a
 complete solution (there's still no hard timeout in this implementation if
 you want to add one for the thesis). The speaking order itself is
-configurable (`message_pool.py --turn-order robot_tb2,robot_tb1,...` or
+configurable (`message_pool.py --turn-order SmallDeliveryRobot_1,SmallDeliveryRobot_0,...` or
 `config.POOL_TURN_ORDER`) in case you want to compare different orderings.
 
 Run: `./launch_shared_pool.sh` (optional `--agents 2|4|6|8`)

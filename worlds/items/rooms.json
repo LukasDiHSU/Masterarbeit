@@ -1,0 +1,38 @@
+[
+  {
+    "id": "station_nw",
+    "name": "NW room",
+    "x": -5.0,
+    "y": 5.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_ne",
+    "name": "NE room",
+    "x": 5.0,
+    "y": 5.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_se",
+    "name": "SE room",
+    "x": 5.0,
+    "y": -5.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_sw",
+    "name": "SW room",
+    "x": -5.0,
+    "y": -5.0,
+    "z": 0.0
+  },
+  {
+    "id": "hall",
+    "name": "central hall",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "Wide doorways (~2m clear) for SmallDeliveryRobot (r=0.6). Station pads are visual-only."
+  }
+]

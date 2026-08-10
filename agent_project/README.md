@@ -1,7 +1,7 @@
 # agentpackage — multi-agent robot fleet architectures
 
-This project controls a fleet of TurtleBot3 robots (`tb1`..`tbN`, where
-`N` is `AGENT_COUNT` ∈ {2,4,6,8}, default 4) over
+This project controls a fleet of remroc `SmallDeliveryRobot_0`..`_N-1` robots
+(`N` is `AGENT_COUNT` ∈ {2,4,6,8}, default 4) over
 ROS 2 / Nav2, exposed to LLM agents through an MCP tool server
 (`agentpackage/mcpserver.py`). On top of that shared, architecture-agnostic
 tool layer, several multi-agent coordination strategies are implemented so
@@ -23,13 +23,13 @@ they can be compared directly (see `agentpackage/architectures/`):
    addressing. Every agent and the human user connect to one shared
    broadcast log; new joiners are replayed the full history, and every post
    goes to everyone. The pool itself enforces a fixed speaking order
-   (`robot_tb1 -> robot_tb2 -> robot_tb3 -> robot_tb4 -> repeat`); a user
+   (`SmallDeliveryRobot_0 -> … -> _N-1 -> repeat`); a user
    message always restarts the round at the front, and the round ends as
    soon as any agent posts the token `DONE`.
 
-## Usage monitor: token usage + message counts
+## Usage monitor + agent trace
 
-Every `launch_*.sh` script now also opens a **"Usage Monitor"** terminal
+Every `launch_*.sh` script opens a **"Usage Monitor"** terminal
 (`python -m agentpackage.monitor`) showing a live-updating table across
 every running agent, instead of interleaving usage lines into each agent's
 own conversation:
@@ -37,21 +37,27 @@ own conversation:
 ```
 === Agent usage monitor === (Ctrl+C to quit)
 
-AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+AGENT                    ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
 --------------------------------------------------------------------------------------
-master           centralized             4          3       412       128        540
-robot_tb1        centralized             2          2       201        64        265
-robot_tb2        centralized             2          2       198        60        258
+master                   centralized             4          3       412       128        540
+SmallDeliveryRobot_0     centralized             2          2       201        64        265
+SmallDeliveryRobot_1     centralized             2          2       198        60        258
 ...
 --------------------------------------------------------------------------------------
 TOTAL            5 agent(s)             12          9      1024       340       1364
 ```
 
+It also opens an **"Agent Trace"** terminal (`python -m agentpackage.trace_monitor`)
+with a scrolling log of each agent's LLM text and tool start/end (UDP port
+`9901` by default), so you can watch reasoning and tool use live — including
+during long calls like `navigate_to_pose`.
+
 How it works:
 - `agentpackage/BaseAgents.py` tags every agent with its architecture and
   reports its **cumulative** token usage (`usage_metadata` summed across
   every LLM call, including intermediate tool-calling round-trips within a
-  single request) after every `invoke()`.
+  single request) after every `invoke()`. The same callback path emits
+  live `trace` packets (LLM replies, tool_start, tool_end, turn_end).
 - Each transport also counts **inter-agent messages** and reports its
   cumulative count: `agent_bus.BusClient.send()` (centralized),
   `mesh_bus.MeshNode.send()` (conflict_based), and the shared pool server's
@@ -61,20 +67,24 @@ How it works:
 - Reporting is one-way UDP, fire-and-forget: nothing breaks if the monitor
   isn't running, and cumulative (not delta) snapshots make it robust to any
   dropped packet -- you just miss one intermediate update, never drift.
-- Run it standalone anywhere with `python -m agentpackage.monitor
-  [--host HOST] [--port PORT]` (default `127.0.0.1:9900`, `AGENT_MONITOR_HOST`
-  / `AGENT_MONITOR_PORT` env vars) -- e.g. point every architecture's agents
-  at the same monitor instance for one dashboard across an entire session.
+- Run standalone: `python -m agentpackage.monitor [--host HOST] [--port PORT]`
+  (default `127.0.0.1:9900`, `AGENT_MONITOR_HOST` / `AGENT_MONITOR_PORT`) and
+  `python -m agentpackage.trace_monitor` (default port `9901`,
+  `AGENT_TRACE_MONITOR_PORT`).
 
 ## Shared building blocks
 
-- `agentpackage/mcpserver.py` — FastMCP server exposing ROS 2 tools
-  (robot poses, Nav2 goals, item/whiteboard state) over SSE.
+- `agentpackage/mcpserver.py` — FastMCP server exposing remroc ROS 2 tools
+  over SSE: `list_worlds`, `get_map_info` (reads repo `worlds/`),
+  `list_robots`, `get_robot_pose` / `get_all_robot_poses`,
+  `distance_to_station`, `rank_stations_by_distance`, `get_peer_distances` (after nav failure),
+  `drive_distance` (open-loop cmd_vel), `get_laser_snapshot`, `navigate_to_pose`,
+  plus station/box inventory and whiteboard/events.
 - `agentpackage/mcp_client.py` — loads those MCP tools into LangChain agents.
 - `agentpackage/BaseAgents.py` — thin wrapper around
   `langchain.agents.create_agent` with a per-agent checkpointer, blocking
   `invoke()`, and a simple REPL (`run_persistent_chat`).
-- `agentpackage/config.py` — model name, `tb*` ↔ fleet-id mapping, and the
+- `agentpackage/config.py` — model name, `SmallDeliveryRobot_*` fleet ids, and the
   deterministic peer/port tables used by the conflict-based mesh.
 
 ## Setup

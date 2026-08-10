@@ -4,10 +4,10 @@
                  ┌────────────┐
    user ───────► │   master   │
                  └─────┬──────┘
-              ask_robot_tbN │  (only the master has delegation tools)
+              ask_robot │  (only the master has delegation tools)
         ┌──────────┬────────┼──────────┐
         ▼          ▼        ▼          ▼
-   robot_tb1  robot_tb2  robot_tb3  robot_tb4      (workers only)
+   SmallDeliveryRobot_0  SmallDeliveryRobot_1  SmallDeliveryRobot_2  SmallDeliveryRobot_3      (workers only)
         │          │        │          │
         └──────────┴───┬────┴──────────┘
                         ▼
@@ -18,7 +18,7 @@
   every agent registers with by name. It forwards a message's `to` field to
   that agent's connection — agents never connect to each other directly.
 - **`master_agent.py`**: the only agent with delegation tools
-  (`ask_robot_tb1`..`ask_robot_tb4`, `ask_all_robots`,
+  (`ask_robot`, `ask_all_robots`,
   `ask_selected_robots_parallel`). It is the single point of coordination
   and the single point of failure: if the master or the broker goes down,
   the fleet cannot coordinate at all.

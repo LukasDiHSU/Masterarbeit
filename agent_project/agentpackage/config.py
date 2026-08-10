@@ -1,8 +1,9 @@
 import os
+import re
 
-DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5")
+DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5-mini")
 
-# Number of working robots (tb1..tbN). Leaders/planners are separate where used.
+# Number of working robots (SmallDeliveryRobot_0 .. _N-1). Leaders/planners are separate.
 ALLOWED_AGENT_COUNTS = (2, 4, 6, 8)
 
 
@@ -23,91 +24,115 @@ def _parse_agent_count() -> int:
 
 AGENT_COUNT = _parse_agent_count()
 
-TB_IDS: tuple[str, ...] = tuple(f"tb{i}" for i in range(1, AGENT_COUNT + 1))
+# Canonical remroc / Nav2 namespaces — also used as agent/peer names on the bus.
+ROBOT_IDS: tuple[str, ...] = tuple(
+    f"SmallDeliveryRobot_{i}" for i in range(AGENT_COUNT)
+)
+# Back-compat alias for older imports (same values as ROBOT_IDS).
+TB_IDS = ROBOT_IDS
 
-TB_TO_ROBOT_ID: dict[str, str] = {
-    tb_id: f"robot_{i}" for i, tb_id in enumerate(TB_IDS, start=1)
-}
-
-# Nav2 action namespace used by navigate_to_pose / pickup_box robot_id.
+# Optional per-robot Nav override (defaults to the id itself).
 TB_TO_NAV_ID: dict[str, str] = {
-    tb_id: os.getenv(f"AGENT_NAV_TB{i}", f"SmallDeliveryRobot_{i - 1}")
-    for i, tb_id in enumerate(TB_IDS, start=1)
+    rid: os.getenv(f"AGENT_NAV_{rid}", rid) for rid in ROBOT_IDS
 }
+# Legacy env keys AGENT_NAV_TB1.. still work.
+for _i, _rid in enumerate(ROBOT_IDS, start=1):
+    _legacy = os.getenv(f"AGENT_NAV_TB{_i}")
+    if _legacy:
+        TB_TO_NAV_ID[_rid] = _legacy
 
-NAV_ID_TO_TB = {nav: tb for tb, nav in TB_TO_NAV_ID.items()}
+NAV_ID_TO_TB = {nav: rid for rid, nav in TB_TO_NAV_ID.items()}
+
+# Deprecated display alias (identity); kept so older imports keep working.
+TB_TO_ROBOT_ID: dict[str, str] = {rid: rid for rid in ROBOT_IDS}
 
 # --- Centralized architecture (star broker) -------------------------------
 DEFAULT_BROKER_HOST = os.getenv("AGENT_BROKER_HOST", "127.0.0.1")
 DEFAULT_BROKER_PORT = int(os.getenv("AGENT_BROKER_PORT", "8765"))
 
 # --- Conflict-based architecture (peer-to-peer mesh) ---------------------
-# Every robot agent binds its own listening socket so it can be reached
-# directly by any other peer, without going through a central broker.
 DEFAULT_MESH_HOST = os.getenv("AGENT_MESH_HOST", "127.0.0.1")
 DEFAULT_MESH_BASE_PORT = int(os.getenv("AGENT_MESH_BASE_PORT", "9101"))
 PLANNER_NAME = "planner"
 PLANNER_MESH_PORT = int(os.getenv("AGENT_PLANNER_MESH_PORT", "9100"))
-# Human mission CLI for the conflict-based mesh (name sorts
-# before robot_* so the CLI dials out to peers). Assigns solo missions; does
-# not run a fleet-wide LLM roundtable.
 MESH_CLI_NAME = "cli"
 DEFAULT_MESH_CLI_PORT = int(os.getenv("AGENT_MESH_CLI_PORT", "9099"))
 
 # --- Shared message pool architecture (blackboard) ------------------------
-# One shared broadcast log: every agent and the user connect to the same
-# pool server, see every message ever posted, and can post to it directly.
 DEFAULT_POOL_HOST = os.getenv("AGENT_POOL_HOST", "127.0.0.1")
 DEFAULT_POOL_PORT = int(os.getenv("AGENT_POOL_PORT", "8866"))
 
-# Fixed round-robin speaking order for the pool's turn-based mode
-# (robot_tb1 -> … -> robot_tbN -> repeat). A user post (any name outside
-# this order) always restarts the round at the front.
-POOL_TURN_ORDER = tuple(f"robot_{tb_id}" for tb_id in TB_IDS)
+# Fixed round-robin speaking order (SmallDeliveryRobot_0 -> … -> _N-1 -> repeat).
+POOL_TURN_ORDER = tuple(ROBOT_IDS)
 
 # --- Usage monitor ----------------------------------------------------------
-# A dedicated, separate process that every agent/transport fires small UDP
-# telemetry packets at (token usage + inter-agent message counts) so you can
-# watch a live dashboard instead of scrolling through each agent's own
-# terminal. Reporting is fire-and-forget: nothing breaks if this isn't running.
 DEFAULT_MONITOR_HOST = os.getenv("AGENT_MONITOR_HOST", "127.0.0.1")
 DEFAULT_MONITOR_PORT = int(os.getenv("AGENT_MONITOR_PORT", "9900"))
+# Scrolling LLM/tool trace window (separate from the usage table).
+DEFAULT_TRACE_MONITOR_PORT = int(os.getenv("AGENT_TRACE_MONITOR_PORT", "9901"))
+
+_TB_RE = re.compile(r"^tb(\d+)$", re.IGNORECASE)
 
 
-def robot_peer_name(tb_id: str) -> str:
-    """Canonical peer/agent name used on the bus/mesh for a given robot."""
-    return f"robot_{tb_id}"
-
-
-def fleet_prompt_range() -> str:
-    """Human-readable range like robot_tb1..robot_tb4 for system prompts."""
-    if not TB_IDS:
-        return "(no robots)"
-    if len(TB_IDS) == 1:
-        return robot_peer_name(TB_IDS[0])
-    return f"{robot_peer_name(TB_IDS[0])}..{robot_peer_name(TB_IDS[-1])}"
-
-
-def nav_id_for_tb(tb_id: str) -> str:
-    """Nav2 / MCP robot_id for a fleet tb id."""
-    return TB_TO_NAV_ID[tb_id]
-
-
-def peer_name_for_robot_id(robot_id: str) -> str | None:
-    """Map an MCP/Nav robot_id (or peer name / tb id) to mesh peer name."""
-    s = robot_id.strip()
-    if s.startswith("robot_tb") and s[8:] in TB_TO_ROBOT_ID:
+def resolve_robot_id(token: str) -> str | None:
+    """Map a user/LLM token to a canonical SmallDeliveryRobot_* id."""
+    s = token.strip()
+    if not s:
+        return None
+    if s in ROBOT_IDS:
         return s
-    if s in TB_TO_ROBOT_ID:
-        return robot_peer_name(s)
-    tb = NAV_ID_TO_TB.get(s)
-    if tb is not None:
-        return robot_peer_name(tb)
+    low = s.lower()
+    for rid in ROBOT_IDS:
+        if rid.lower() == low:
+            return rid
+    # Optional legacy peer prefix robot_<id>
+    if low.startswith("robot_"):
+        return resolve_robot_id(s[6:])
+    m = _TB_RE.match(s)
+    if m:
+        n = int(m.group(1))
+        if 1 <= n <= AGENT_COUNT:
+            return f"SmallDeliveryRobot_{n - 1}"
+        return None
+    if s.isdigit():
+        n = int(s)
+        if 0 <= n < AGENT_COUNT:
+            return f"SmallDeliveryRobot_{n}"
     return None
 
 
+def robot_peer_name(robot_id: str) -> str:
+    """Canonical peer/agent name (same as remroc / Nav2 namespace)."""
+    resolved = resolve_robot_id(robot_id)
+    if resolved is None:
+        raise ValueError(f"Unknown robot {robot_id!r}; allowed: {list(ROBOT_IDS)}")
+    return resolved
+
+
+def fleet_prompt_range() -> str:
+    """Human-readable range like SmallDeliveryRobot_0..SmallDeliveryRobot_3."""
+    if not ROBOT_IDS:
+        return "(no robots)"
+    if len(ROBOT_IDS) == 1:
+        return ROBOT_IDS[0]
+    return f"{ROBOT_IDS[0]}..{ROBOT_IDS[-1]}"
+
+
+def nav_id_for_tb(robot_id: str) -> str:
+    """Nav2 / MCP robot_id for a fleet robot id."""
+    rid = resolve_robot_id(robot_id)
+    if rid is None:
+        raise ValueError(f"Unknown robot {robot_id!r}; allowed: {list(ROBOT_IDS)}")
+    return TB_TO_NAV_ID[rid]
+
+
+def peer_name_for_robot_id(robot_id: str) -> str | None:
+    """Map an MCP/Nav robot_id (or peer / legacy tb id) to mesh peer name."""
+    return resolve_robot_id(robot_id)
+
+
 def build_peer_table(
-    tb_ids: tuple[str, ...] = TB_IDS,
+    robot_ids: tuple[str, ...] = ROBOT_IDS,
     *,
     host: str = DEFAULT_MESH_HOST,
     base_port: int = DEFAULT_MESH_BASE_PORT,
@@ -119,7 +144,7 @@ def build_peer_table(
     process can compute the full peer table locally without discovery.
     """
     table: dict[str, tuple[str, int]] = {
-        robot_peer_name(tb_id): (host, base_port + i) for i, tb_id in enumerate(tb_ids)
+        robot_peer_name(rid): (host, base_port + i) for i, rid in enumerate(robot_ids)
     }
     if include_planner:
         table[PLANNER_NAME] = (host, PLANNER_MESH_PORT)

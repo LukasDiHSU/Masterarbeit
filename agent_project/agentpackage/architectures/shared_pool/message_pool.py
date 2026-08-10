@@ -313,7 +313,7 @@ def main() -> None:
     parser.add_argument(
         "--turn-order",
         default=None,
-        help="Comma-separated agent names, e.g. robot_tb1,robot_tb2,robot_tb3,robot_tb4. "
+        help="Comma-separated agent names, e.g. SmallDeliveryRobot_0,SmallDeliveryRobot_1. "
         "Defaults to the fleet order from config.py. An empty string removes server-side "
         "enforcement entirely, but pool_agent.py only speaks when told it's its turn, so "
         "agents will stay silent unless you also change how they react.",

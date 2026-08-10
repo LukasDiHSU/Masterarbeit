@@ -11,10 +11,9 @@ from ...config import (
     DEFAULT_MESH_HOST,
     MESH_CLI_NAME,
     TB_IDS,
-    TB_TO_NAV_ID,
     build_peer_table,
     nav_id_for_tb,
-    peer_name_for_robot_id,
+    resolve_robot_id,
     robot_peer_name,
 )
 from ...mcp_client import build_mcp_connections
@@ -60,10 +59,10 @@ def main() -> None:
         mesh._wait_for_link(peer, timeout=60.0)
         print(f"  linked: {peer}")
     print()
-    tb_help = "|".join(TB_IDS)
+    rid_help = "|".join(TB_IDS)
     print("Commands:")
-    print(f"  mission <{tb_help}> <text>   — solo mission to one peer")
-    print("  conflict <tb_a>,<tb_b>[,...] [reason] — emit conflict event (MCP)")
+    print(f"  mission <{rid_help}> <text>   — solo mission to one peer")
+    print("  conflict <id>,<id>[,...] [reason] — emit conflict event (MCP)")
     print("  events [since]                     — show MCP event log")
     print("  stations                           — list stations/boxes")
     print("  help                               — this text")
@@ -76,8 +75,8 @@ def main() -> None:
                 continue
             if line in {"help", "?"}:
                 print(
-                    "mission tb1 Go pick box at station_A and drop at station_D\n"
-                    "conflict tb1,tb2 bottleneck approach\n"
+                    "mission SmallDeliveryRobot_0 Go pick box at station_A and drop at station_D\n"
+                    "conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 bottleneck approach\n"
                     "events 0\n"
                     "stations"
                 )
@@ -96,28 +95,20 @@ def main() -> None:
             if line.startswith("conflict "):
                 rest = line[len("conflict ") :].strip()
                 if not rest:
-                    print("usage: conflict tb1,tb2 [reason...]")
+                    print("usage: conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 [reason...]")
                     continue
                 bits = rest.split(maxsplit=1)
                 ids_raw = bits[0]
                 reason = bits[1] if len(bits) > 1 else "conflict"
-                nav_ids = []
+                nav_ids: list[str] = []
                 for tok in ids_raw.split(","):
                     tok = tok.strip()
-                    if tok in TB_IDS:
-                        nav_ids.append(nav_id_for_tb(tok))
-                    elif tok in TB_TO_NAV_ID.values():
-                        nav_ids.append(tok)
-                    else:
-                        peer = peer_name_for_robot_id(tok)
-                        if peer and peer.startswith("robot_"):
-                            tb = peer.replace("robot_", "", 1)
-                            if tb in TB_IDS:
-                                nav_ids.append(nav_id_for_tb(tb))
-                                continue
+                    rid = resolve_robot_id(tok)
+                    if rid is None:
                         print(f"unknown robot token: {tok}")
                         nav_ids = []
                         break
+                    nav_ids.append(nav_id_for_tb(rid))
                 if not nav_ids:
                     continue
                 print(_run_mcp_tool("emit_conflict", {"robot_ids": ",".join(nav_ids), "reason": reason}))
@@ -130,15 +121,12 @@ def main() -> None:
                     print(f"usage: mission <{'|'.join(TB_IDS)}> <text>")
                     continue
                 target_tok, text = parts[0], parts[1]
-                if target_tok in TB_IDS:
-                    peer = robot_peer_name(target_tok)
-                    nav = nav_id_for_tb(target_tok)
-                else:
-                    peer = peer_name_for_robot_id(target_tok)
-                    nav = TB_TO_NAV_ID.get(target_tok.replace("robot_", ""), target_tok)
-                    if peer is None:
-                        print(f"unknown target: {target_tok}")
-                        continue
+                rid = resolve_robot_id(target_tok)
+                if rid is None:
+                    print(f"unknown target: {target_tok}")
+                    continue
+                peer = robot_peer_name(rid)
+                nav = nav_id_for_tb(rid)
                 mission = (
                     f"SOLO MISSION (work alone; negotiate only if an event opens):\n{text}\n"
                     f"Use robot_id '{nav}' for navigate_to_pose / pickup_box / drop_box."

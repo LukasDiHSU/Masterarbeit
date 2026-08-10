@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range
+from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 
@@ -18,7 +18,7 @@ class MasterAgent(BaseAgent):
         self.bus = bus
         self._active_thread_id = "default"
         fleet = fleet_prompt_range()
-        tb_list = ", ".join(TB_IDS)
+        robot_list = ", ".join(TB_IDS)
 
         super().__init__(
             AgentSpec(
@@ -26,12 +26,12 @@ class MasterAgent(BaseAgent):
                 description=f"Coordinates {AGENT_COUNT} robot agents and delegates work automatically.",
                 system_prompt=(
                     f"You are the master coordinator for {fleet} (centralized architecture, "
-                    f"{AGENT_COUNT} robots: {tb_list}).\n"
+                    f"{AGENT_COUNT} robots: {robot_list}).\n"
                     "\n"
                     "WHAT YOU CAN DO:\n"
                     "- Answer the human user.\n"
                     f"- ask_robot(robot, message): SEND a message to one robot "
-                    f"({tb_list}) and wait for its reply.\n"
+                    f"({robot_list}) and wait for its reply.\n"
                     "- ask_all_robots: SEND the same message to every robot and wait for all replies.\n"
                     "- ask_selected_robots_parallel: SEND the same message to a subset of robots.\n"
                     "\n"
@@ -41,6 +41,10 @@ class MasterAgent(BaseAgent):
                     "- Do not ask the user which tool to call when the request already implies it.\n"
                     "\n"
                     "WORDING: say you SEND a message. Do not say broadcast.\n"
+                    "FLEET: All robots share one map; assign paths that avoid collisions and "
+                    "remind robots to check nearby peers before moving.\n"
+                    "TOOLS: If the same ask/tool pattern fails twice, do not retry a third "
+                    "identical call — change the plan or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. "
                     "After tool replies, synthesize one short answer. Never hallucinate values."
                 ),
@@ -55,15 +59,14 @@ class MasterAgent(BaseAgent):
         finally:
             self._active_thread_id = "default"
 
-    def _ask_robot(self, tb_id: str, message: str) -> str:
+    def _ask_robot(self, robot_id: str, message: str) -> str:
         if self.bus is None:
             raise RuntimeError("BusClient is not attached to MasterAgent.")
-        if tb_id not in TB_IDS:
-            raise ValueError(f"Unknown robot {tb_id!r}; allowed: {list(TB_IDS)}")
+        peer = robot_peer_name(robot_id)
         return self.bus.ask(
-            to=f"robot_{tb_id}",
+            to=peer,
             text=message,
-            thread_id=f"{self.thread_key(self._active_thread_id)}->{tb_id}",
+            thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
         )
 
     def _retrieve_tools(self) -> list:
@@ -72,11 +75,11 @@ class MasterAgent(BaseAgent):
             """SEND a task or question to exactly one robot and return its reply.
 
             Args:
-                robot: A fleet id like tb1, tb2, …
+                robot: A remroc id like SmallDeliveryRobot_0, SmallDeliveryRobot_1, …
                 message: Message/task to send.
             """
-            tb = robot.strip().lower().removeprefix("robot_")
-            if tb not in TB_IDS:
+            rid = resolve_robot_id(robot)
+            if rid is None:
                 return json.dumps(
                     {
                         "error": "invalid_robot_id",
@@ -84,25 +87,25 @@ class MasterAgent(BaseAgent):
                         "allowed": list(TB_IDS),
                     }
                 )
-            return self._ask_robot(tb, message)
+            return self._ask_robot(rid, message)
 
         @tool
         def ask_all_robots(message: str) -> str:
             """SEND the same task or question to every fleet robot in parallel and wait for all replies as JSON."""
             replies: dict[str, str] = {}
             with ThreadPoolExecutor(max_workers=len(TB_IDS)) as pool:
-                future_to_tb = {
-                    pool.submit(self._ask_robot, tb_id, message): tb_id for tb_id in TB_IDS
+                future_to_id = {
+                    pool.submit(self._ask_robot, rid, message): rid for rid in TB_IDS
                 }
-                for fut in as_completed(future_to_tb):
-                    tb_id = future_to_tb[fut]
+                for fut in as_completed(future_to_id):
+                    rid = future_to_id[fut]
                     try:
-                        replies[tb_id] = fut.result()
+                        replies[rid] = fut.result()
                     except Exception as e:
-                        replies[tb_id] = json.dumps(
+                        replies[rid] = json.dumps(
                             {
                                 "error": "ask_robot_failed",
-                                "robot": tb_id,
+                                "robot": rid,
                                 "message": str(e),
                             }
                         )
@@ -113,7 +116,7 @@ class MasterAgent(BaseAgent):
             """SEND the same task or question to selected robots in parallel and wait for all replies as JSON.
 
             Args:
-                robots_json: JSON array of robot IDs, e.g. ["tb1","tb3"].
+                robots_json: JSON array of robot IDs, e.g. ["SmallDeliveryRobot_0","SmallDeliveryRobot_2"].
                 message: Message/task to send to each selected robot.
             """
             try:
@@ -122,7 +125,10 @@ class MasterAgent(BaseAgent):
                 return json.dumps(
                     {
                         "error": "invalid_robots_json",
-                        "message": 'robots_json must be a JSON array like ["tb1","tb3"]',
+                        "message": (
+                            'robots_json must be a JSON array like '
+                            '["SmallDeliveryRobot_0","SmallDeliveryRobot_2"]'
+                        ),
                         "detail": str(e),
                     }
                 )
@@ -130,22 +136,23 @@ class MasterAgent(BaseAgent):
                 return json.dumps(
                     {
                         "error": "invalid_robots_json",
-                        "message": 'robots_json must be a JSON array like ["tb1","tb3"]',
+                        "message": (
+                            'robots_json must be a JSON array like '
+                            '["SmallDeliveryRobot_0","SmallDeliveryRobot_2"]'
+                        ),
                     }
                 )
 
-            allowed = set(TB_IDS)
             ordered_unique: list[str] = []
             seen: set[str] = set()
             invalid: list[str] = []
             for r in raw:
-                s = str(r).strip().lower().removeprefix("robot_")
-                if s in allowed:
-                    if s not in seen:
-                        ordered_unique.append(s)
-                        seen.add(s)
-                else:
+                rid = resolve_robot_id(str(r))
+                if rid is None:
                     invalid.append(str(r))
+                elif rid not in seen:
+                    ordered_unique.append(rid)
+                    seen.add(rid)
 
             if invalid:
                 return json.dumps(
@@ -165,19 +172,19 @@ class MasterAgent(BaseAgent):
 
             replies: dict[str, str] = {}
             with ThreadPoolExecutor(max_workers=len(ordered_unique)) as pool:
-                future_to_tb = {
-                    pool.submit(self._ask_robot, tb_id, message): tb_id
-                    for tb_id in ordered_unique
+                future_to_id = {
+                    pool.submit(self._ask_robot, rid, message): rid
+                    for rid in ordered_unique
                 }
-                for fut in as_completed(future_to_tb):
-                    tb_id = future_to_tb[fut]
+                for fut in as_completed(future_to_id):
+                    rid = future_to_id[fut]
                     try:
-                        replies[tb_id] = fut.result()
+                        replies[rid] = fut.result()
                     except Exception as e:
-                        replies[tb_id] = json.dumps(
+                        replies[rid] = json.dumps(
                             {
                                 "error": "ask_robot_failed",
-                                "robot": tb_id,
+                                "robot": rid,
                                 "message": str(e),
                             }
                         )

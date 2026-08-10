@@ -21,7 +21,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from .config import DEFAULT_MONITOR_HOST, DEFAULT_MONITOR_PORT
+from .config import (
+    DEFAULT_MONITOR_HOST,
+    DEFAULT_MONITOR_PORT,
+    DEFAULT_TRACE_MONITOR_PORT,
+)
 
 
 class MonitorReporter:
@@ -34,13 +38,17 @@ class MonitorReporter:
 
     def send(self, **fields: Any) -> None:
         try:
-            payload = json.dumps({"ts": time.time(), **fields}).encode("utf-8")
+            payload = json.dumps({"ts": time.time(), **fields}, default=str).encode("utf-8")
+            # UDP practical payload limit; keep under ~8 KiB to avoid silent drops.
+            if len(payload) > 8000:
+                payload = payload[:7990] + b"...}"
             self._sock.sendto(payload, (self.host, self.port))
         except OSError:
             pass  # monitor not running / network hiccup -- never let this break the caller
 
 
 _reporter: MonitorReporter | None = None
+_trace_reporter: MonitorReporter | None = None
 _reporter_lock = threading.Lock()
 
 
@@ -50,6 +58,17 @@ def get_reporter() -> MonitorReporter:
         if _reporter is None:
             _reporter = MonitorReporter()
         return _reporter
+
+
+def get_trace_reporter() -> MonitorReporter:
+    global _trace_reporter
+    with _reporter_lock:
+        if _trace_reporter is None:
+            _trace_reporter = MonitorReporter(
+                host=DEFAULT_MONITOR_HOST,
+                port=DEFAULT_TRACE_MONITOR_PORT,
+            )
+        return _trace_reporter
 
 
 def report_tokens(
@@ -79,6 +98,41 @@ def report_messages(*, agent: str, architecture: str, count: int) -> None:
     """Report an agent's/transport's CUMULATIVE count of messages it has
     sent (asks, replies, mesh sends, or accepted pool posts) so far."""
     get_reporter().send(event="messages", agent=agent, architecture=architecture, count=count)
+
+
+TRACE_TEXT_MAX_CHARS = 600
+
+
+def _clip_trace(text: str, limit: int = TRACE_TEXT_MAX_CHARS) -> str:
+    s = text if isinstance(text, str) else str(text)
+    s = s.replace("\n", " ").strip()
+    if len(s) <= limit:
+        return s
+    return s[:limit] + "..."
+
+
+def report_trace(
+    *,
+    agent: str,
+    architecture: str,
+    kind: str,
+    text: str = "",
+    tool: str | None = None,
+    thread_id: str | None = None,
+) -> None:
+    """Fire-and-forget LLM/tool reasoning line for the Agent Trace window."""
+    payload: dict[str, Any] = {
+        "event": "trace",
+        "agent": agent,
+        "architecture": architecture,
+        "kind": kind,
+        "text": _clip_trace(text),
+    }
+    if tool:
+        payload["tool"] = tool
+    if thread_id:
+        payload["thread_id"] = thread_id
+    get_trace_reporter().send(**payload)
 
 
 @dataclass

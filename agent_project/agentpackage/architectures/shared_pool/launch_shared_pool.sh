@@ -17,10 +17,11 @@ POOL_HOST="127.0.0.1"
 POOL_PORT="8866"
 MONITOR_HOST="127.0.0.1"
 MONITOR_PORT="9900"
+TRACE_MONITOR_PORT="9901"
 TURN_ORDER=""
-for ((i=1; i<=AGENT_COUNT; i++)); do
+for ((i=0; i<AGENT_COUNT; i++)); do
   if [[ -n "$TURN_ORDER" ]]; then TURN_ORDER+=","; fi
-  TURN_ORDER+="robot_tb$i"
+  TURN_ORDER+="SmallDeliveryRobot_$i"
 done
 USE_TABS=1
 
@@ -29,10 +30,11 @@ if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
   echo "Run these in separate shells or inside tmux (AGENT_COUNT=$AGENT_COUNT):"
   echo
   echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.trace_monitor --host \"$MONITOR_HOST\" --port \"$TRACE_MONITOR_PORT\""
   echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
   echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.shared_pool.message_pool --host \"$POOL_HOST\" --port \"$POOL_PORT\" --turn-order \"$TURN_ORDER\""
-  for ((i=1; i<=AGENT_COUNT; i++)); do
-    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.shared_pool.pool_agent --tb-id tb$i --host \"$POOL_HOST\" --port \"$POOL_PORT\""
+  for ((i=0; i<AGENT_COUNT; i++)); do
+    echo "cd \"$PROJECT_ROOT\" && AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=http://$MCP_CONNECT_HOST:$MCP_PORT/sse python -m agentpackage.architectures.shared_pool.pool_agent --robot-id SmallDeliveryRobot_$i --host \"$POOL_HOST\" --port \"$POOL_PORT\""
   done
   echo "cd \"$PROJECT_ROOT\" && python -m agentpackage.architectures.shared_pool.pool_cli --host \"$POOL_HOST\" --port \"$POOL_PORT\""
   exit 1
@@ -143,9 +145,12 @@ echo "  MCP connect: $MCP_URL"
 echo "  Pool:        $POOL_HOST:$POOL_PORT"
 echo "  Agents: $AGENT_COUNT pool agents (turn order: $TURN_ORDER)"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
+echo "  Agent trace:   $MONITOR_HOST:$TRACE_MONITOR_PORT (UDP)"
 
 launch_window "Usage Monitor" \
   "python -m agentpackage.monitor --host \"$MONITOR_HOST\" --port \"$MONITOR_PORT\""
+launch_window "Agent Trace" \
+  "python -m agentpackage.trace_monitor --host \"$MONITOR_HOST\" --port \"$TRACE_MONITOR_PORT\""
 launch_window "MCP Server (shared)" \
   "python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
 launch_window "Message Pool" \
@@ -153,9 +158,9 @@ launch_window "Message Pool" \
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
 wait_for_tcp "$POOL_HOST" "$POOL_PORT" "Message pool"
-for ((i=1; i<=AGENT_COUNT; i++)); do
-  launch_window "Pool Agent tb$i" \
-    "$SHARED_ENV python -m agentpackage.architectures.shared_pool.pool_agent --tb-id tb$i --host \"$POOL_HOST\" --port \"$POOL_PORT\""
+for ((i=0; i<AGENT_COUNT; i++)); do
+  launch_window "Pool Agent SmallDeliveryRobot_$i" \
+    "$SHARED_ENV python -m agentpackage.architectures.shared_pool.pool_agent --robot-id SmallDeliveryRobot_$i --host \"$POOL_HOST\" --port \"$POOL_PORT\""
 done
 launch_window "User (pool_cli)" \
   "python -m agentpackage.architectures.shared_pool.pool_cli --host \"$POOL_HOST\" --port \"$POOL_PORT\""

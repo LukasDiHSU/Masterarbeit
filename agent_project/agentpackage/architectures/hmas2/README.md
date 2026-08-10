@@ -14,7 +14,7 @@ the centralized star broker.
                 collect_feedback │ / ask_* (broker)
               ┌─────┬─────┴─────┬─────┐
               ▼     ▼           ▼     ▼
-            tb1   tb2         tb3    tb4
+            SDR_0 SDR_1       SDR_2  SDR_3
            (review AGREE/DISAGREE, then execute)
 ```
 
@@ -22,9 +22,10 @@ the centralized star broker.
   `collect_feedback` (sends a `PLAN REVIEW REQUEST`), revises until
   `all_agree`, then sends execute messages with `ask_robot` /
   `ask_all_robots` / `ask_selected_robots`.
-- **Local robots** (`robot_agent.py`): on review, inspect only their
-  assignment (MCP tools allowed for checks) and reply `AGREE:` / `DISAGREE:`;
-  on execute, run their part. No peer messaging tools.
+- **Local robots** (`robot_agent.py`): on review, prefer zero tools (at most
+  `rank_stations_by_distance` once) and reply `AGREE:` / `DISAGREE:`; on
+  execute, navigate/hold with minimal tools. Event tools (`get_events`) are
+  for conflict-based only and are not exposed here. No peer messaging.
 - **Transport**: reuses `architectures/centralized/agent_bus.py` + broker.
 
 Contrast with **HMAS-1** (central plan primes turn-based dialogue until EXECUTE)

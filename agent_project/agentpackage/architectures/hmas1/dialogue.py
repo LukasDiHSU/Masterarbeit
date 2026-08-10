@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ...config import TB_IDS, robot_peer_name
+from ...config import TB_IDS, resolve_robot_id, robot_peer_name
 
 DEFAULT_MAX_ROUNDS = 3
 
@@ -18,35 +18,33 @@ _EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
 
 
 def resolve_participants(recipients: str) -> list[str] | dict[str, Any]:
-    raw = recipients.strip().lower()
-    if raw in {"all", "*", "everyone", "fleet"}:
-        return [robot_peer_name(tb) for tb in TB_IDS]
+    raw = recipients.strip()
+    if raw.lower() in {"all", "*", "everyone", "fleet"}:
+        return [robot_peer_name(rid) for rid in TB_IDS]
 
     tokens = [t.strip() for t in raw.replace(";", ",").split(",") if t.strip()]
     peers: list[str] = []
     unknown: list[str] = []
     for tok in tokens:
-        if tok.startswith("robot_"):
-            tb = tok.removeprefix("robot_")
-        elif tok.startswith("tb"):
-            tb = tok
-        else:
-            tb = f"tb{tok}" if tok.isdigit() else tok
-        if tb in TB_IDS:
-            name = robot_peer_name(tb)
-            if name not in peers:
-                peers.append(name)
-        else:
+        rid = resolve_robot_id(tok)
+        if rid is None:
             unknown.append(tok)
+            continue
+        name = robot_peer_name(rid)
+        if name not in peers:
+            peers.append(name)
     if unknown or not peers:
         return {
             "error": "invalid_recipients",
-            "message": "Use 'all' or a comma-separated list like tb1 or tb1,tb2.",
+            "message": (
+                "Use 'all' or a comma-separated list like "
+                "SmallDeliveryRobot_0 or SmallDeliveryRobot_0,SmallDeliveryRobot_1."
+            ),
             "unknown": unknown,
             "valid": list(TB_IDS),
         }
-    # Keep fleet order (tb1..tbN), not input order — paper turn-taking is ordered.
-    order = [robot_peer_name(tb) for tb in TB_IDS]
+    # Keep fleet order, not input order — paper turn-taking is ordered.
+    order = [robot_peer_name(rid) for rid in TB_IDS]
     return [p for p in order if p in peers]
 
 
@@ -115,7 +113,7 @@ def parse_execute_actions(text: str, participants: list[str]) -> dict[str, str]:
             else:
                 continue
             break
-        # also accept tb1: without robot_
+        # also accept bare id without trailing punctuation variants already covered
         for tb in TB_IDS:
             peer = robot_peer_name(tb)
             if peer in actions:
