@@ -1311,46 +1311,183 @@ def get_peer_distances(robot_id: str) -> str:
     return json.dumps(info, indent=2)
 
 
-def _publish_cmd_vel(robot: str, linear_x: float, angular_z: float = 0.0) -> dict[str, Any]:
-    topic = f"/{robot}/cmd_vel"
-    twist = (
+def _twist_yaml(linear_x: float, angular_z: float = 0.0) -> str:
+    return (
         "{linear: {x: "
         f"{float(linear_x)}"
         ", y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: "
         f"{float(angular_z)}"
         "}}"
     )
+
+
+def _publish_cmd_vel(robot: str, linear_x: float, angular_z: float = 0.0) -> dict[str, Any]:
+    topic = f"/{robot}/cmd_vel"
     return _run_ros2(
-        ["topic", "pub", "--once", topic, "geometry_msgs/msg/Twist", twist],
+        [
+            "topic",
+            "pub",
+            "--once",
+            topic,
+            "geometry_msgs/msg/Twist",
+            _twist_yaml(linear_x, angular_z),
+        ],
         timeout=ROS_CLI_TIMEOUT_SEC,
     )
 
 
-def _hold_cmd_vel(
+def _stop_cmd_vel(robot: str, *, duration_sec: float = 0.6, rate_hz: float = 20.0) -> dict[str, Any]:
+    """Gazebo latches the last Twist — stream zeros so motion actually stops."""
+    if not _ros2_available():
+        return {"ok": False, "error": "ros2_not_found"}
+    topic = f"/{robot}/cmd_vel"
+    rate = max(5, int(round(rate_hz)))
+    duration_sec = max(0.2, float(duration_sec))
+    proc = subprocess.Popen(
+        [
+            "ros2",
+            "topic",
+            "pub",
+            "-r",
+            str(rate),
+            topic,
+            "geometry_msgs/msg/Twist",
+            _twist_yaml(0.0, 0.0),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        stdin=subprocess.DEVNULL,
+    )
+    try:
+        proc.wait(timeout=duration_sec)
+        return {"ok": proc.returncode in (0, None), "mode": "zero_rate_pub"}
+    except subprocess.TimeoutExpired:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=1.0)
+        # One final --once zero after killing the rate publisher.
+        once = _publish_cmd_vel(robot, 0.0, 0.0)
+        return {
+            "ok": bool(once.get("ok")),
+            "mode": "zero_rate_pub",
+            "final_once": once,
+        }
+    except Exception as e:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+        return {"ok": False, "error": "execution_failed", "message": str(e)}
+
+
+def _stream_cmd_vel(
     robot: str,
     *,
     linear_x: float,
     angular_z: float,
     duration_sec: float,
-    rate_hz: float = 10.0,
+    rate_hz: float = 20.0,
 ) -> dict[str, Any]:
-    """Publish cmd_vel repeatedly for duration_sec, then send a zero twist."""
+    """Publish cmd_vel at a steady rate for duration_sec, then hard-stop."""
     duration_sec = max(0.0, float(duration_sec))
-    period = 1.0 / max(1.0, float(rate_hz))
-    deadline = time.time() + duration_sec
-    last: dict[str, Any] = {"ok": True}
-    while time.time() < deadline:
-        last = _publish_cmd_vel(robot, linear_x, angular_z)
-        if last.get("error") == "ros2_not_found":
-            return last
-        remaining = deadline - time.time()
-        if remaining <= 0:
-            break
-        time.sleep(min(period, remaining))
-    stop = _publish_cmd_vel(robot, 0.0, 0.0)
+    topic = f"/{robot}/cmd_vel"
+    rate = max(5, int(round(rate_hz)))
+    stream: dict[str, Any] = {"ok": True, "mode": "rate_pub"}
+
+    if duration_sec > 0.0:
+        if not _ros2_available():
+            return {"ok": False, "error": "ros2_not_found"}
+        cmd = [
+            "ros2",
+            "topic",
+            "pub",
+            "-r",
+            str(rate),
+            topic,
+            "geometry_msgs/msg/Twist",
+            _twist_yaml(linear_x, angular_z),
+        ]
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            stdin=subprocess.DEVNULL,
+        )
+        try:
+            proc.wait(timeout=duration_sec)
+            # Publisher exited early (unusual); treat as soft failure only if non-zero.
+            stream["ok"] = proc.returncode in (0, None)
+            stream["returncode"] = proc.returncode
+        except subprocess.TimeoutExpired:
+            # Expected: we only wanted to stream for duration_sec.
+            proc.terminate()
+            try:
+                proc.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=1.0)
+            stream["ok"] = True
+            stream["stopped"] = "timeout"
+        except Exception as e:
+            proc.kill()
+            stream = {"ok": False, "error": "execution_failed", "message": str(e)}
+
+    stop = _stop_cmd_vel(robot)
     return {
-        "ok": bool(last.get("ok")) and bool(stop.get("ok")),
-        "last": last,
+        "ok": bool(stream.get("ok")) and bool(stop.get("ok")),
+        "stream": stream,
+        "stop": stop,
+    }
+
+
+def _drive_until_distance(
+    robot: str,
+    *,
+    distance_m: float,
+    speed_mps: float,
+    rate_hz: float = 20.0,
+    timeout_sec: float | None = None,
+) -> dict[str, Any]:
+    """Drive forward for distance_m via timed cmd_vel stream, then hard-stop.
+
+    Gazebo latches Twist commands, so we stream at a steady rate and always end
+    with a zero-velocity burst. Pose is sampled only for reporting.
+    """
+    dist = abs(float(distance_m))
+    speed = abs(float(speed_mps))
+    duration = dist / max(speed, 0.05)
+    if timeout_sec is not None:
+        duration = min(duration, float(timeout_sec))
+
+    start = _fetch_robot_pose(robot)
+    timed = _stream_cmd_vel(
+        robot,
+        linear_x=speed,
+        angular_z=0.0,
+        duration_sec=duration,
+        rate_hz=rate_hz,
+    )
+    # Extra stop after stream (stream already stops, but be defensive).
+    stop = _stop_cmd_vel(robot, duration_sec=0.5)
+    traveled = None
+    end = _fetch_robot_pose(robot)
+    if start.get("success") and end.get("success"):
+        traveled = round(
+            math.hypot(float(end["x"]) - float(start["x"]), float(end["y"]) - float(start["y"])),
+            3,
+        )
+    return {
+        "ok": bool(timed.get("ok")) and bool(stop.get("ok")),
+        "pose_tracking": "timed_open_loop",
+        "duration_sec": round(duration, 3),
+        "traveled_m": traveled,
+        "target_m": dist,
+        "stream": timed,
         "stop": stop,
     }
 
@@ -1366,6 +1503,8 @@ def drive_distance(
     """Open-loop drive via cmd_vel: rotate by direction_deg, then drive distance_m.
 
     direction_deg is relative to current heading: 0=forward, 90=left, -90=right, 180=back.
+    Streams /{robot}/cmd_vel at a steady rate for distance/speed seconds, then publishes
+    zero twists (Gazebo latches the last Twist — a single stop is not enough).
     Use after navigate_to_pose fails to clear another robot, then retry navigation.
     distance_m must be positive; use direction_deg=180 to reverse.
     """
@@ -1400,7 +1539,9 @@ def drive_distance(
     if abs(yaw_off) > math.radians(5.0):
         turn_dur = abs(yaw_off) / turn_speed
         ang = turn_speed if yaw_off > 0 else -turn_speed
-        turn_res = _hold_cmd_vel(robot, linear_x=0.0, angular_z=ang, duration_sec=turn_dur)
+        turn_res = _stream_cmd_vel(
+            robot, linear_x=0.0, angular_z=ang, duration_sec=turn_dur, rate_hz=20.0
+        )
         steps.append(
             {
                 "phase": "rotate",
@@ -1412,22 +1553,33 @@ def drive_distance(
         if turn_res.get("error") == "ros2_not_found":
             return json.dumps({"error": "ros2_not_found", "robot_id": robot})
 
-    drive_dur = dist / speed
-    drive_res = _hold_cmd_vel(robot, linear_x=speed, angular_z=0.0, duration_sec=drive_dur)
+    drive_res = _drive_until_distance(robot, distance_m=dist, speed_mps=speed, rate_hz=20.0)
     steps.append(
         {
             "phase": "drive",
             "distance_m": dist,
             "speed_mps": speed,
-            "duration_sec": round(drive_dur, 3),
+            "traveled_m": drive_res.get("traveled_m"),
+            "pose_tracking": drive_res.get("pose_tracking"),
             "ok": bool(drive_res.get("ok")),
         }
     )
     if drive_res.get("error") == "ros2_not_found":
         return json.dumps({"error": "ros2_not_found", "robot_id": robot})
 
+    # Final hard stop in case Nav2 or another node left a residual twist.
+    final_stop = _stop_cmd_vel(robot)
     pose_after = _fetch_robot_pose(robot)
-    ok = all(s.get("ok") for s in steps)
+    ok = all(s.get("ok") for s in steps) and bool(final_stop.get("ok"))
+    traveled = None
+    if pose_before.get("success") and pose_after.get("success"):
+        traveled = round(
+            math.hypot(
+                float(pose_after["x"]) - float(pose_before["x"]),
+                float(pose_after["y"]) - float(pose_before["y"]),
+            ),
+            3,
+        )
     return json.dumps(
         {
             "success": ok,
@@ -1437,12 +1589,13 @@ def drive_distance(
                 "direction_deg": float(direction_deg),
                 "speed_mps": speed,
             },
+            "traveled_m": traveled,
             "steps": steps,
             "pose_before": pose_before if pose_before.get("success") else pose_before,
             "pose_after": pose_after if pose_after.get("success") else pose_after,
             "message": (
-                f"{robot} open-loop drove ~{dist} m after relative turn "
-                f"{float(direction_deg)} deg via cmd_vel"
+                f"{robot} drove ~{traveled if traveled is not None else dist} m "
+                f"(requested {dist} m) via cmd_vel and stopped"
             ),
         },
         indent=2,
