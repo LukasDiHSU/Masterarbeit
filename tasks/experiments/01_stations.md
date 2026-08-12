@@ -32,6 +32,8 @@ From pptx notes (Stations = package delivery):
 - **Easy:** matches P1 A→C and P2 B→D (sources occupied, destinations free).
 - **Medium / Hard:** all four pads start occupied (swaps / later legs). For opposing swaps, pick both ends before dropping so pads are free. Hard’s later orders reuse the same four boxes after earlier drops.
 
+**Rule (all difficulties):** each station holds at most one box — never drop onto an occupied pad; check `get_station` / `list_stations` first.
+
 ## Prompts
 
 Paste as the **single** user message at the architecture entry point.
@@ -56,6 +58,7 @@ Pptx prompt (Stations slide):
 You are on the stations map (world: stations).
 Deliver package P1 from station A to C, package P2 from B to D, package P3 from C to A, and package P4 from D to B.
 Allocate the orders among the robots and complete all deliveries.
+Each station holds only one box — destinations must be empty before drop; for swaps, pick both sources (or stage) so pads are free before dropping.
 Use the station/box tools to look up coordinates. Avoid opposing traffic on the same corridor when possible.
 Report when all deliveries are done.
 ```
@@ -74,6 +77,7 @@ Deliver these packages:
 - P7: B → A
 - P8: D → C
 Allocate all orders among SmallDeliveryRobot_0..SmallDeliveryRobot_5. Prefer parallel deliveries; resolve corridor conflicts.
+Each station holds only one box — never drop onto an occupied pad; for swaps clear destinations first.
 Look up station coordinates via tools. Report when all deliveries are done.
 ```
 

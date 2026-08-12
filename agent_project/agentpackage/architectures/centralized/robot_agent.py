@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import threading
 from functools import cached_property
 
 from ...BaseAgents import BaseAgent, AgentSpec
-from ...config import TB_IDS, nav_id_for_tb, robot_peer_name
+from ...config import TB_IDS, STATION_CAPACITY_RULE, nav_id_for_tb, robot_peer_name
 from ...mcp_client import load_mcp_tools_safe
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -36,6 +37,8 @@ class RobotAgent(BaseAgent):
                     "pickup_box/drop_box with that robot_id, whiteboard.\n"
                     "- Station ids are station_A..station_D (short A/B/C/D also work). "
                     "Prefer navigate_xy from rank_stations_by_distance (slightly off the pad).\n"
+                    f"- {STATION_CAPACITY_RULE} "
+                    "If unsure before drop_box, call get_station.\n"
                     "\n"
                     "WHAT YOU CANNOT DO:\n"
                     "- You cannot send messages to other robots; only the master can delegate.\n"
@@ -100,24 +103,31 @@ def main() -> None:
         src = str(msg.get("from", "?"))
         text = str(msg.get("text", ""))
         thread_id = str(msg.get("thread_id", src))
+        request_id = msg.get("request_id")
 
         print(f"\n[{src} -> {name}] {text}")
-        try:
-            reply = robot.invoke(text, thread_id=thread_id)
-        except Exception as e:
-            reply = (
-                f"{name} failed to process request: {type(e).__name__}: {e}. "
-                "Please retry with a shorter request or reduced context."
-            )
-        print(f"[{name}] {reply}")
 
-        bus.send(
-            type="agent_reply",
-            to=src,
-            text=reply,
-            thread_id=thread_id,
-            request_id=msg.get("request_id"),
-        )
+        # Off the recv thread so the bus stays responsive during long MCP/nav work.
+        def _job() -> None:
+            try:
+                reply = robot.invoke(text, thread_id=thread_id)
+            except Exception as e:
+                reply = (
+                    f"{name} failed to process request: {type(e).__name__}: {e}. "
+                    "Please retry with a shorter request or reduced context."
+                )
+            print(f"[{name}] {reply}")
+            bus.send(
+                type="agent_reply",
+                to=src,
+                text=reply,
+                thread_id=thread_id,
+                request_id=request_id,
+            )
+
+        threading.Thread(
+            target=_job, daemon=True, name=f"{name}-handle-{request_id or 'req'}"
+        ).start()
 
     bus.on_message(handle_message)
 

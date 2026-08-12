@@ -57,12 +57,15 @@ class BrokerHandler(socketserver.StreamRequestHandler):
                     dst = _clients.get(str(target))
 
                 if dst is None:
+                    # Echo request_id so the caller's BusClient.ask can unblock.
                     _send_line(
                         self.wfile,
                         {
                             "type": "error",
                             "from": "broker",
+                            "to": str(target),
                             "text": f"{target!r} is not connected",
+                            "request_id": msg.get("request_id"),
                         },
                     )
                     continue
@@ -106,7 +109,9 @@ class BusClient:
         self._send_lock = threading.Lock()
         self._handlers: list[Callable[[dict[str, Any]], None]] = []
         self._pending: dict[str, queue.Queue[str]] = {}
+        self._pending_lock = threading.Lock()
         self._messages_sent = 0
+        self._closed = False
 
         self.send(type="register", name=self.name)
 
@@ -117,22 +122,69 @@ class BusClient:
         with self._send_lock:
             self.sock.sendall((json.dumps(obj) + "\n").encode("utf-8"))
 
-    def _recv_loop(self) -> None:
-        for line in self.reader:
-            msg = json.loads(line)
+    def _complete_pending(self, request_id: Any, text: str) -> bool:
+        if not request_id:
+            return False
+        with self._pending_lock:
+            q = self._pending.get(str(request_id))
+        if q is None:
+            return False
+        try:
+            q.put_nowait(text)
+        except queue.Full:
+            pass
+        return True
 
-            if msg.get("type") == "error":
+    def _recv_loop(self) -> None:
+        try:
+            for line in self.reader:
+                msg = json.loads(line)
+
+                if msg.get("type") == "error":
+                    req_id = msg.get("request_id")
+                    err_text = str(msg.get("text", "broker error"))
+                    # Unblock ask() immediately when the peer is missing.
+                    self._complete_pending(
+                        req_id,
+                        json.dumps(
+                            {
+                                "error": "broker_error",
+                                "message": err_text,
+                                "to": msg.get("to"),
+                            }
+                        ),
+                    )
+                    for handler in self._handlers:
+                        handler(msg)
+                    continue
+
+                req_id = msg.get("request_id")
+                if msg.get("type") == "agent_reply" and req_id is not None:
+                    if self._complete_pending(req_id, str(msg.get("text", ""))):
+                        continue
+
                 for handler in self._handlers:
                     handler(msg)
-                continue
-
-            req_id = msg.get("request_id")
-            if msg.get("type") == "agent_reply" and req_id in self._pending:
-                self._pending[req_id].put(str(msg.get("text", "")))
-                continue
-
-            for handler in self._handlers:
-                handler(msg)
+        except (ValueError, OSError) as e:
+            # Socket/reader closed (bus.close or peer disconnect).
+            if not self._closed:
+                print(f"[bus {self.name}] recv loop ended: {type(e).__name__}: {e}")
+        finally:
+            # Fail any waiters so tools don't hang until timeout.
+            with self._pending_lock:
+                pending = list(self._pending.items())
+            for req_id, q in pending:
+                try:
+                    q.put_nowait(
+                        json.dumps(
+                            {
+                                "error": "bus_disconnected",
+                                "message": "Bus connection closed while waiting for a reply.",
+                            }
+                        )
+                    )
+                except queue.Full:
+                    pass
 
     def on_message(self, handler: Callable[[dict[str, Any]], None]) -> None:
         self._handlers.append(handler)
@@ -155,7 +207,8 @@ class BusClient:
     ) -> str:
         request_id = uuid.uuid4().hex
         q: queue.Queue[str] = queue.Queue(maxsize=1)
-        self._pending[request_id] = q
+        with self._pending_lock:
+            self._pending[request_id] = q
         try:
             self.send(
                 type="agent_request",
@@ -164,9 +217,16 @@ class BusClient:
                 thread_id=thread_id,
                 request_id=request_id,
             )
-            return q.get(timeout=timeout)
+            try:
+                return q.get(timeout=timeout)
+            except queue.Empty as e:
+                raise TimeoutError(
+                    f"No reply from {to!r} within {timeout:.0f}s "
+                    "(peer offline, crashed, busy, or broker dropped the message)."
+                ) from e
         finally:
-            self._pending.pop(request_id, None)
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
 
     def send_async_request(
         self,
@@ -187,7 +247,12 @@ class BusClient:
         return request_id
 
     def close(self) -> None:
+        self._closed = True
         try:
             self.reader.close()
-        finally:
+        except Exception:
+            pass
+        try:
             self.sock.close()
+        except Exception:
+            pass

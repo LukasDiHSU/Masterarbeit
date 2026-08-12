@@ -15,6 +15,7 @@ from ...config import (
     DEFAULT_MESH_BASE_PORT,
     DEFAULT_MESH_HOST,
     TB_IDS,
+    STATION_CAPACITY_RULE,
     build_peer_table,
     nav_id_for_tb,
     peer_name_for_robot_id,
@@ -68,7 +69,7 @@ class RobotPeerAgent(BaseAgent):
                     f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
                     f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
                     "pickup_box/drop_box with that robot_id, get_events.\n"
-                    "- Each robot holds at most ONE box; drop before picking another.\n"
+                    f"- {STATION_CAPACITY_RULE}\n"
                     "- Station ids are station_A..station_D (short A/B/C/D also work).\n"
                     "- ACTION: rank_stations_by_distance once → navigate_to_pose. "
                     "Do not call get_peer_distances before navigating. "
@@ -524,7 +525,7 @@ def main() -> None:
                 f"SOLO MISSION (negotiate on events; before ending call "
                 f"report_done_and_confirm):\n{line}\n"
                 f"Use robot_id '{robot.nav_id}' for navigate_to_pose / pickup_box / drop_box.\n"
-                f"Each robot holds at most one box."
+                f"{STATION_CAPACITY_RULE}"
             )
             reply = robot.invoke(mission, thread_id=args.thread_id)
             print(f"[{my_name}] {reply}")

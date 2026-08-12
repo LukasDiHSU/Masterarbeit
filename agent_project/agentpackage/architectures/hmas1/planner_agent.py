@@ -7,7 +7,7 @@ import threading
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, STATION_CAPACITY_RULE, fleet_prompt_range, robot_peer_name
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 from .dialogue import (
     DEFAULT_MAX_ROUNDS,
@@ -70,6 +70,9 @@ class PlannerAgent(BaseAgent):
                     "- Do not ask the user which tool to call.\n"
                     "- Do not speak in the robot turn-taking round yourself.\n"
                     "\n"
+                    f"{STATION_CAPACITY_RULE}\n"
+                    "Initial plan must only use empty drop destinations; for swaps, clear pads first.\n"
+                    "\n"
                     "WORDING: say you SEND the plan. Do not say broadcast.\n"
                     "\n"
                     "WORKFLOW:\n"
@@ -96,11 +99,16 @@ class PlannerAgent(BaseAgent):
             self._plan_sent_this_turn = False
 
     def _ask_peer(self, peer: str, message: str) -> str:
-        return self.bus.ask(
-            to=peer,
-            text=message,
-            thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
-        )
+        try:
+            return self.bus.ask(
+                to=peer,
+                text=message,
+                thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
+            )
+        except TimeoutError as e:
+            return json.dumps(
+                {"error": "ask_timeout", "peer": peer, "message": str(e)}
+            )
 
     def _dispatch_execute(
         self,

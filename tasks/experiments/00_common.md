@@ -26,6 +26,11 @@ stations/boxes inventory, `rank_stations_by_distance`, `navigate_to_pose`,
 Do **not** paste full coordinate tables into the user prompt — agents look them up
 with tools (`list_stations`, `get_station`, `rank_stations_by_distance`, …).
 
+**Station capacity:** each station holds at most **one** box. Empty pads have
+`box_id=null` and `available=false`. `drop_box` fails on occupied stations
+(`station_occupied`). For opposing swaps (e.g. A↔C), clear destinations (pick
+first / stage) before dropping. Robots also hold at most one box.
+
 Every prompt starts with the map/world name (e.g. `You are on the stations map
 (world: stations).`). Keep that line when pasting.
 

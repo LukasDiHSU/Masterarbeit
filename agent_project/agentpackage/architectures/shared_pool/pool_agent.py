@@ -12,6 +12,7 @@ from ...config import (
     DEFAULT_POOL_HOST,
     DEFAULT_POOL_PORT,
     POOL_TURN_ORDER,
+    STATION_CAPACITY_RULE,
     TB_IDS,
     nav_id_for_tb,
     robot_peer_name,
@@ -67,6 +68,7 @@ class PoolAgent(BaseAgent):
                     f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
                     "stations/boxes, get_peer_distances, whiteboard, … — then "
                     "post_to_pool EXACTLY ONCE.\n"
+                    f"- {STATION_CAPACITY_RULE}\n"
                     f"- Discuss speaking order: {order_desc} (then repeats). "
                     "A user message restarts discuss.\n"
                     "- read_pool if you need more history.\n"

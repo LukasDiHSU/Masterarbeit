@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import cached_property
 
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...config import AGENT_COUNT, TB_IDS, STATION_CAPACITY_RULE, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...mcp_client import load_planning_mcp_tools
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 
@@ -30,6 +32,10 @@ class MasterAgent(BaseAgent):
                     "\n"
                     "WHAT YOU CAN DO:\n"
                     "- Answer the human user.\n"
+                    "- Before assigning work, inspect the world with MCP map tools: "
+                    "list_worlds, get_map_info, list_stations, list_available_boxes, "
+                    "get_station, get_held_boxes, get_all_robot_poses. Use these to "
+                    "build a concrete plan (who picks which box, where to deliver).\n"
                     f"- ask_robot(robot, message): SEND a message to one robot "
                     f"({robot_list}) and wait for its reply.\n"
                     "- ask_all_robots: SEND the same message to every robot and wait for all replies.\n"
@@ -37,8 +43,11 @@ class MasterAgent(BaseAgent):
                     "\n"
                     "WHAT YOU CANNOT DO:\n"
                     "- Robots cannot send messages to each other; only you can delegate.\n"
-                    "- You have no station/nav MCP tools yourself — robots do the physical work.\n"
+                    "- You have no navigate/pickup/drop tools — robots do the physical work.\n"
                     "- Do not ask the user which tool to call when the request already implies it.\n"
+                    "\n"
+                    f"{STATION_CAPACITY_RULE}\n"
+                    "Plan only empty drop destinations; for swaps, clear pads first.\n"
                     "\n"
                     "WORDING: say you SEND a message. Do not say broadcast.\n"
                     "FLEET: All robots share one map; assign paths that avoid collisions and "
@@ -63,11 +72,24 @@ class MasterAgent(BaseAgent):
         if self.bus is None:
             raise RuntimeError("BusClient is not attached to MasterAgent.")
         peer = robot_peer_name(robot_id)
-        return self.bus.ask(
-            to=peer,
-            text=message,
-            thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
-        )
+        try:
+            return self.bus.ask(
+                to=peer,
+                text=message,
+                thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
+            )
+        except TimeoutError as e:
+            return json.dumps(
+                {
+                    "error": "ask_timeout",
+                    "robot": robot_id,
+                    "message": str(e),
+                }
+            )
+
+    @cached_property
+    def _map_tools(self) -> list:
+        return load_planning_mcp_tools()
 
     def _retrieve_tools(self) -> list:
         @tool
@@ -191,7 +213,12 @@ class MasterAgent(BaseAgent):
 
             return json.dumps(replies, ensure_ascii=False, indent=2)
 
-        return [ask_robot, ask_all_robots, ask_selected_robots_parallel]
+        return [
+            *self._map_tools,
+            ask_robot,
+            ask_all_robots,
+            ask_selected_robots_parallel,
+        ]
 
 
 def main() -> None:

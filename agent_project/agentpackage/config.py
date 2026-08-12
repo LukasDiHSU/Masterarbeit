@@ -1,7 +1,7 @@
 import os
 import re
 
-DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5-mini")
+DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5")
 
 # Number of working robots (SmallDeliveryRobot_0 .. _N-1). Leaders/planners are separate.
 ALLOWED_AGENT_COUNTS = (2, 4, 6, 8)
@@ -64,6 +64,17 @@ DEFAULT_POOL_PORT = int(os.getenv("AGENT_POOL_PORT", "8866"))
 
 # Fixed round-robin speaking order (SmallDeliveryRobot_0 -> … -> _N-1 -> repeat).
 POOL_TURN_ORDER = tuple(ROBOT_IDS)
+
+# Shared inventory rule for all architecture system prompts (stations/boxes).
+STATION_CAPACITY_RULE = (
+    "STATION CAPACITY: Each station holds at most ONE box. "
+    "Empty = box_id is null and available=false. "
+    "Never drop_box on an occupied station (box_id set or available=true); "
+    "check get_station / list_stations first. "
+    "For opposing swaps (e.g. A↔C), pick up from both ends (or stage) so "
+    "destinations are empty before dropping. "
+    "Robots also hold at most ONE box; drop before picking another."
+)
 
 # --- Usage monitor ----------------------------------------------------------
 DEFAULT_MONITOR_HOST = os.getenv("AGENT_MONITOR_HOST", "127.0.0.1")

@@ -53,3 +53,23 @@ def load_mcp_tools_safe() -> list[BaseTool]:
     except Exception as e:
         logger.warning("MCP tools unavailable (%s); continuing without MCP.", e)
         return []
+
+
+# Read-only world/map/station tools for lead agents (master / HMAS-2 planner).
+# No navigate / pickup / drop — robots do physical work.
+PLANNING_MAP_TOOL_NAMES = frozenset(
+    {
+        "list_worlds",
+        "get_map_info",
+        "list_stations",
+        "list_available_boxes",
+        "get_station",
+        "get_held_boxes",
+        "get_all_robot_poses",
+    }
+)
+
+
+def load_planning_mcp_tools() -> list[BaseTool]:
+    """MCP tools lead agents may use to inspect the map before planning."""
+    return [t for t in load_mcp_tools_safe() if t.name in PLANNING_MAP_TOOL_NAMES]

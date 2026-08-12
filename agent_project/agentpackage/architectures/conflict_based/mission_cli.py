@@ -9,6 +9,7 @@ from ...config import (
     DEFAULT_MESH_CLI_PORT,
     DEFAULT_MESH_HOST,
     MESH_CLI_NAME,
+    STATION_CAPACITY_RULE,
     TB_IDS,
     build_peer_table,
     nav_id_for_tb,
@@ -47,7 +48,7 @@ def main() -> None:
             f"SOLO MISSION (work alone; negotiate only if an event opens):\n{text}\n"
             f"Use robot_id '{nav}' for navigate_to_pose / pickup_box / drop_box.\n"
             f"Other robots received the same prompt and work in parallel.\n"
-            f"Each robot holds at most ONE box; drop before picking another.\n"
+            f"{STATION_CAPACITY_RULE}\n"
             f"Do not chat on the whiteboard — peer talk is negotiate_with after a conflict.\n"
             f"BEFORE you finish: call report_done_and_confirm(summary=...) to tell peers "
             f"what you did and get AGREE/DISAGREE that the fleet task is finished. "

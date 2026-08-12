@@ -48,15 +48,19 @@ def _clip(text: str, limit: int = TOOL_TEXT_MAX_CHARS) -> str:
 
 
 # --- Station / box inventory -------------------------------------------------
-# Each station may hold at most one box. available=True means the box is still
-# at the station and can be picked up.
+# Each station holds at most ONE box.
+#   Occupied/pickable: box_id set, available=True  → pickup OK, drop FAILS
+#   Empty:             box_id null, available=False → drop OK, pickup FAILS
+# Robots also hold at most one box (see pickup_box / drop_box).
 
-# Fallback when items/{AGENT_WORLD}.json is missing (1.0x stations arena).
+# Initial box layout (edit per difficulty). Coords here are fallback only —
+# when items/{AGENT_WORLD}.json exists, poses come from that file and these
+# box_id / available / last_box_id fields are merged onto matching station ids.
 _DEFAULT_STATIONS = [
     {"id": "station_A", "name": "Station A", "x": -5.0, "y": -5.0, "box_id": "box_1", "available": True, "last_box_id": "box_1"},
     {"id": "station_B", "name": "Station B", "x": -5.0, "y": 5.0, "box_id": "box_2", "available": True, "last_box_id": "box_2"},
     {"id": "station_C", "name": "Station C", "x": 5.0, "y": 5.0, "box_id": "box_3", "available": True, "last_box_id": "box_3"},
-    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": "box_4", "available": True, "last_box_id": None},
+    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": "box_4", "available": True, "last_box_id": "box_4"},
 ]
 
 STATIONS: list[dict] = deepcopy(_DEFAULT_STATIONS)
@@ -249,13 +253,16 @@ def _stations_from_world_items(world_id: str) -> list[dict] | None:
     if not stations:
         return None
 
-    # First three stations start with a box (matches default stations scenario).
-    for i, station in enumerate(stations):
-        if i < 3:
-            box_id = f"box_{i + 1}"
-            station["box_id"] = box_id
-            station["available"] = True
-            station["last_box_id"] = box_id
+    # Box occupancy comes from _DEFAULT_STATIONS (edit that list per difficulty).
+    # Items JSON only supplies landmark poses for the active world scale.
+    defaults_by_id = {s["id"]: s for s in _DEFAULT_STATIONS}
+    for station in stations:
+        default = defaults_by_id.get(station["id"])
+        if default is None:
+            continue
+        station["box_id"] = default.get("box_id")
+        station["available"] = bool(default.get("available"))
+        station["last_box_id"] = default.get("last_box_id")
     return stations
 
 
@@ -907,13 +914,24 @@ def emit_conflict(robot_ids: str, reason: str = "conflict", detail: str = "") ->
 
 @mcp.tool()
 def list_stations() -> str:
-    """List every station: id, name, pose, box_id (or null), and whether a box is available."""
+    """List every station: id, name, pose, box_id, and available.
+
+    Capacity: each station holds at most ONE box.
+    - Occupied / pickable: box_id set and available=true → pickup_box OK, drop_box FAILS.
+    - Empty: box_id is null and available=false → drop_box OK, pickup_box FAILS.
+    Use this (or get_station) before dropping so you never target an occupied pad.
+    """
     return json.dumps(STATIONS, indent=2)
 
 
 @mcp.tool()
 def list_available_boxes() -> str:
-    """List stations that currently have a pickable box (available=true and box_id set)."""
+    """List stations that currently have a pickable box (available=true and box_id set).
+
+    These stations are OCCUPIED — you cannot drop another box there until the
+    existing box is picked up. Empty destinations are NOT listed here; use
+    list_stations / get_station (box_id null, available=false) for drop targets.
+    """
     available = [
         {
             "station_id": s["id"],
@@ -930,10 +948,13 @@ def list_available_boxes() -> str:
 
 @mcp.tool()
 def get_station(station_id: str) -> str:
-    """Get one station by id, including whether its box is still available.
+    """Get one station by id, including occupancy (box_id / available).
 
-    Accepts ids like station_A / station_C, or short forms A / C / 'Station C'.
-    Unknown ids emit a station_not_found event.
+    Capacity: one box per station.
+    - Occupied: box_id set, available=true → can pickup, cannot drop.
+    - Empty: box_id null, available=false → can drop, cannot pickup.
+    Call this before drop_box if unsure whether the destination is free.
+    Accepts station_A / A / 'Station A'. Unknown ids emit station_not_found.
     """
     station = _find_station(station_id)
     if station is None:
@@ -1014,9 +1035,14 @@ def pickup_box(robot_id: str, station_id: str) -> str:
 
 @mcp.tool()
 def drop_box(robot_id: str, station_id: str) -> str:
-    """Drop the box the robot is holding onto a station (must be empty).
+    """Drop the box this robot is holding onto a station. Station MUST be empty.
 
-    On failure (occupied station, not holding, bad id), emits an MCP event.
+    Capacity: each station holds at most ONE box. Drop only when box_id is null
+    and available=false (verify with get_station / list_stations first).
+    If the pad already has a box, this fails with station_occupied — free it
+    with pickup_box or choose another empty station. For swaps (A↔C), pick both
+    sources before dropping so destinations are clear.
+    On failure emits an MCP event.
     """
     robot = robot_id.strip()
     with _STATE_LOCK:
@@ -1042,15 +1068,25 @@ def drop_box(robot_id: str, station_id: str) -> str:
                 station_id=station_id,
             )
 
-        if station.get("box_id") or station.get("available"):
+        occupying = station.get("box_id")
+        if occupying or station.get("available"):
+            sid = station.get("id") or station_id
             return _tool_error(
                 "station_occupied",
                 error="station_occupied",
                 tool="drop_box",
                 robot_id=robot,
                 station_id=station_id,
-                box_id=station.get("box_id"),
-                message=f"Station {station_id} already has a box; cannot drop.",
+                box_id=occupying,
+                message=(
+                    f"Station {sid} already has {occupying or 'a box'}; cannot drop. "
+                    "Each station holds only ONE box. Free the pad with pickup_box "
+                    "or drop on an empty station (box_id=null, available=false)."
+                ),
+                hint=(
+                    "Call get_station / list_stations. Drop only on empty pads. "
+                    "For swaps, pick up from destinations first so they are empty."
+                ),
             )
 
         station["box_id"] = box_id

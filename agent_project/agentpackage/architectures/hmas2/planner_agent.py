@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import cached_property
 
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, STATION_CAPACITY_RULE, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...mcp_client import load_planning_mcp_tools
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 _REVIEW_PREFIX = (
@@ -40,8 +42,13 @@ class PlannerAgent(BaseAgent):
                     f"{AGENT_COUNT} robots).\n"
                     "\n"
                     "WHAT YOU CAN DO:\n"
-                    "- Talk to the human user and draft ONE short fleet plan with clear "
-                    "per-robot assignments inside that single document.\n"
+                    "- Talk to the human user.\n"
+                    "- Before drafting a plan, inspect the world with MCP map tools: "
+                    "list_worlds, get_map_info, list_stations, list_available_boxes, "
+                    "get_station, get_held_boxes, get_all_robot_poses. Use real station "
+                    "coords and box locations — do not invent them.\n"
+                    "- Draft ONE short fleet plan with clear per-robot assignments "
+                    "inside that single document.\n"
                     "- collect_feedback(plan, recipients): SEND that plan as a REVIEW "
                     "request (not execution) to recipients='all' or e.g. "
                     "'SmallDeliveryRobot_0,SmallDeliveryRobot_2'. "
@@ -52,7 +59,7 @@ class PlannerAgent(BaseAgent):
                     "the same EXECUTE (or other) message to many robots in parallel.\n"
                     "\n"
                     "WHAT YOU CANNOT DO:\n"
-                    "- You have no MCP station/nav tools yourself; robots execute.\n"
+                    "- You have no navigate/pickup/drop tools; robots execute those.\n"
                     "- Robots cannot message each other; only you coordinate.\n"
                     "- Do not tell robots to execute until every involved robot has AGREEd "
                     "on the current plan (or you re-planned and they AGREEd).\n"
@@ -60,13 +67,17 @@ class PlannerAgent(BaseAgent):
                     "calls with different texts for the same goal — put roles in one plan.\n"
                     "- Do not ask the user which tool to call.\n"
                     "\n"
+                    f"{STATION_CAPACITY_RULE}\n"
+                    "Plan only empty drop destinations; for swaps, clear pads first.\n"
+                    "\n"
                     "WORDING: say you SEND a message / SEND the plan. Do not say broadcast.\n"
                     "\n"
                     "WORKFLOW:\n"
-                    "1) Draft one short fleet plan (who moves where; who holds).\n"
-                    "2) collect_feedback until all recipients AGREE (on DISAGREE, revise and "
+                    "1) Inspect map/stations/boxes (and optionally robot poses) with MCP tools.\n"
+                    "2) Draft one short fleet plan (who moves where; who holds).\n"
+                    "3) collect_feedback until all recipients AGREE (on DISAGREE, revise and "
                     "collect again).\n"
-                    "3) Only then SEND execute instructions, clearly marked as EXECUTE.\n"
+                    "4) Only then SEND execute instructions, clearly marked as EXECUTE.\n"
                     "   - Moving robot: EXECUTE with concrete x/y (from their AGREE navigate_xy "
                     "if they reported it) — one ask_robot is enough.\n"
                     "   - Idle robots: either omit EXECUTE, or a one-line "
@@ -117,11 +128,16 @@ class PlannerAgent(BaseAgent):
         return peers
 
     def _ask_peer(self, peer: str, message: str) -> str:
-        return self.bus.ask(
-            to=peer,
-            text=message,
-            thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
-        )
+        try:
+            return self.bus.ask(
+                to=peer,
+                text=message,
+                thread_id=f"{self.thread_key(self._active_thread_id)}->{peer}",
+            )
+        except TimeoutError as e:
+            return json.dumps(
+                {"error": "ask_timeout", "peer": peer, "message": str(e)}
+            )
 
     def _ask_many(self, peers: list[str], message: str) -> dict[str, str]:
         replies: dict[str, str] = {}
@@ -157,6 +173,10 @@ class PlannerAgent(BaseAgent):
             "unclear": other,
             "replies": replies,
         }
+
+    @cached_property
+    def _map_tools(self) -> list:
+        return load_planning_mcp_tools()
 
     def _retrieve_tools(self) -> list:
         @tool
@@ -222,7 +242,13 @@ class PlannerAgent(BaseAgent):
                 return json.dumps(resolved)
             return json.dumps(self._ask_many(resolved, message), ensure_ascii=False, indent=2)
 
-        return [collect_feedback, ask_robot, ask_all_robots, ask_selected_robots]
+        return [
+            *self._map_tools,
+            collect_feedback,
+            ask_robot,
+            ask_all_robots,
+            ask_selected_robots,
+        ]
 
 
 def main() -> None:

@@ -1,0 +1,11 @@
+{
+  "session_id": "centralized_20260812_064714",
+  "architecture": "centralized",
+  "agent_count": 4,
+  "started_at": "2026-08-12T06:47:14+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "",
+  "saved_as": "stations_medium_cmas_r1_success",
+  "saved_at": "2026-08-12T07:12:08.091407+02:00"
+}

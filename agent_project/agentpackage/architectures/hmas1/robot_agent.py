@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import threading
 from functools import cached_property
 
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, nav_id_for_tb, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, STATION_CAPACITY_RULE, nav_id_for_tb, robot_peer_name
 from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -56,6 +57,8 @@ class HMAS1RobotAgent(BaseAgent):
                     "get_peer_distances, pickup_box/drop_box with that robot_id, etc. "
                     "Act with few tools: gather once, then navigate. "
                     "Only after nav fails: get_peer_distances and/or drive_distance, then retry.\n"
+                    f"- {STATION_CAPACITY_RULE} "
+                    "If unsure before drop_box, call get_station.\n"
                     "- If you need a fleet replan after/during execute problems, call "
                     "start_discussion_round(reason=...) and/or end your reply with "
                     "NEED_DISCUSSION: <reason>.\n"
@@ -163,23 +166,30 @@ def main() -> None:
         src = str(msg.get("from", "?"))
         text = str(msg.get("text", ""))
         thread_id = str(msg.get("thread_id", src))
+        request_id = msg.get("request_id")
 
         print(f"\n[{src} -> {my_name}] {text}")
-        try:
-            reply = robot.invoke(text, thread_id=thread_id)
-        except Exception as e:
-            reply = (
-                f"{my_name} failed to process request: {type(e).__name__}: {e}. "
-                "Please retry with a shorter request or reduced context."
+
+        def _job() -> None:
+            try:
+                reply = robot.invoke(text, thread_id=thread_id)
+            except Exception as e:
+                reply = (
+                    f"{my_name} failed to process request: {type(e).__name__}: {e}. "
+                    "Please retry with a shorter request or reduced context."
+                )
+            print(f"[{my_name}] {reply}")
+            bus.send(
+                type="agent_reply",
+                to=src,
+                text=reply,
+                thread_id=thread_id,
+                request_id=request_id,
             )
-        print(f"[{my_name}] {reply}")
-        bus.send(
-            type="agent_reply",
-            to=src,
-            text=reply,
-            thread_id=thread_id,
-            request_id=msg.get("request_id"),
-        )
+
+        threading.Thread(
+            target=_job, daemon=True, name=f"{my_name}-handle-{request_id or 'req'}"
+        ).start()
 
     bus.on_message(handle_message)
 
