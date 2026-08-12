@@ -1,30 +1,35 @@
-# HMAS-1 architecture (central prime → turn-based dialogue → EXECUTE)
+# HMAS-1 architecture (central prime → AGREE discussion → execute)
 
 Paper mapping (Chen et al.): HMAS-1 is the hybrid variant of **DMAS**. A
 central LLM proposes an **initial plan** that primes discussion; robots then
 speak in **fixed turn order**. Each turn's prompt includes the initial plan
-plus every prior comment. Dialogue ends when a robot replies with
-**EXECUTE** and per-robot action lines. Those actions are then dispatched
-for execution. Robots do not free-form mesh-chat.
+plus every prior comment. Discussion continues until **every** participant's
+latest message starts with **AGREE**. Then execute actions are dispatched.
+Robots (or the planner) may call **`start_discussion_round`** to open another
+discuss→AGREE→execute cycle. Robots do not free-form mesh-chat.
 
 ```
         ┌──────────┐
  user ► │ planner  │  propose_and_discuss(initial plan)
         └────┬─────┘
              │ primes, then orchestrates turns (broker)
-     SmallDeliveryRobot_0 → _1 → _2 → _3 → _0 → …  until EXECUTE
+     SmallDeliveryRobot_0 → _1 → _2 → …  until all AGREE
              │
              ▼
-      dispatch EXECUTE actions to each participant
+      dispatch EXECUTE APPROVED to each participant
+             │
+             ▼  (optional) start_discussion_round / NEED_DISCUSSION
+      another discuss → AGREE → execute cycle
 ```
 
 - **Planner** (`planner_agent.py`): drafts **one** initial plan and calls
-  `propose_and_discuss` **once** (`participants='all'` or a single robot).
-  No confirmations, no sequential per-robot plans. The tool then runs the
-  robot turn loop and dispatches EXECUTE.
-- **Robots** (`robot_agent.py`): know the planner only primed once; they
-  discuss in turns or output EXECUTE; on `EXECUTE APPROVED`, run MCP tools.
-- **Helpers** (`dialogue.py`): participant resolution, turn prompts, EXECUTE parse.
+  `propose_and_discuss` once. For replans: `start_discussion_round`. Also
+  handles robot `START_DISCUSSION` bus requests.
+- **Robots** (`robot_agent.py`): discuss with `AGREE:` / `DISAGREE:`; on
+  `EXECUTE APPROVED`, run MCP tools; may call `start_discussion_round` or
+  end a reply with `NEED_DISCUSSION:`.
+- **Helpers** (`dialogue.py`): participant resolution, turn prompts, AGREE
+  consensus, execute parse.
 - **Transport**: `architectures/centralized/agent_bus.py` (star broker only).
 
 Contrast with **HMAS-2** (central plan → parallel AGREE/DISAGREE → re-plan)

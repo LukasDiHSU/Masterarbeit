@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from functools import cached_property
@@ -14,6 +15,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from .config import DEFAULT_MODEL
 from .monitor import report_tokens, report_trace
+from .timing import format_elapsed, record_timing
 
 
 @dataclass(slots=True)
@@ -256,7 +258,13 @@ class BaseAgent:
         *,
         prompt: str = "You: ",
         exit_commands: frozenset[str] | None = None,
+        timing_label: str | None = None,
     ) -> None:
+        """Interactive REPL. When ``timing_label`` is set, wall-clock from user
+        message until the agent returns its final reply (system thinks done)
+        is printed and appended to ``timings.log`` if an experiment session
+        is active.
+        """
         exits = exit_commands or frozenset({"quit", "exit", "q", "/quit", "/exit"})
         lowered = {e.lower() for e in exits}
         print(
@@ -267,6 +275,11 @@ class BaseAgent:
             "Token usage → usage monitor; LLM/tool traces → agent trace window "
             "(not printed here)."
         )
+        if timing_label:
+            print(
+                "Timer: wall-clock from each message until this agent finishes "
+                "(final reply = system thinks done)."
+            )
         while True:
             try:
                 line = input(prompt).strip()
@@ -277,8 +290,20 @@ class BaseAgent:
                 continue
             if line.lower() in lowered:
                 break
+            t0 = time.perf_counter() if timing_label else None
             reply = self.invoke(line, thread_id=thread_id)
             print(reply)
+            if timing_label and t0 is not None:
+                elapsed = time.perf_counter() - t0
+                print(
+                    f"--- elapsed until done: {format_elapsed(elapsed)} "
+                    f"({elapsed:.1f}s) ---"
+                )
+                record_timing(
+                    timing_label,
+                    elapsed,
+                    extra=f"agent={self.spec.name}",
+                )
 
     def thread_key(self, thread_id: str) -> str:
         return f"{self.spec.name}:{thread_id}"

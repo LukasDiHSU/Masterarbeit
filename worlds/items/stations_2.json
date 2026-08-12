@@ -1,0 +1,38 @@
+[
+  {
+    "id": "station_a",
+    "name": "station A",
+    "x": -10.0,
+    "y": -10.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_b",
+    "name": "station B",
+    "x": -10.0,
+    "y": 10.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_c",
+    "name": "station C",
+    "x": 10.0,
+    "y": 10.0,
+    "z": 0.0
+  },
+  {
+    "id": "station_d",
+    "name": "station D",
+    "x": 10.0,
+    "y": -10.0,
+    "z": 0.0
+  },
+  {
+    "id": "route",
+    "name": "suggested route A-B-C-D",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "2x arena (world=stations_2). Landmarks scaled; no pad meshes. See exp_2_stations.yaml."
+  }
+]

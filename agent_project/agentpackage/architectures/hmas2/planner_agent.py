@@ -245,7 +245,10 @@ def main() -> None:
 
     try:
         agent = PlannerAgent(bus=bus)
-        agent.run_persistent_chat(thread_id="default")
+        agent.run_persistent_chat(
+            thread_id="default",
+            timing_label="hmas2_until_done",
+        )
     finally:
         bus.close()
 

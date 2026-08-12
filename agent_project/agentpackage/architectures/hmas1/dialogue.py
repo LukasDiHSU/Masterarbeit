@@ -2,7 +2,9 @@
 
 Central planner primes with an initial plan; robots then speak in fixed
 order. Each turn's prompt includes the initial plan plus every prior
-comment. Dialogue ends when a robot's reply starts with ``EXECUTE``.
+comment. Discussion continues until every participant's latest message
+starts with ``AGREE``; then execute is dispatched. ``EXECUTE`` alone no
+longer ends discussion early.
 """
 
 from __future__ import annotations
@@ -12,8 +14,10 @@ from typing import Any
 
 from ...config import TB_IDS, resolve_robot_id, robot_peer_name
 
-DEFAULT_MAX_ROUNDS = 3
+DEFAULT_MAX_ROUNDS = 5
 
+_AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE | re.MULTILINE)
+_DISAGREE_RE = re.compile(r"^\s*DISAGREE\b", re.IGNORECASE | re.MULTILINE)
 _EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
 
 
@@ -48,7 +52,16 @@ def resolve_participants(recipients: str) -> list[str] | dict[str, Any]:
     return [p for p in order if p in peers]
 
 
+def looks_like_agree(text: str) -> bool:
+    return bool(_AGREE_RE.search(text or ""))
+
+
+def looks_like_disagree(text: str) -> bool:
+    return bool(_DISAGREE_RE.search(text or ""))
+
+
 def looks_like_execute(text: str) -> bool:
+    """Legacy helper; EXECUTE no longer ends HMAS-1 discussion by itself."""
     return bool(_EXECUTE_RE.search(text or ""))
 
 
@@ -61,6 +74,30 @@ def format_dialogue_history(turns: list[dict[str, str]]) -> str:
     return "\n\n".join(lines)
 
 
+def latest_stances(
+    history: list[dict[str, str]], participants: list[str]
+) -> dict[str, str]:
+    """Map each participant to their most recent dialogue text (if any)."""
+    latest: dict[str, str] = {}
+    for turn in history:
+        speaker = turn.get("speaker", "")
+        if speaker in participants:
+            latest[speaker] = turn.get("text", "")
+    return latest
+
+
+def all_participants_agree(
+    history: list[dict[str, str]], participants: list[str]
+) -> bool:
+    """True when every participant has spoken and their latest message AGREEs."""
+    if not participants:
+        return False
+    latest = latest_stances(history, participants)
+    if len(latest) < len(participants):
+        return False
+    return all(looks_like_agree(latest[p]) for p in participants)
+
+
 def build_turn_prompt(
     *,
     initial_plan: str,
@@ -71,9 +108,8 @@ def build_turn_prompt(
     max_rounds: int,
 ) -> str:
     order = " -> ".join(participants)
-    example_lines = "\n".join(f"  {p}: ..." for p in participants[: min(2, len(participants))])
     return (
-        "HMAS-1 TURN-BASED DIALOGUE (after the planner's single priming plan).\n"
+        "HMAS-1 TURN-BASED DISCUSSION (after the planner's priming plan).\n"
         f"Participants (speak in this order): {order}\n"
         f"Round {round_idx}/{max_rounds}. It is now YOUR turn ({speaker}).\n"
         "\n"
@@ -84,25 +120,37 @@ def build_turn_prompt(
         "Dialogue so far (oldest first; prior robot comments only):\n"
         f"{format_dialogue_history(history)}\n"
         "\n"
-        "YOUR TURN:\n"
-        "- Briefly discuss / refine the plan from your robot's perspective "
-        "(use MCP tools if you need local state). Keep it as short but precise as possible.\n"
-        "- OR, if the fleet should act now, reply starting with EXECUTE on its own "
-        "line, then one action line per participant, e.g.:\n"
-        "  EXECUTE\n"
-        f"{example_lines}\n"
-        "Do not execute MCP navigation/pickup yet during discussion — only after "
-        "EXECUTE has been decided and you later receive an execute instruction.\n"
+        "YOUR TURN — discuss until the fleet AGREEs:\n"
+        "- Refine the plan from YOUR perspective. Prefer few or zero MCP tools "
+        "(get_station / list_available_boxes only if needed).\n"
+        "- Do NOT navigate, pickup, or drop yet.\n"
+        "- Do NOT end the discussion alone with EXECUTE — that is ignored for "
+        "ending the round.\n"
+        "- If you still disagree with the current plan, reply starting with "
+        "DISAGREE: and a short reason / alternative.\n"
+        "- If you accept the current plan (including peers' refinements so far), "
+        "reply starting with AGREE: then a short summary of YOUR role and any "
+        "concrete coords you will use later.\n"
+        "- Discussion ends only when EVERY participant's latest message starts "
+        "with AGREE; then the system dispatches execute to everyone.\n"
     )
 
 
 def parse_execute_actions(text: str, participants: list[str]) -> dict[str, str]:
-    """Best-effort map peer name -> action line from an EXECUTE reply."""
+    """Best-effort map peer name -> action line from an AGREE/EXECUTE block."""
     actions: dict[str, str] = {}
     for line in (text or "").splitlines():
         stripped = line.strip()
-        if not stripped or _EXECUTE_RE.match(stripped):
-            continue
+        if not stripped or _EXECUTE_RE.match(stripped) or _AGREE_RE.match(stripped):
+            # Keep text after AGREE: on the same line as a possible action hint
+            if _AGREE_RE.match(stripped):
+                rest = _AGREE_RE.sub("", stripped, count=1).lstrip(": ").strip()
+                if rest and ":" in rest:
+                    stripped = rest
+                else:
+                    continue
+            else:
+                continue
         for peer in participants:
             prefixes = (f"{peer}:", f"{peer} -", f"{peer}—", f"{peer} –")
             lower = stripped.lower()
@@ -113,7 +161,6 @@ def parse_execute_actions(text: str, participants: list[str]) -> dict[str, str]:
             else:
                 continue
             break
-        # also accept bare id without trailing punctuation variants already covered
         for tb in TB_IDS:
             peer = robot_peer_name(tb)
             if peer in actions:
@@ -123,3 +170,16 @@ def parse_execute_actions(text: str, participants: list[str]) -> dict[str, str]:
                     actions[peer] = stripped[len(pref) :].strip()
                     break
     return actions
+
+
+def agreed_plan_text(
+    initial_plan: str,
+    history: list[dict[str, str]],
+    participants: list[str],
+) -> str:
+    """Combine initial plan with each participant's latest AGREE text."""
+    latest = latest_stances(history, participants)
+    parts = [f"Initial plan:\n{initial_plan.strip()}", "Agreed stances:"]
+    for peer in participants:
+        parts.append(f"- {peer}: {(latest.get(peer) or '').strip()}")
+    return "\n".join(parts)

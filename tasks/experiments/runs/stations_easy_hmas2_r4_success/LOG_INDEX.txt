@@ -1,0 +1,10 @@
+Run: stations_easy_hmas2_r4_success
+Logs (7):
+
+  - logs/00_usage_monitor.log  (343907 bytes)
+  - logs/01_agent_trace.log  (13075 bytes)
+  - logs/02_mcp_server_shared.log  (6703 bytes)
+  - logs/03_agent_broker.log  (276 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (562 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (562 bytes)
+  - logs/06_planner_hmas_2.log  (1042 bytes)

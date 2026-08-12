@@ -1,0 +1,10 @@
+Run: stations_easy_dmas_r2_success
+Logs (7):
+
+  - logs/00_usage_monitor.log  (261350 bytes)
+  - logs/01_agent_trace.log  (16990 bytes)
+  - logs/02_mcp_server_shared.log  (7708 bytes)
+  - logs/03_message_pool.log  (545 bytes)
+  - logs/04_pool_agent_smalldeliveryrobot_0.log  (4767 bytes)
+  - logs/05_pool_agent_smalldeliveryrobot_1.log  (3717 bytes)
+  - logs/06_user_pool_cli.log  (3392 bytes)

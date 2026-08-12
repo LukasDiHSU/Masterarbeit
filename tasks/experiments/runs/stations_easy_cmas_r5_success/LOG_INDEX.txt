@@ -1,0 +1,10 @@
+Run: stations_easy_cmas_r5_success
+Logs (7):
+
+  - logs/00_usage_monitor.log  (421104 bytes)
+  - logs/01_agent_trace.log  (17589 bytes)
+  - logs/02_mcp_server_shared.log  (10223 bytes)
+  - logs/03_agent_broker.log  (275 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (510 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (510 bytes)
+  - logs/06_master_agent.log  (1322 bytes)

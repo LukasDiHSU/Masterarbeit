@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import json
-
-from langchain_mcp_adapters.client import MultiServerMCPClient
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ...config import (
     DEFAULT_MESH_BASE_PORT,
@@ -13,34 +12,17 @@ from ...config import (
     TB_IDS,
     build_peer_table,
     nav_id_for_tb,
-    resolve_robot_id,
     robot_peer_name,
 )
-from ...mcp_client import build_mcp_connections
+from ...timing import format_elapsed, record_timing
 from .mesh_bus import MeshNode
-
-
-def _run_mcp_tool(name: str, args: dict) -> str:
-    import asyncio
-
-    async def _call() -> str:
-        client = MultiServerMCPClient(build_mcp_connections(), tool_name_prefix=False)
-        tools = await client.get_tools()
-        by_name = {t.name: t for t in tools}
-        t = by_name.get(name)
-        if t is None:
-            return json.dumps({"error": "tool_not_found", "tool": name})
-        return str(await t.ainvoke(args))
-
-    return asyncio.run(_call())
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "Mission CLI for conflict-based peers. "
-            "Assign a solo mission to ONE robot, or inject a conflict event "
-            "so only the involved subset opens negotiation."
+            "Paste a prompt; it is sent to ALL robots at once as solo missions."
         )
     )
     parser.add_argument("--host", default=DEFAULT_MESH_HOST)
@@ -50,93 +32,73 @@ def main() -> None:
     args = parser.parse_args()
 
     peer_table = build_peer_table(TB_IDS, host=args.host, base_port=args.base_port)
-    peers = list(peer_table.keys())
+    peers = [robot_peer_name(rid) for rid in TB_IDS]
     mesh = MeshNode(args.name, args.host, args.cli_port, peer_table)
 
     print(f"Mission CLI online as {args.name!r} at {args.host}:{args.cli_port}.")
-    print(f"Waiting for links to: {', '.join(peers)} ...")
-    for peer in peers:
-        mesh._wait_for_link(peer, timeout=60.0)
-        print(f"  linked: {peer}")
-    print()
-    rid_help = "|".join(TB_IDS)
-    print("Commands:")
-    print(f"  mission <{rid_help}> <text>   — solo mission to one peer")
-    print("  conflict <id>,<id>[,...] [reason] — emit conflict event (MCP)")
-    print("  events [since]                     — show MCP event log")
-    print("  stations                           — list stations/boxes")
-    print("  help                               — this text")
-    print("Ctrl+C to quit.\n")
+    print(f"Peers (all get every prompt): {', '.join(peers)}")
+    print("Paste a mission prompt and press Enter — sent to every robot at once.")
+    print("Type quit / exit to leave. Ctrl+C also quits.\n")
+
+    def _send_one(peer: str, text: str) -> tuple[str, str, float]:
+        rid = peer  # peer name == robot id
+        nav = nav_id_for_tb(rid)
+        mission = (
+            f"SOLO MISSION (work alone; negotiate only if an event opens):\n{text}\n"
+            f"Use robot_id '{nav}' for navigate_to_pose / pickup_box / drop_box.\n"
+            f"Other robots received the same prompt and work in parallel.\n"
+            f"Each robot holds at most ONE box; drop before picking another.\n"
+            f"Do not chat on the whiteboard — peer talk is negotiate_with after a conflict.\n"
+            f"BEFORE you finish: call report_done_and_confirm(summary=...) to tell peers "
+            f"what you did and get AGREE/DISAGREE that the fleet task is finished. "
+            f"Only end as done if all_agree is true."
+        )
+        t0 = time.perf_counter()
+        try:
+            mesh._wait_for_link(peer, timeout=60.0)
+            reply = mesh.ask(peer, mission, thread_id="mission")
+            return peer, reply, time.perf_counter() - t0
+        except Exception as e:
+            return peer, f"ERROR: {e}", time.perf_counter() - t0
 
     try:
         while True:
             line = input("mission> ").strip()
             if not line:
                 continue
-            if line in {"help", "?"}:
-                print(
-                    "mission SmallDeliveryRobot_0 Go pick box at station_A and drop at station_D\n"
-                    "conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 bottleneck approach\n"
-                    "events 0\n"
-                    "stations"
-                )
-                continue
+            if line.lower() in {"quit", "exit", "q", "/quit", "/exit"}:
+                break
 
-            if line == "stations":
-                print(_run_mcp_tool("list_stations", {}))
-                continue
+            print(
+                f"... sending prompt to {len(peers)} peers in parallel "
+                f"(timer started) ...",
+                flush=True,
+            )
+            t0 = time.perf_counter()
+            results: dict[str, tuple[str, float]] = {}
+            with ThreadPoolExecutor(max_workers=max(1, len(peers))) as pool:
+                futs = {
+                    pool.submit(_send_one, peer, line): peer for peer in peers
+                }
+                for fut in as_completed(futs):
+                    peer, reply, elapsed = fut.result()
+                    results[peer] = (reply, elapsed)
+                    print(
+                        f"\n[{peer}] done in {format_elapsed(elapsed)} ({elapsed:.1f}s)",
+                        flush=True,
+                    )
+                    print(f"[{peer}] {reply}", flush=True)
 
-            if line.startswith("events"):
-                parts = line.split()
-                since = int(parts[1]) if len(parts) > 1 else 0
-                print(_run_mcp_tool("get_events", {"since_index": since}))
-                continue
-
-            if line.startswith("conflict "):
-                rest = line[len("conflict ") :].strip()
-                if not rest:
-                    print("usage: conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 [reason...]")
-                    continue
-                bits = rest.split(maxsplit=1)
-                ids_raw = bits[0]
-                reason = bits[1] if len(bits) > 1 else "conflict"
-                nav_ids: list[str] = []
-                for tok in ids_raw.split(","):
-                    tok = tok.strip()
-                    rid = resolve_robot_id(tok)
-                    if rid is None:
-                        print(f"unknown robot token: {tok}")
-                        nav_ids = []
-                        break
-                    nav_ids.append(nav_id_for_tb(rid))
-                if not nav_ids:
-                    continue
-                print(_run_mcp_tool("emit_conflict", {"robot_ids": ",".join(nav_ids), "reason": reason}))
-                continue
-
-            if line.startswith("mission "):
-                rest = line[len("mission ") :].strip()
-                parts = rest.split(maxsplit=1)
-                if len(parts) < 2:
-                    print(f"usage: mission <{'|'.join(TB_IDS)}> <text>")
-                    continue
-                target_tok, text = parts[0], parts[1]
-                rid = resolve_robot_id(target_tok)
-                if rid is None:
-                    print(f"unknown target: {target_tok}")
-                    continue
-                peer = robot_peer_name(rid)
-                nav = nav_id_for_tb(rid)
-                mission = (
-                    f"SOLO MISSION (work alone; negotiate only if an event opens):\n{text}\n"
-                    f"Use robot_id '{nav}' for navigate_to_pose / pickup_box / drop_box."
-                )
-                print(f"... sending solo mission to {peer} ...")
-                reply = mesh.ask(peer, mission, thread_id="mission")
-                print(f"[{peer}] {reply}\n")
-                continue
-
-            print("Unknown command. Type 'help'.")
+            total = time.perf_counter() - t0
+            print(
+                f"\n*** TIME  until all peers replied: {format_elapsed(total)} "
+                f"({total:.1f}s) ***\n",
+                flush=True,
+            )
+            extra = " ".join(
+                f"{p}={results[p][1]:.1f}s" for p in peers if p in results
+            )
+            record_timing("conflict_until_done", total, extra=extra)
     except (KeyboardInterrupt, EOFError):
         print()
     finally:

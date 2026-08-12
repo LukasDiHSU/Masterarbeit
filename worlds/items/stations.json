@@ -33,6 +33,6 @@
     "x": 0.0,
     "y": 0.0,
     "z": 0.0,
-    "note": "Arena at original (~12 m) size. Stations inset at \u00b15.0 (visual-only). Brown chicanes removed. Spawn just off pads (see exp_0_stations.yaml)."
+    "note": "Arena ~12 m. Stations at \u00b15.0 are logical landmarks only (no pad meshes). See exp_0_stations.yaml for spawns."
   }
 ]

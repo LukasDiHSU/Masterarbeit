@@ -55,7 +55,7 @@ DEFAULT_MESH_HOST = os.getenv("AGENT_MESH_HOST", "127.0.0.1")
 DEFAULT_MESH_BASE_PORT = int(os.getenv("AGENT_MESH_BASE_PORT", "9101"))
 PLANNER_NAME = "planner"
 PLANNER_MESH_PORT = int(os.getenv("AGENT_PLANNER_MESH_PORT", "9100"))
-MESH_CLI_NAME = "cli"
+MESH_CLI_NAME = "CLI"  # Must sort *before* SmallDeliveryRobot_* so CLI dials peers
 DEFAULT_MESH_CLI_PORT = int(os.getenv("AGENT_MESH_CLI_PORT", "9099"))
 
 # --- Shared message pool architecture (blackboard) ------------------------
@@ -137,6 +137,7 @@ def build_peer_table(
     host: str = DEFAULT_MESH_HOST,
     base_port: int = DEFAULT_MESH_BASE_PORT,
     include_planner: bool = False,
+    include_cli: bool = False,
 ) -> dict[str, tuple[str, int]]:
     """Build a static ``name -> (host, port)`` table for the mesh network.
 
@@ -148,4 +149,6 @@ def build_peer_table(
     }
     if include_planner:
         table[PLANNER_NAME] = (host, PLANNER_MESH_PORT)
+    if include_cli:
+        table[MESH_CLI_NAME] = (host, DEFAULT_MESH_CLI_PORT)
     return table

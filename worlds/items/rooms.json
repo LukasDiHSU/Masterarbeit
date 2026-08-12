@@ -33,6 +33,6 @@
     "x": 0.0,
     "y": 0.0,
     "z": 0.0,
-    "note": "Wide doorways (~2m clear) for SmallDeliveryRobot (r=0.6). Station pads are visual-only."
+    "note": "Wide doorways (~2m clear) for SmallDeliveryRobot (r=0.6). Stations are logical landmarks only (no pad meshes)."
   }
 ]

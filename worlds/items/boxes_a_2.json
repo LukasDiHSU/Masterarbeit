@@ -1,0 +1,30 @@
+[
+  {
+    "id": "item_1",
+    "name": "north cache",
+    "x": 9.0,
+    "y": 9.0,
+    "z": 0.0
+  },
+  {
+    "id": "item_2",
+    "name": "south cache",
+    "x": -9.0,
+    "y": -9.0,
+    "z": 0.0
+  },
+  {
+    "id": "item_3",
+    "name": "east cache",
+    "x": 10.8,
+    "y": -1.2,
+    "z": 0.0
+  },
+  {
+    "id": "item_4",
+    "name": "collection area",
+    "x": -10.8,
+    "y": 1.2,
+    "z": 0.0
+  }
+]

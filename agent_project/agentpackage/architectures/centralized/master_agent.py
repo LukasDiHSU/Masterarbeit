@@ -214,7 +214,10 @@ def main() -> None:
 
     try:
         agent = MasterAgent(bus=bus)
-        agent.run_persistent_chat(thread_id="default")
+        agent.run_persistent_chat(
+            thread_id="default",
+            timing_label="centralized_until_done",
+        )
     finally:
         bus.close()
 

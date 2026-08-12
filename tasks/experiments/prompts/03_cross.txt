@@ -1,0 +1,12 @@
+Cross (delivery + shared crossing) — single-line prompts for CLI paste
+
+Copy ONE line below into the CLI (no line breaks inside the prompt).
+
+=== EASY — copy the next line only ===
+You are on the cross map (world: cross). Deliver package P1 from NW to SE, and package P2 from NE to SW. Allocate among SmallDeliveryRobot_0 and SmallDeliveryRobot_1. No more than two robots may occupy the center crossing at the same time. Look up stations via tools. Report when all deliveries are done.
+
+=== MEDIUM — copy the next line only ===
+You are on the cross map (world: cross_1). Deliver all packages to their assigned destination stations. Coordinate task allocation and passage through the central bottleneck. No more than two robots may occupy the bottleneck at the same time. Avoid opposing traffic conflicts and complete all deliveries as quickly as possible. Assignments: P1: NW → SE; P2: NE → SW; P3: SE → NW; P4: SW → NE. Use station/box tools for coordinates. Report when all deliveries are done.
+
+=== HARD — copy the next line only ===
+You are on the cross map (world: cross_2). Deliver these packages with at most two robots in the center crossing at once: P1: NW → SE; P2: NE → SW; P3: SE → NW; P4: SW → NE; P5: NW → NE; P6: SW → SE. Allocate among SmallDeliveryRobot_0..SmallDeliveryRobot_5. Prefer parallel work; resolve crossing conflicts. Report when all deliveries are done.

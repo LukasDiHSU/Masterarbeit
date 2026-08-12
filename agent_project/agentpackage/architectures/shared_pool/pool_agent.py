@@ -21,14 +21,11 @@ from .message_pool import PoolClient, message_says_done
 
 
 class PoolAgent(BaseAgent):
-    """A robot agent that coordinates through a shared, turn-based
-    broadcast log.
+    """Robot agent on the shared turn-based pool.
 
-    There is still no addressing and everyone sees every message, but the
-    pool server enforces a fixed speaking order (see ``config.POOL_TURN_ORDER``):
-    this agent only ever contributes when the pool tells it it is its turn.
-    If any agent posts a message containing the word ``DONE``, the round
-    ends immediately until the user starts a new one.
+    Discussion phase: post until every agent AGREEs → server starts execute.
+    Execute phase: use MCP, then DONE when the mission is finished.
+    ``start_discussion_round`` reopens discuss after/during execute.
     """
 
     def __init__(self, robot_id: str, *, pool: PoolClient):
@@ -44,40 +41,41 @@ class PoolAgent(BaseAgent):
         super().__init__(
             AgentSpec(
                 name=name,
-                description=f"Turn-based pool agent for {name}. No master, no direct addressing.",
+                description=f"Turn-based pool agent for {name}. Discuss→AGREE→execute.",
                 system_prompt=(
                     f"You are {name} in the SHARED POOL architecture.\n"
                     "\n"
-                    "WHAT YOU CAN DO:\n"
-                    f"- On your turn only: use MCP tools if needed (list_worlds/get_map_info, "
-                    f"rank_stations_by_distance(robot_id='{self.nav_id}'), stations/boxes, get_robot_pose, "
-                    f"distance_to_station, get_laser_snapshot, get_peer_distances, "
-                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
-                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
-                    "events, whiteboard), "
-                    "then post_to_pool EXACTLY ONCE to SEND your message into the shared pool "
-                    "(everyone reads the same log).\n"
-                    "- Prefer few tools: rank stations once → navigate. "
-                    "Only after nav fails: get_peer_distances and/or drive_distance, then retry. "
-                    "Do not re-sense poses repeatedly.\n"
-                    f"- Speaking order: {order_desc} (then repeats). A user message restarts at the front.\n"
-                    "- read_pool if you need more history than you were shown.\n"
+                    "PHASES (server-enforced):\n"
+                    "1) DISCUSS — talk in the pool until EVERY turn-taker's latest post "
+                    "starts with AGREE. Do NOT navigate/pickup/drop in this phase. "
+                    "Reply AGREE: … or DISAGREE: … (with a short plan refinement).\n"
+                    "2) EXECUTE — after unanimous AGREE the server switches phase. "
+                    "Then use MCP tools to do YOUR work, and post_to_pool once with status.\n"
+                    "3) When the whole user goal is finished in execute phase, include "
+                    "uppercase DONE in your post so the round ends.\n"
+                    "4) If you need another planning discussion, call "
+                    "start_discussion_round(reason=...) (reopens discuss→AGREE→execute).\n"
                     "\n"
-                    "HOW TO END THE CONVERSATION:\n"
-                    "- When the user goal is finished (or there is nothing useful left to do), your pool "
-                    "message MUST include the uppercase token DONE (e.g. end with a line that says DONE).\n"
-                    "- As soon as ANY agent posts DONE, the round stops for everyone. Do not keep chatting "
-                    "after the task is done.\n"
-                    "- Do NOT write DONE while work is still in progress. Lowercase 'done' does not count.\n"
+                    "WHAT YOU CAN DO:\n"
+                    f"- On your turn: read the phase, then either discuss (AGREE/DISAGREE) or "
+                    f"execute with MCP (rank_stations_by_distance(robot_id='{self.nav_id}'), "
+                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
+                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
+                    "stations/boxes, get_peer_distances, whiteboard, …), then "
+                    "post_to_pool EXACTLY ONCE.\n"
+                    f"- Speaking order: {order_desc} (then repeats). A user message restarts discuss.\n"
+                    "- read_pool if you need more history.\n"
                     "\n"
                     "WHAT YOU CANNOT DO:\n"
-                    "- You cannot address one robot privately; there is no ask_peer. Only the shared pool.\n"
-                    "- You cannot post when it is not your turn.\n"
+                    "- No private addressing / ask_peer — only the shared pool.\n"
+                    "- Do not post when it is not your turn.\n"
                     "- Never call post_to_pool more than once per turn.\n"
+                    "- Do not use DONE during discuss to skip agreement — DONE only ends "
+                    "the round in execute phase.\n"
                     "\n"
                     "WORDING: say you SEND / post a message to the pool. Do not say broadcast.\n"
-                    "FLEET: Other robots share this map. Navigate first; on failure use "
-                    "get_peer_distances / drive_distance to clear peers, then retry.\n"
+                    "FLEET: Other robots share this map. In execute: navigate first; on failure "
+                    "use get_peer_distances / drive_distance, then retry.\n"
                     "TOOLS: If the same tool with the same arguments fails twice, do not call "
                     "it a third time — change the goal/approach or report failure.\n"
                     "STYLE: keep every message as short but precise as possible. Never hallucinate values."
@@ -97,28 +95,38 @@ class PoolAgent(BaseAgent):
         def post_to_pool(message: str) -> str:
             """SEND your contribution for this turn to the shared pool (everyone will see it).
 
-            Args:
-                message: Your contribution. If the task is finished, include the uppercase
-                    token DONE (e.g. end with a line that says DONE) so the conversation stops.
+            Discuss phase: start with AGREE: or DISAGREE:.
+            Execute phase: status update; include DONE when the whole mission is finished.
             """
             self.pool.post(message, thread_id="pool")
             self.posted_this_turn = True
             if message_says_done(message):
-                return "posted (DONE — round will end)"
+                return "posted (DONE — ends round only in execute phase)"
             return "posted"
 
         @tool
         def read_pool(limit: int = 20) -> str:
-            """Read the last `limit` messages from the shared pool (oldest first),
-            in case you need more backlog than what you were shown for this turn."""
+            """Read the last `limit` messages from the shared pool (oldest first)."""
             return json.dumps(self.pool.recent(limit), ensure_ascii=False, indent=2)
 
-        return [*local_tools, post_to_pool, read_pool]
+        @tool
+        def start_discussion_round(reason: str) -> str:
+            """Reopen a pool discussion round (until all AGREE again), then execute.
+
+            Use when execute is blocked and the fleet needs to replan together.
+
+            Args:
+                reason: Why a new discussion is needed.
+            """
+            self.pool.start_discussion((reason or "").strip() or "replan needed")
+            return "discussion_round_requested"
+
+        return [*local_tools, post_to_pool, read_pool, start_discussion_round]
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run one robot agent that coordinates via the turn-based shared message pool (blackboard architecture)."
+        description="Run one robot agent on the shared pool (discuss→AGREE→execute)."
     )
     parser.add_argument(
         "--robot-id",
@@ -137,38 +145,66 @@ def main() -> None:
     robot = PoolAgent(args.robot_id, pool=pool)
 
     def handle_message(msg: dict) -> None:
-        marker = " [DONE]" if msg.get("done") else ""
+        markers = []
+        if msg.get("agree"):
+            markers.append("AGREE")
+        if msg.get("done"):
+            markers.append("DONE")
+        marker = f" [{', '.join(markers)}]" if markers else ""
         print(f"\n[pool #{msg.get('seq')}] {msg.get('from')}: {msg.get('text')}{marker}")
+
+    def handle_phase(envelope: dict) -> None:
+        print(
+            f"\n=== phase → {envelope.get('phase')} "
+            f"({envelope.get('reason', '')}) ==="
+        )
 
     def handle_turn(name: str | None) -> None:
         if name != my_name:
             return
+        phase = pool.phase or "discuss"
         transcript = "\n".join(f"{m['from']}: {m['text']}" for m in pool.history) or "(pool is empty so far)"
-        prompt = (
-            "It is now YOUR turn in the shared pool discussion. Conversation so far (oldest first):\n\n"
-            f"{transcript}\n\n"
-            "Take your turn now: act with your local tools if useful, then call post_to_pool exactly once. "
-            "Keep your post as short but precise as possible. "
-            "If the user goal is already finished and nothing useful remains, your post MUST include the "
-            "uppercase token DONE so the conversation stops."
-        )
+        if phase == "discuss":
+            prompt = (
+                "It is now YOUR turn in the shared pool DISCUSS phase. "
+                "Conversation so far (oldest first):\n\n"
+                f"{transcript}\n\n"
+                "Discuss / refine the plan. Do NOT navigate or move boxes yet. "
+                "Call post_to_pool exactly once. "
+                "If you accept the current plan (incl. peers' posts), start with AGREE: "
+                "and summarize YOUR role. If not, start with DISAGREE: and propose a change. "
+                "Discussion ends only when every agent's latest post AGREEs."
+            )
+        else:
+            prompt = (
+                "It is now YOUR turn in the shared pool EXECUTE phase. "
+                "Conversation so far (oldest first):\n\n"
+                f"{transcript}\n\n"
+                "Carry out YOUR part with MCP tools, then call post_to_pool exactly once "
+                "with a short status. "
+                "If the whole user goal is finished, include uppercase DONE. "
+                "If the fleet needs to replan, call start_discussion_round(reason=...) "
+                "instead of (or before) posting DONE."
+            )
         robot.posted_this_turn = False
         try:
             reply = robot.invoke(prompt, thread_id="pool")
         except Exception as e:
             reply = f"{my_name} failed to take its turn: {type(e).__name__}: {e}"
         print(f"[{my_name} internal] {reply}")
-        if not robot.posted_this_turn:
-            # Safety net: never let the round stall just because the model
-            # forgot to call the tool -- post its final answer on its behalf.
+        if not robot.posted_this_turn and phase == "discuss":
+            # Safety net for discuss: keep the round moving.
             print(f"[{my_name}] did not call post_to_pool; posting its reply automatically.")
+            pool.post(reply, thread_id="pool")
+        elif not robot.posted_this_turn and phase == "execute":
+            print(f"[{my_name}] did not call post_to_pool; posting status automatically.")
             pool.post(reply, thread_id="pool")
 
     def handle_round_end(envelope: dict) -> None:
         who = envelope.get("from", "?")
         print(
             f"\n=== round ended: {envelope.get('reason', 'unknown')} "
-            f"(by {who}) — waiting for a new user message ==="
+            f"(by {who}) — waiting for a new user message or start_discussion_round ==="
         )
 
     def handle_error(text: str) -> None:
@@ -176,12 +212,14 @@ def main() -> None:
 
     pool.on_message(handle_message)
     pool.on_turn(handle_turn)
+    pool.on_phase(handle_phase)
     pool.on_round_end(handle_round_end)
     pool.on_error(handle_error)
 
     print(f"{my_name} is online, watching the shared pool at {args.host}:{args.port}.")
     print(f"Turn order: {' -> '.join(POOL_TURN_ORDER)}")
-    print("Round ends when any agent posts DONE. This agent only speaks on its turn. Ctrl+C to exit.\n")
+    print("Discuss until all AGREE → execute → DONE ends round; start_discussion_round replans.")
+    print("This agent only speaks on its turn. Ctrl+C to exit.\n")
 
     try:
         threading.Event().wait()

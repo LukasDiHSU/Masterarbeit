@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.utilities.logging import configure_logging
+import asyncio
 import json
 import math
 import os
@@ -7,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from copy import deepcopy
 from pathlib import Path
@@ -22,6 +24,9 @@ TOOL_TEXT_MAX_CHARS = int(os.environ.get("MCP_TOOL_TEXT_MAX_CHARS", "1200"))
 # Peer within this distance of self or goal counts as "in the way" after Nav2 fails.
 NAV_BLOCKER_RADIUS_M = float(os.environ.get("MCP_NAV_BLOCKER_RADIUS_M", "2.0"))
 DEFAULT_WORLD_ID = os.environ.get("AGENT_WORLD", "stations").strip() or "stations"
+
+# Protect station/box inventory when concurrent tool calls run in threads.
+_STATE_LOCK = threading.Lock()
 
 _ROBOT_STATE_RE = re.compile(r"^/(SmallDeliveryRobot_\d+)/robot_state$")
 _FLOAT_RE = re.compile(
@@ -46,12 +51,12 @@ def _clip(text: str, limit: int = TOOL_TEXT_MAX_CHARS) -> str:
 # Each station may hold at most one box. available=True means the box is still
 # at the station and can be picked up.
 
-# Coordinates from remroc worlds/items/stations.json (pads at ±10.0).
+# Fallback when items/{AGENT_WORLD}.json is missing (1.0x stations arena).
 _DEFAULT_STATIONS = [
-    {"id": "station_A", "name": "Station A", "x": -10.0, "y": -10.0, "box_id": "box_1", "available": True, "last_box_id": "box_1"},
-    {"id": "station_B", "name": "Station B", "x": -10.0, "y": 10.0, "box_id": "box_2", "available": True, "last_box_id": "box_2"},
-    {"id": "station_C", "name": "Station C", "x": 10.0, "y": 10.0, "box_id": "box_3", "available": True, "last_box_id": "box_3"},
-    {"id": "station_D", "name": "Station D", "x": 10.0, "y": -10.0, "box_id": None, "available": False, "last_box_id": None},
+    {"id": "station_A", "name": "Station A", "x": -5.0, "y": -5.0, "box_id": "box_1", "available": True, "last_box_id": "box_1"},
+    {"id": "station_B", "name": "Station B", "x": -5.0, "y": 5.0, "box_id": "box_2", "available": True, "last_box_id": "box_2"},
+    {"id": "station_C", "name": "Station C", "x": 5.0, "y": 5.0, "box_id": "box_3", "available": True, "last_box_id": "box_3"},
+    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": None, "available": False, "last_box_id": None},
 ]
 
 STATIONS: list[dict] = deepcopy(_DEFAULT_STATIONS)
@@ -67,6 +72,13 @@ def _emit_event(event_type: str, **payload) -> dict:
     event = {"type": event_type, "ts": time.time(), **payload}
     EVENTS.append(event)
     return event
+
+
+def _tool_error(event_type: str, *, error: str, **payload: Any) -> str:
+    """Return an error JSON and always append a matching MCP event for peers."""
+    event = _emit_event(event_type, error=error, **payload)
+    body = {"error": error, "event": event, **payload}
+    return json.dumps(body, indent=2)
 
 
 def _normalize_station_id(station_id: str) -> str | None:
@@ -166,7 +178,25 @@ def _worlds_root() -> Path:
     if env:
         return Path(env).expanduser().resolve()
     # agentpackage/mcpserver.py -> Masterarbeit/worlds
-    return Path(__file__).resolve().parents[2] / "worlds"
+    master = Path(__file__).resolve().parents[2] / "worlds"
+    if master.is_dir():
+        return master
+    remroc = Path("/home/lukas/agent_ws/src/remroc/remroc/worlds")
+    return remroc if remroc.is_dir() else master
+
+
+def _canonical_station_id_from_item(raw_id: str) -> str | None:
+    """Map items.json ids (station_a, station_nw, …) to inventory ids."""
+    s = (raw_id or "").strip()
+    if not s:
+        return None
+    low = s.lower().replace("-", "_")
+    m = re.fullmatch(r"station_([a-d])", low)
+    if m:
+        return f"station_{m.group(1).upper()}"
+    if low.startswith("station_"):
+        return low  # station_nw / station_ne / …
+    return None
 
 
 def _safe_world_id(world_id: str) -> str | None:
@@ -174,6 +204,75 @@ def _safe_world_id(world_id: str) -> str | None:
     if not wid or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_\-]*", wid):
         return None
     return wid
+
+
+def _stations_from_world_items(world_id: str) -> list[dict] | None:
+    """Build STATIONS inventory from items/{world_id}.json landmark entries."""
+    wid = _safe_world_id(world_id)
+    if wid is None:
+        return None
+    path = _worlds_root() / "items" / f"{wid}.json"
+    if not path.is_file():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(raw, list):
+        return None
+
+    stations: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        sid = _canonical_station_id_from_item(str(item.get("id") or ""))
+        if sid is None:
+            continue
+        try:
+            x = float(item["x"])
+            y = float(item["y"])
+        except Exception:
+            continue
+        name = str(item.get("name") or sid)
+        stations.append(
+            {
+                "id": sid,
+                "name": name.title() if name.lower().startswith("station") else name,
+                "x": x,
+                "y": y,
+                "box_id": None,
+                "available": False,
+                "last_box_id": None,
+            }
+        )
+
+    if not stations:
+        return None
+
+    # First three stations start with a box (matches default stations scenario).
+    for i, station in enumerate(stations):
+        if i < 3:
+            box_id = f"box_{i + 1}"
+            station["box_id"] = box_id
+            station["available"] = True
+            station["last_box_id"] = box_id
+    return stations
+
+
+def _load_stations_for_world(world_id: str | None = None) -> list[dict]:
+    wid = (world_id or "").strip() or DEFAULT_WORLD_ID
+    loaded = _stations_from_world_items(wid)
+    return loaded if loaded else deepcopy(_DEFAULT_STATIONS)
+
+
+def _apply_stations_for_world(world_id: str | None = None) -> None:
+    STATIONS.clear()
+    STATIONS.extend(_load_stations_for_world(world_id))
+    HELD_BY.clear()
+
+
+# Prefer landmarks from items/{AGENT_WORLD}.json (supports stations_1 / stations_2).
+_apply_stations_for_world(DEFAULT_WORLD_ID)
 
 
 def _parse_pgm_size(pgm_path: Path) -> dict[str, int] | None:
@@ -834,16 +933,17 @@ def get_station(station_id: str) -> str:
     """Get one station by id, including whether its box is still available.
 
     Accepts ids like station_A / station_C, or short forms A / C / 'Station C'.
+    Unknown ids emit a station_not_found event.
     """
     station = _find_station(station_id)
     if station is None:
-        return json.dumps(
-            {
-                "error": "station_not_found",
-                "station_id": station_id,
-                "allowed": _station_ids(),
-                "hint": "Use station_A..station_D (or short A/B/C/D).",
-            }
+        return _tool_error(
+            "station_not_found",
+            error="station_not_found",
+            tool="get_station",
+            station_id=station_id,
+            allowed=_station_ids(),
+            hint="Use station_A..station_D (or short A/B/C/D).",
         )
     return json.dumps(station, indent=2)
 
@@ -858,113 +958,128 @@ def get_held_boxes() -> str:
 def pickup_box(robot_id: str, station_id: str) -> str:
     """Pick up the box at a station for this robot.
 
-    If the box is not there (already taken / empty station), emits a box_missing
-    event and returns an error JSON so event-triggered coordination can react.
+    On failure (missing box, wrong station, already holding), emits an MCP event
+    so conflict-based peers can open negotiation.
     """
     robot = robot_id.strip()
-    station = _find_station(station_id)
-    if station is None:
-        return json.dumps(
-            {
-                "error": "station_not_found",
-                "station_id": station_id,
-                "allowed": _station_ids(),
-                "hint": "Use station_A..station_D (or short A/B/C/D).",
-            }
-        )
+    with _STATE_LOCK:
+        station = _find_station(station_id)
+        if station is None:
+            return _tool_error(
+                "station_not_found",
+                error="station_not_found",
+                tool="pickup_box",
+                robot_id=robot,
+                station_id=station_id,
+                allowed=_station_ids(),
+                hint="Use station_A..station_D (or short A/B/C/D).",
+            )
 
-    if HELD_BY.get(robot):
+        if HELD_BY.get(robot):
+            return _tool_error(
+                "robot_already_holding",
+                error="robot_already_holding",
+                tool="pickup_box",
+                robot_id=robot,
+                station_id=station_id,
+                box_id=HELD_BY[robot],
+            )
+
+        box_id = station.get("box_id")
+        if not station.get("available") or not box_id:
+            return _tool_error(
+                "box_missing",
+                error="box_missing",
+                tool="pickup_box",
+                station_id=station_id,
+                robot_id=robot,
+                expected_box=box_id or station.get("last_box_id"),
+                message=f"No box available at {station_id} for {robot}",
+            )
+
+        station["last_box_id"] = box_id
+        station["available"] = False
+        station["box_id"] = None
+        HELD_BY[robot] = box_id
         return json.dumps(
             {
-                "error": "robot_already_holding",
+                "success": True,
                 "robot_id": robot,
-                "box_id": HELD_BY[robot],
-            }
-        )
-
-    box_id = station.get("box_id")
-    if not station.get("available") or not box_id:
-        event = _emit_event(
-            "box_missing",
-            station_id=station_id,
-            robot_id=robot,
-            expected_box=box_id or station.get("last_box_id"),
-            message=f"No box available at {station_id} for {robot}",
-        )
-        return json.dumps(
-            {
-                "error": "box_missing",
                 "station_id": station_id,
-                "robot_id": robot,
-                "event": event,
+                "box_id": box_id,
+                "message": f"{robot} picked up {box_id} from {station_id}",
             }
         )
-
-    station["last_box_id"] = box_id
-    station["available"] = False
-    station["box_id"] = None
-    HELD_BY[robot] = box_id
-    return json.dumps(
-        {
-            "success": True,
-            "robot_id": robot,
-            "station_id": station_id,
-            "box_id": box_id,
-            "message": f"{robot} picked up {box_id} from {station_id}",
-        }
-    )
 
 
 @mcp.tool()
 def drop_box(robot_id: str, station_id: str) -> str:
-    """Drop the box the robot is holding onto a station (must be empty)."""
+    """Drop the box the robot is holding onto a station (must be empty).
+
+    On failure (occupied station, not holding, bad id), emits an MCP event.
+    """
     robot = robot_id.strip()
-    station = _find_station(station_id)
-    if station is None:
+    with _STATE_LOCK:
+        station = _find_station(station_id)
+        if station is None:
+            return _tool_error(
+                "station_not_found",
+                error="station_not_found",
+                tool="drop_box",
+                robot_id=robot,
+                station_id=station_id,
+                allowed=_station_ids(),
+                hint="Use station_A..station_D (or short A/B/C/D).",
+            )
+
+        box_id = HELD_BY.get(robot)
+        if not box_id:
+            return _tool_error(
+                "robot_not_holding",
+                error="robot_not_holding",
+                tool="drop_box",
+                robot_id=robot,
+                station_id=station_id,
+            )
+
+        if station.get("box_id") or station.get("available"):
+            return _tool_error(
+                "station_occupied",
+                error="station_occupied",
+                tool="drop_box",
+                robot_id=robot,
+                station_id=station_id,
+                box_id=station.get("box_id"),
+                message=f"Station {station_id} already has a box; cannot drop.",
+            )
+
+        station["box_id"] = box_id
+        station["last_box_id"] = box_id
+        station["available"] = True
+        HELD_BY[robot] = None
         return json.dumps(
             {
-                "error": "station_not_found",
+                "success": True,
+                "robot_id": robot,
                 "station_id": station_id,
-                "allowed": _station_ids(),
-                "hint": "Use station_A..station_D (or short A/B/C/D).",
+                "box_id": box_id,
+                "message": f"{robot} dropped {box_id} at {station_id}",
             }
         )
-
-    box_id = HELD_BY.get(robot)
-    if not box_id:
-        return json.dumps({"error": "robot_not_holding", "robot_id": robot})
-
-    if station.get("box_id") or station.get("available"):
-        return json.dumps(
-            {
-                "error": "station_occupied",
-                "station_id": station_id,
-                "box_id": station.get("box_id"),
-            }
-        )
-
-    station["box_id"] = box_id
-    station["last_box_id"] = box_id
-    station["available"] = True
-    HELD_BY[robot] = None
-    return json.dumps(
-        {
-            "success": True,
-            "robot_id": robot,
-            "station_id": station_id,
-            "box_id": box_id,
-            "message": f"{robot} dropped {box_id} at {station_id}",
-        }
-    )
 
 
 @mcp.tool()
 def reset_stations() -> str:
-    """Reset stations and held boxes to the default scenario layout."""
-    STATIONS.clear()
-    STATIONS.extend(deepcopy(_DEFAULT_STATIONS))
-    HELD_BY.clear()
-    return json.dumps({"success": True, "stations": STATIONS}, indent=2)
+    """Reset stations and held boxes from items/{AGENT_WORLD}.json (or built-in defaults)."""
+    _apply_stations_for_world(DEFAULT_WORLD_ID)
+    return json.dumps(
+        {
+            "success": True,
+            "world_id": DEFAULT_WORLD_ID,
+            "stations": STATIONS,
+        },
+        indent=2,
+    )
 
 
 # --- Remroc / ROS 2 awareness ------------------------------------------------
@@ -979,23 +1094,45 @@ def list_robots() -> str:
     return json.dumps(_discover_robot_ids(), indent=2)
 
 
+def _get_robot_pose_sync(robot_id: str) -> str:
+    robot = _normalize_robot_id(robot_id)
+    if not robot:
+        return _tool_error(
+            "pose_failed",
+            error="missing_robot_id",
+            tool="get_robot_pose",
+        )
+    if not _ros2_available():
+        return _tool_error(
+            "pose_failed",
+            error="ros2_not_found",
+            tool="get_robot_pose",
+            robot_id=robot,
+        )
+    pose = _fetch_robot_pose(robot)
+    if not pose.get("success"):
+        return _tool_error(
+            "pose_failed",
+            error=str(pose.get("error") or "pose_unavailable"),
+            tool="get_robot_pose",
+            robot_id=robot,
+            **{k: v for k, v in pose.items() if k != "error"},
+        )
+    return json.dumps(pose, indent=2)
+
+
 @mcp.tool()
-def get_robot_pose(robot_id: str) -> str:
+async def get_robot_pose(robot_id: str) -> str:
     """Get map-frame pose (x, y, yaw) for one robot from /{robot}/robot_state.
 
     Falls back to /{robot}/amcl_pose if robot_state is unavailable.
+    Failures emit a pose_failed MCP event.
+    Async so ROS topic echoes do not block other robots' tools.
     """
-    robot = _normalize_robot_id(robot_id)
-    if not robot:
-        return json.dumps({"error": "missing_robot_id"})
-    if not _ros2_available():
-        return json.dumps({"error": "ros2_not_found", "robot_id": robot})
-    return json.dumps(_fetch_robot_pose(robot), indent=2)
+    return await asyncio.to_thread(_get_robot_pose_sync, robot_id)
 
 
-@mcp.tool()
-def get_all_robot_poses() -> str:
-    """Get map-frame poses for every discovered (or configured) remroc robot."""
+def _get_all_robot_poses_sync() -> str:
     discovery = _discover_robot_ids()
     robots = discovery.get("robots") or []
     poses = []
@@ -1012,29 +1149,47 @@ def get_all_robot_poses() -> str:
 
 
 @mcp.tool()
-def distance_to_station(robot_id: str, station_id: str) -> str:
-    """Euclidean distance in map frame from the robot's current pose to a station.
+async def get_all_robot_poses() -> str:
+    """Get map-frame poses for every discovered (or configured) remroc robot."""
+    return await asyncio.to_thread(_get_all_robot_poses_sync)
 
-    station_id accepts station_A / A / 'Station A' (same aliases as get_station).
-    """
+
+def _distance_to_station_sync(robot_id: str, station_id: str) -> str:
     robot = _normalize_robot_id(robot_id)
     if not robot:
-        return json.dumps({"error": "missing_robot_id"})
+        return _tool_error(
+            "pose_failed",
+            error="missing_robot_id",
+            tool="distance_to_station",
+        )
     station = _find_station(station_id)
     if station is None:
-        return json.dumps(
-            {
-                "error": "station_not_found",
-                "station_id": station_id,
-                "allowed": _station_ids(),
-                "hint": "Use station_A..station_D (or short A/B/C/D).",
-            }
+        return _tool_error(
+            "station_not_found",
+            error="station_not_found",
+            tool="distance_to_station",
+            robot_id=robot,
+            station_id=station_id,
+            allowed=_station_ids(),
+            hint="Use station_A..station_D (or short A/B/C/D).",
         )
     if not _ros2_available():
-        return json.dumps({"error": "ros2_not_found", "robot_id": robot})
+        return _tool_error(
+            "pose_failed",
+            error="ros2_not_found",
+            tool="distance_to_station",
+            robot_id=robot,
+            station_id=station_id,
+        )
     pose = _fetch_robot_pose(robot)
     if not pose.get("success"):
-        return json.dumps(pose, indent=2)
+        return _tool_error(
+            "pose_failed",
+            error=str(pose.get("error") or "pose_unavailable"),
+            tool="distance_to_station",
+            robot_id=robot,
+            station_id=station_id,
+        )
     dx = float(pose["x"]) - float(station["x"])
     dy = float(pose["y"]) - float(station["y"])
     dist = math.hypot(dx, dy)
@@ -1044,20 +1199,25 @@ def distance_to_station(robot_id: str, station_id: str) -> str:
             "robot_id": robot,
             "station_id": station["id"],
             "distance_m": round(dist, 3),
-            "robot_pose": {
-                "x": pose["x"],
-                "y": pose["y"],
-                "yaw": pose["yaw"],
-                "source": pose.get("source"),
-            },
-            "station_pose": {"x": station["x"], "y": station["y"]},
+            "robot_xy": {"x": pose["x"], "y": pose["y"]},
+            "station_xy": {"x": station["x"], "y": station["y"]},
         },
         indent=2,
     )
 
 
-def _approach_pose(station: dict, robot_x: float, robot_y: float, offset_m: float = 0.5) -> dict[str, float]:
-    """Point slightly off the station pad toward the robot (pads can be occupied)."""
+@mcp.tool()
+async def distance_to_station(robot_id: str, station_id: str) -> str:
+    """Euclidean distance in map frame from the robot's current pose to a station.
+
+    station_id accepts station_A / A / 'Station A' (same aliases as get_station).
+    Failures emit an MCP event.
+    """
+    return await asyncio.to_thread(_distance_to_station_sync, robot_id, station_id)
+
+
+def _approach_pose(station: dict, robot_x: float, robot_y: float, offset_m: float = 1.2) -> dict[str, float]:
+    """Point off the station pad toward the robot (pads visual-only; keep clear for r≈0.6)."""
     sx = float(station["x"])
     sy = float(station["y"])
     dx = float(robot_x) - sx
@@ -1073,15 +1233,7 @@ def _approach_pose(station: dict, robot_x: float, robot_y: float, offset_m: floa
     }
 
 
-@mcp.tool()
-def rank_stations_by_distance(robot_id: str) -> str:
-    """One-shot: read pose, rank all stations by distance, suggest nav goals.
-
-    Prefer this over calling get_robot_pose + list_stations + distance_to_station
-    repeatedly. Returns farthest/nearest and approach poses slightly off each pad.
-    Then call navigate_to_pose to the chosen approach x/y. Only if navigation fails,
-    use get_peer_distances and/or drive_distance to clear other robots.
-    """
+def _rank_stations_by_distance_sync(robot_id: str) -> str:
     robot = _normalize_robot_id(robot_id)
     if not robot:
         return json.dumps({"error": "missing_robot_id"})
@@ -1126,6 +1278,18 @@ def rank_stations_by_distance(robot_id: str) -> str:
         },
         indent=2,
     )
+
+
+@mcp.tool()
+async def rank_stations_by_distance(robot_id: str) -> str:
+    """One-shot: read pose, rank all stations by distance, suggest nav goals.
+
+    Prefer this over calling get_robot_pose + list_stations + distance_to_station
+    repeatedly. Returns farthest/nearest and approach poses slightly off each pad.
+    Then call navigate_to_pose to the chosen approach x/y. Only if navigation fails,
+    use get_peer_distances and/or drive_distance to clear other robots.
+    """
+    return await asyncio.to_thread(_rank_stations_by_distance_sync, robot_id)
 
 
 def _fleet_robot_ids(include: str | None = None) -> list[str]:
@@ -1292,12 +1456,16 @@ def _nav_blocker_diagnosis(
 
 
 @mcp.tool()
-def get_peer_distances(robot_id: str) -> str:
+async def get_peer_distances(robot_id: str) -> str:
     """Distances from this robot to EVERY other fleet robot (map frame).
 
     Use ONLY after navigate_to_pose fails (peers are the usual cause). Returns all
     peers sorted closest-first. Do not call this before the first navigation attempt.
     """
+    return await asyncio.to_thread(_get_peer_distances_sync, robot_id)
+
+
+def _get_peer_distances_sync(robot_id: str) -> str:
     robot = _normalize_robot_id(robot_id)
     if not robot:
         return json.dumps({"error": "missing_robot_id"})
@@ -1493,7 +1661,7 @@ def _drive_until_distance(
 
 
 @mcp.tool()
-def drive_distance(
+async def drive_distance(
     robot_id: str,
     distance_m: float,
     direction_deg: float = 0.0,
@@ -1507,16 +1675,51 @@ def drive_distance(
     zero twists (Gazebo latches the last Twist — a single stop is not enough).
     Use after navigate_to_pose fails to clear another robot, then retry navigation.
     distance_m must be positive; use direction_deg=180 to reverse.
+    Failures emit a drive_failed MCP event.
+    Async so it does not block other robots' MCP tools while cmd_vel runs.
     """
+    return await asyncio.to_thread(
+        _drive_distance_sync,
+        robot_id,
+        distance_m,
+        direction_deg,
+        speed_mps,
+        turn_speed_rps,
+    )
+
+
+def _drive_distance_sync(
+    robot_id: str,
+    distance_m: float,
+    direction_deg: float = 0.0,
+    speed_mps: float = 0.25,
+    turn_speed_rps: float = 0.5,
+) -> str:
+    """Blocking cmd_vel drive (worker thread)."""
     robot = _normalize_robot_id(robot_id)
     if not robot:
-        return json.dumps({"error": "missing_robot_id"})
+        return _tool_error(
+            "drive_failed",
+            error="missing_robot_id",
+            tool="drive_distance",
+        )
     if not _ros2_available():
-        return json.dumps({"error": "ros2_not_found", "robot_id": robot})
+        return _tool_error(
+            "drive_failed",
+            error="ros2_not_found",
+            tool="drive_distance",
+            robot_id=robot,
+        )
 
     dist = abs(float(distance_m))
     if dist < 1e-3:
-        return json.dumps({"error": "distance_too_small", "distance_m": distance_m})
+        return _tool_error(
+            "drive_failed",
+            error="distance_too_small",
+            tool="drive_distance",
+            robot_id=robot,
+            distance_m=distance_m,
+        )
 
     speed = abs(float(speed_mps))
     if speed < 0.05:
@@ -1551,7 +1754,13 @@ def drive_distance(
             }
         )
         if turn_res.get("error") == "ros2_not_found":
-            return json.dumps({"error": "ros2_not_found", "robot_id": robot})
+            return _tool_error(
+                "drive_failed",
+                error="ros2_not_found",
+                tool="drive_distance",
+                robot_id=robot,
+                steps=steps,
+            )
 
     drive_res = _drive_until_distance(robot, distance_m=dist, speed_mps=speed, rate_hz=20.0)
     steps.append(
@@ -1565,7 +1774,13 @@ def drive_distance(
         }
     )
     if drive_res.get("error") == "ros2_not_found":
-        return json.dumps({"error": "ros2_not_found", "robot_id": robot})
+        return _tool_error(
+            "drive_failed",
+            error="ros2_not_found",
+            tool="drive_distance",
+            robot_id=robot,
+            steps=steps,
+        )
 
     # Final hard stop in case Nav2 or another node left a residual twist.
     final_stop = _stop_cmd_vel(robot)
@@ -1580,9 +1795,24 @@ def drive_distance(
             ),
             3,
         )
+    if not ok:
+        return _tool_error(
+            "drive_failed",
+            error="drive_incomplete",
+            tool="drive_distance",
+            robot_id=robot,
+            requested={
+                "distance_m": dist,
+                "direction_deg": float(direction_deg),
+                "speed_mps": speed,
+            },
+            traveled_m=traveled,
+            steps=steps,
+            message=f"{robot} drive_distance did not complete cleanly",
+        )
     return json.dumps(
         {
-            "success": ok,
+            "success": True,
             "robot_id": robot,
             "requested": {
                 "distance_m": dist,
@@ -1602,52 +1832,56 @@ def drive_distance(
     )
 
 
-@mcp.tool()
-def get_laser_snapshot(robot_id: str) -> str:
-    """Compact obstacle summary from /{robot}/laser_scan (not the full scan).
-
-    Returns min range, angle of closest hit, and front/left/right sector mins.
-    """
+def _get_laser_snapshot_sync(robot_id: str) -> str:
     robot = _normalize_robot_id(robot_id)
     if not robot:
-        return json.dumps({"error": "missing_robot_id"})
+        return _tool_error(
+            "laser_failed",
+            error="missing_robot_id",
+            tool="get_laser_snapshot",
+        )
     if not _ros2_available():
-        return json.dumps({"error": "ros2_not_found", "robot_id": robot})
+        return _tool_error(
+            "laser_failed",
+            error="ros2_not_found",
+            tool="get_laser_snapshot",
+            robot_id=robot,
+        )
     echo = _echo_topic_once(f"/{robot}/laser_scan")
     if not echo.get("ok"):
-        return json.dumps(
-            {
-                "error": echo.get("error") or "laser_unavailable",
-                "robot_id": robot,
-                "stderr": _clip(str(echo.get("stderr", "")), 300),
-            }
+        return _tool_error(
+            "laser_failed",
+            error=str(echo.get("error") or "laser_unavailable"),
+            tool="get_laser_snapshot",
+            robot_id=robot,
+            stderr=_clip(str(echo.get("stderr", "")), 300),
         )
     snap = _parse_laser_snapshot(echo["stdout"], echo.get("parsed"))
     if snap is None:
-        return json.dumps(
-            {
-                "error": "laser_parse_failed",
-                "robot_id": robot,
-                "stdout": _clip(echo["stdout"], 400),
-            }
+        return _tool_error(
+            "laser_failed",
+            error="laser_parse_failed",
+            tool="get_laser_snapshot",
+            robot_id=robot,
+            stdout=_clip(echo["stdout"], 400),
         )
     return json.dumps({"success": True, "robot_id": robot, **snap}, indent=2)
 
 
+@mcp.tool()
+async def get_laser_snapshot(robot_id: str) -> str:
+    """Compact obstacle summary from /{robot}/laser_scan (not the full scan).
+
+    Returns min range, angle of closest hit, and front/left/right sector mins.
+    Failures emit a laser_failed MCP event.
+    """
+    return await asyncio.to_thread(_get_laser_snapshot_sync, robot_id)
+
+
 # --- Navigation (ROS 2 Nav2) -------------------------------------------------
 
-@mcp.tool()
-def navigate_to_pose(robot_id: str, x: float, y: float, yaw: float = 0.0) -> str:
-    """Send a Nav2 NavigateToPose goal for a robot and wait for the result.
-
-    Runs (conceptually):
-      ros2 action send_goal /{robot_id}/navigate_to_pose nav2_msgs/action/NavigateToPose
-      with map pose (x, y) and orientation from yaw (radians; default 0 => w=1).
-
-    On abort/cancel/failure, checks for nearby peers and, if one is within
-    MCP_NAV_BLOCKER_RADIUS_M of this robot or the goal, reports that specific
-    robot as being in the way. Then use drive_distance and retry.
-    """
+def _navigate_to_pose_sync(robot_id: str, x: float, y: float, yaw: float = 0.0) -> str:
+    """Blocking Nav2 NavigateToPose (runs in a worker thread via navigate_to_pose)."""
     robot = robot_id.strip()
     if not robot:
         return json.dumps({"error": "missing_robot_id"})
@@ -1757,6 +1991,24 @@ def navigate_to_pose(robot_id: str, x: float, y: float, yaw: float = 0.0) -> str
         stderr=_clip(stderr, 400),
         stdout=_clip(stdout, 400),
     )
+
+
+@mcp.tool()
+async def navigate_to_pose(robot_id: str, x: float, y: float, yaw: float = 0.0) -> str:
+    """Send a Nav2 NavigateToPose goal for a robot and wait for the result.
+
+    Runs (conceptually):
+      ros2 action send_goal /{robot_id}/navigate_to_pose nav2_msgs/action/NavigateToPose
+      with map pose (x, y) and orientation from yaw (radians; default 0 => w=1).
+
+    On abort/cancel/failure, checks for nearby peers and, if one is within
+    MCP_NAV_BLOCKER_RADIUS_M of this robot or the goal, reports that specific
+    robot as being in the way. Then use drive_distance and retry.
+
+    Implemented as async so concurrent robots can navigate in parallel (the
+    official MCP FastMCP runs sync tools on the event loop otherwise).
+    """
+    return await asyncio.to_thread(_navigate_to_pose_sync, robot_id, x, y, yaw)
 
 
 if __name__ == "__main__":

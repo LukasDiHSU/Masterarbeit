@@ -1,88 +1,105 @@
-| HMAS-1 |#| HMAS-1 | | HMAS-1 |R| HMAS-1 |e| HMAS-1 |s| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |s| HMAS-1 | | HMAS-1 |t| HMAS-1 |e| HMAS-1 |m| HMAS-1 |p| HMAS-1 |l| HMAS-1 |a| HMAS-1 |t| HMAS-1 |e| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |O| HMAS-1 |n| HMAS-1 |e| HMAS-1 | | HMAS-1 |b| HMAS-1 |l| HMAS-1 |o| HMAS-1 |c| HMAS-1 |k| HMAS-1 | | HMAS-1 |p| HMAS-1 |e| HMAS-1 |r| HMAS-1 | | HMAS-1 |s| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |a| HMAS-1 |r| HMAS-1 |i| HMAS-1 |o| HMAS-1 |.| HMAS-1 | | HMAS-1 |F| HMAS-1 |i| HMAS-1 |l| HMAS-1 |l| HMAS-1 | | HMAS-1 |a| HMAS-1 |v| HMAS-1 |e| HMAS-1 |r| HMAS-1 |a| HMAS-1 |g| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 |o| HMAS-1 |v| HMAS-1 |e| HMAS-1 |r| HMAS-1 | | HMAS-1 |�| HMAS-1 |�| HMAS-1 |�| HMAS-1 | | HMAS-1 |5| HMAS-1 | | HMAS-1 |r| HMAS-1 |u| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 |p| HMAS-1 |e| HMAS-1 |r| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |l| HMAS-1 |l| HMAS-1 |.| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |#| HMAS-1 |#| HMAS-1 | | HMAS-1 |S| HMAS-1 |t| HMAS-1 |a| HMAS-1 |t| HMAS-1 |i| HMAS-1 |o| HMAS-1 |n| HMAS-1 |s| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |D| HMAS-1 |i| HMAS-1 |f| HMAS-1 |f| HMAS-1 |i| HMAS-1 |c| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |r| HMAS-1 |c| HMAS-1 |h| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |T| HMAS-1 |S| HMAS-1 |R| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |o| HMAS-1 |k| HMAS-1 |e| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |i| HMAS-1 |m| HMAS-1 |e| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |s| HMAS-1 |t| HMAS-1 |e| HMAS-1 |p| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |m| HMAS-1 |s| HMAS-1 |g| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |N| HMAS-1 |o| HMAS-1 |t| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |#| HMAS-1 |#| HMAS-1 | | HMAS-1 |B| HMAS-1 |o| HMAS-1 |t| HMAS-1 |t| HMAS-1 |l| HMAS-1 |e| HMAS-1 |n| HMAS-1 |e| HMAS-1 |c| HMAS-1 |k| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |D| HMAS-1 |i| HMAS-1 |f| HMAS-1 |f| HMAS-1 |i| HMAS-1 |c| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |r| HMAS-1 |c| HMAS-1 |h| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |T| HMAS-1 |S| HMAS-1 |R| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |o| HMAS-1 |k| HMAS-1 |e| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |i| HMAS-1 |m| HMAS-1 |e| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |s| HMAS-1 |t| HMAS-1 |e| HMAS-1 |p| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |m| HMAS-1 |s| HMAS-1 |g| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |N| HMAS-1 |o| HMAS-1 |t| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |#| HMAS-1 |#| HMAS-1 | | HMAS-1 |C| HMAS-1 |r| HMAS-1 |o| HMAS-1 |s| HMAS-1 |s| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |D| HMAS-1 |i| HMAS-1 |f| HMAS-1 |f| HMAS-1 |i| HMAS-1 |c| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |r| HMAS-1 |c| HMAS-1 |h| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |T| HMAS-1 |S| HMAS-1 |R| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |o| HMAS-1 |k| HMAS-1 |e| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |i| HMAS-1 |m| HMAS-1 |e| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |s| HMAS-1 |t| HMAS-1 |e| HMAS-1 |p| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |m| HMAS-1 |s| HMAS-1 |g| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |N| HMAS-1 |o| HMAS-1 |t| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |#| HMAS-1 |#| HMAS-1 | | HMAS-1 |B| HMAS-1 |o| HMAS-1 |x| HMAS-1 |e| HMAS-1 |s| HMAS-1 |_| HMAS-1 |a| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |D| HMAS-1 |i| HMAS-1 |f| HMAS-1 |f| HMAS-1 |i| HMAS-1 |c| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |r| HMAS-1 |c| HMAS-1 |h| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |T| HMAS-1 |S| HMAS-1 |R| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |o| HMAS-1 |k| HMAS-1 |e| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |i| HMAS-1 |m| HMAS-1 |e| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |s| HMAS-1 |t| HMAS-1 |e| HMAS-1 |p| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |m| HMAS-1 |s| HMAS-1 |g| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |N| HMAS-1 |o| HMAS-1 |t| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 |#| HMAS-1 |#| HMAS-1 | | HMAS-1 |B| HMAS-1 |o| HMAS-1 |x| HMAS-1 |e| HMAS-1 |s| HMAS-1 |_| HMAS-1 |b| HMAS-1 |
-| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |D| HMAS-1 |i| HMAS-1 |f| HMAS-1 |f| HMAS-1 |i| HMAS-1 |c| HMAS-1 |u| HMAS-1 |l| HMAS-1 |t| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |r| HMAS-1 |c| HMAS-1 |h| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |T| HMAS-1 |S| HMAS-1 |R| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |o| HMAS-1 |k| HMAS-1 |e| HMAS-1 |n| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |t| HMAS-1 |i| HMAS-1 |m| HMAS-1 |e| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |s| HMAS-1 |t| HMAS-1 |e| HMAS-1 |p| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |A| HMAS-1 |v| HMAS-1 |g| HMAS-1 | | HMAS-1 |m| HMAS-1 |s| HMAS-1 |g| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |N| HMAS-1 |o| HMAS-1 |t| HMAS-1 |e| HMAS-1 |s| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |-| HMAS-1 |-| HMAS-1 |-| HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |E| HMAS-1 |a| HMAS-1 |s| HMAS-1 |y| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |M| HMAS-1 |e| HMAS-1 |d| HMAS-1 |i| HMAS-1 |u| HMAS-1 |m| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |d| HMAS-1 |e| HMAS-1 |c| HMAS-1 |e| HMAS-1 |n| HMAS-1 |t| HMAS-1 |r| HMAS-1 |a| HMAS-1 |l| HMAS-1 |i| HMAS-1 |z| HMAS-1 |e| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
-| HMAS-1 ||| HMAS-1 | | HMAS-1 |H| HMAS-1 |a| HMAS-1 |r| HMAS-1 |d| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 |s| HMAS-1 |h| HMAS-1 |a| HMAS-1 |r| HMAS-1 |e| HMAS-1 |d| HMAS-1 |_| HMAS-1 |p| HMAS-1 |o| HMAS-1 |o| HMAS-1 |l| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 | | HMAS-1 ||| HMAS-1 |
+# Results template
+
+One block per scenario. Fill averages over ≥ 5 runs per cell.
+
+Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `shared_pool`
+
+## Stations
+
+| Difficulty | Arch | TSR | Avg tokens | Avg time | Avg steps | Avg msgs | Notes |
+|---|---|---|---|---|---|---|---|
+| Easy | centralized | | | | | | |
+| Easy | conflict_based | | | | | | |
+| Easy | HMAS-1 | | | | | | |
+| Easy | HMAS-2 | | | | | | |
+| Easy | shared_pool | | | | | | |
+| Medium | centralized | | | | | | |
+| Medium | conflict_based | | | | | | |
+| Medium | HMAS-1 | | | | | | |
+| Medium | HMAS-2 | | | | | | |
+| Medium | shared_pool | | | | | | |
+| Hard | centralized | | | | | | |
+| Hard | conflict_based | | | | | | |
+| Hard | HMAS-1 | | | | | | |
+| Hard | HMAS-2 | | | | | | |
+| Hard | shared_pool | | | | | | |
+
+## Bottleneck
+
+| Difficulty | Arch | TSR | Avg tokens | Avg time | Avg steps | Avg msgs | Notes |
+|---|---|---|---|---|---|---|---|
+| Easy | centralized | | | | | | |
+| Easy | conflict_based | | | | | | |
+| Easy | HMAS-1 | | | | | | |
+| Easy | HMAS-2 | | | | | | |
+| Easy | shared_pool | | | | | | |
+| Medium | centralized | | | | | | |
+| Medium | conflict_based | | | | | | |
+| Medium | HMAS-1 | | | | | | |
+| Medium | HMAS-2 | | | | | | |
+| Medium | shared_pool | | | | | | |
+| Hard | centralized | | | | | | |
+| Hard | conflict_based | | | | | | |
+| Hard | HMAS-1 | | | | | | |
+| Hard | HMAS-2 | | | | | | |
+| Hard | shared_pool | | | | | | |
+
+## Cross
+
+| Difficulty | Arch | TSR | Avg tokens | Avg time | Avg steps | Avg msgs | Notes |
+|---|---|---|---|---|---|---|---|
+| Easy | centralized | | | | | | |
+| Easy | conflict_based | | | | | | |
+| Easy | HMAS-1 | | | | | | |
+| Easy | HMAS-2 | | | | | | |
+| Easy | shared_pool | | | | | | |
+| Medium | centralized | | | | | | |
+| Medium | conflict_based | | | | | | |
+| Medium | HMAS-1 | | | | | | |
+| Medium | HMAS-2 | | | | | | |
+| Medium | shared_pool | | | | | | |
+| Hard | centralized | | | | | | |
+| Hard | conflict_based | | | | | | |
+| Hard | HMAS-1 | | | | | | |
+| Hard | HMAS-2 | | | | | | |
+| Hard | shared_pool | | | | | | |
+
+## Boxes_a
+
+| Difficulty | Arch | TSR | Avg tokens | Avg time | Avg steps | Avg msgs | Notes |
+|---|---|---|---|---|---|---|---|
+| Easy | centralized | | | | | | |
+| Easy | conflict_based | | | | | | |
+| Easy | HMAS-1 | | | | | | |
+| Easy | HMAS-2 | | | | | | |
+| Easy | shared_pool | | | | | | |
+| Medium | centralized | | | | | | |
+| Medium | conflict_based | | | | | | |
+| Medium | HMAS-1 | | | | | | |
+| Medium | HMAS-2 | | | | | | |
+| Medium | shared_pool | | | | | | |
+| Hard | centralized | | | | | | |
+| Hard | conflict_based | | | | | | |
+| Hard | HMAS-1 | | | | | | |
+| Hard | HMAS-2 | | | | | | |
+| Hard | shared_pool | | | | | | |
+
+## Boxes_b
+
+| Difficulty | Arch | TSR | Avg tokens | Avg time | Avg steps | Avg msgs | Notes |
+|---|---|---|---|---|---|---|---|
+| Easy | centralized | | | | | | |
+| Easy | conflict_based | | | | | | |
+| Easy | HMAS-1 | | | | | | |
+| Easy | HMAS-2 | | | | | | |
+| Easy | shared_pool | | | | | | |
+| Medium | centralized | | | | | | |
+| Medium | conflict_based | | | | | | |
+| Medium | HMAS-1 | | | | | | |
+| Medium | HMAS-2 | | | | | | |
+| Medium | shared_pool | | | | | | |
+| Hard | centralized | | | | | | |
+| Hard | conflict_based | | | | | | |
+| Hard | HMAS-1 | | | | | | |
+| Hard | HMAS-2 | | | | | | |
+| Hard | shared_pool | | | | | | |

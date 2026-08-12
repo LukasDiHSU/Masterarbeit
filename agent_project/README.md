@@ -72,6 +72,20 @@ How it works:
   `python -m agentpackage.trace_monitor` (default port `9901`,
   `AGENT_TRACE_MONITOR_PORT`).
 
+## Saving experiment terminal logs
+
+Every `launch_*.sh` tees each opened terminal into
+`../tasks/experiments/runs/_active/<session>/logs/`. When a trial ends:
+
+```bash
+cd agent_project
+./save_experiment.sh stations_easy_hmas2_r1 --stop --note "optional note"
+```
+
+This copies the session to `tasks/experiments/runs/<run_name>/` (Agent Trace,
+Usage Monitor, robots, planner/master, MCP, …). Use `--stop` to signal the
+recorded terminal shells.
+
 ## Shared building blocks
 
 - `agentpackage/mcpserver.py` — FastMCP server exposing remroc ROS 2 tools

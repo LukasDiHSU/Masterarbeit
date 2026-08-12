@@ -1,0 +1,38 @@
+[
+  {
+    "id": "station_nw",
+    "name": "NW room",
+    "x": -7.5,
+    "y": 7.5,
+    "z": 0.0
+  },
+  {
+    "id": "station_ne",
+    "name": "NE room",
+    "x": 7.5,
+    "y": 7.5,
+    "z": 0.0
+  },
+  {
+    "id": "station_se",
+    "name": "SE room",
+    "x": 7.5,
+    "y": -7.5,
+    "z": 0.0
+  },
+  {
+    "id": "station_sw",
+    "name": "SW room",
+    "x": -7.5,
+    "y": -7.5,
+    "z": 0.0
+  },
+  {
+    "id": "hall",
+    "name": "central hall",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "1.5x arena (world=rooms_1). Landmarks scaled; no pad meshes. See exp_1_rooms.yaml."
+  }
+]

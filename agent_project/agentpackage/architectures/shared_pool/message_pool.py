@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import itertools
@@ -16,14 +15,19 @@ from ...monitor import report_messages
 DEFAULT_HOST = DEFAULT_POOL_HOST
 DEFAULT_PORT = DEFAULT_POOL_PORT
 
-# Any turn-taker post whose text contains the standalone token DONE (uppercase)
-# ends the round. Lowercase "done" in normal prose does not count.
+# Mission / execute-phase completion token (uppercase DONE).
 _DONE_RE = re.compile(r"(?:^|\s)DONE(?:\s|$|[.!,;:])")
+_AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE | re.MULTILINE)
 
 
 def message_says_done(text: str) -> bool:
-    """True if the post signals the conversation should stop (token DONE)."""
+    """True if the post signals mission/execute completion (token DONE)."""
     return bool(_DONE_RE.search(text or ""))
+
+
+def message_says_agree(text: str) -> bool:
+    """True if the post starts with AGREE (discussion consensus vote)."""
+    return bool(_AGREE_RE.search(text or ""))
 
 
 def _send_line(wfile: BinaryIO, lock: threading.Lock, obj: dict[str, Any]) -> None:
@@ -32,10 +36,6 @@ def _send_line(wfile: BinaryIO, lock: threading.Lock, obj: dict[str, Any]) -> No
         wfile.flush()
 
 
-# Process-wide state: one shared, append-only log and one set of live
-# subscribers. Every accepted post is broadcast to every subscriber
-# (including the poster) -- there is no "to" field and no per-recipient
-# routing anywhere in this file.
 _log: list[dict[str, Any]] = []
 _log_lock = threading.Lock()
 _seq_counter = itertools.count(1)
@@ -43,20 +43,15 @@ _subscribers: dict[int, tuple[BinaryIO, threading.Lock]] = {}
 _subscribers_lock = threading.Lock()
 _next_subscriber_id = itertools.count(1)
 
-# Cumulative count of ACCEPTED posts per poster name, reported to the usage
-# monitor -- rejected (out-of-turn / post-round-end) attempts don't count,
-# since they never actually reached anyone.
 _messages_by_agent: dict[str, int] = {}
 _messages_by_agent_lock = threading.Lock()
 
-# Turn-based round-robin state. Enforced here (not just by prompting) so two
-# agents can never both believe it is their turn: the server is the single
-# source of truth for whose turn it is, even though *what* to say is still
-# entirely up to each agent's own reasoning.
 _turn_order: list[str] = list(POOL_TURN_ORDER)
 _turn_lock = threading.Lock()
 _turn_index = 0
 _round_active = True
+# discuss → unanimous AGREE → execute → DONE ends round; start_discussion → discuss
+_phase: str = "discuss"
 
 
 def _broadcast(obj: dict[str, Any]) -> None:
@@ -73,6 +68,71 @@ def _current_turn_locked() -> str | None:
     return _turn_order[_turn_index] if _turn_order else None
 
 
+def _latest_turn_taker_texts_locked() -> dict[str, str]:
+    """Most recent post text from each turn-order agent (scan log newest-first)."""
+    latest: dict[str, str] = {}
+    needed = set(_turn_order)
+    for message in reversed(_log):
+        name = str(message.get("from", ""))
+        if name in needed and name not in latest:
+            latest[name] = str(message.get("text", ""))
+            if len(latest) >= len(needed):
+                break
+    return latest
+
+
+def _all_turn_takers_agree_locked() -> bool:
+    if not _turn_order:
+        return False
+    latest = _latest_turn_taker_texts_locked()
+    if len(latest) < len(_turn_order):
+        return False
+    return all(message_says_agree(latest[name]) for name in _turn_order)
+
+
+def _broadcast_turn_locked() -> None:
+    _broadcast(
+        {
+            "type": "turn",
+            "name": _current_turn_locked(),
+            "round_active": _round_active,
+            "phase": _phase,
+        }
+    )
+
+
+def _enter_execute_phase_locked() -> None:
+    global _phase, _turn_index
+    _phase = "execute"
+    _turn_index = 0
+    _broadcast(
+        {
+            "type": "phase",
+            "phase": "execute",
+            "reason": "all_agree",
+            "message": "All agents AGREEd — execute phase started.",
+        }
+    )
+    _broadcast_turn_locked()
+
+
+def _enter_discuss_phase_locked(*, reason: str, by: str) -> None:
+    global _phase, _turn_index, _round_active
+    _phase = "discuss"
+    _turn_index = 0
+    _round_active = True
+    _broadcast(
+        {
+            "type": "phase",
+            "phase": "discuss",
+            "reason": reason,
+            "from": by,
+            "message": "Discussion round started — AGREE to reach execute.",
+        }
+    )
+    _broadcast_turn_locked()
+
+
 class PoolHandler(socketserver.StreamRequestHandler):
     def handle(self) -> None:
         first = self.rfile.readline()
@@ -86,8 +146,6 @@ class PoolHandler(socketserver.StreamRequestHandler):
         with _subscribers_lock:
             _subscribers[sub_id] = (self.wfile, sub_lock)
 
-        # Replay full history so a late joiner (human or agent) has the same
-        # view of the world as everyone already connected.
         with _log_lock:
             backlog = list(_log)
         for message in backlog:
@@ -98,18 +156,58 @@ class PoolHandler(socketserver.StreamRequestHandler):
                 "type": "turn",
                 "name": _current_turn_locked(),
                 "round_active": _round_active,
+                "phase": _phase,
             }
         _send_line(self.wfile, sub_lock, turn_state)
 
         try:
             for raw in self.rfile:
                 envelope = json.loads(raw.decode("utf-8"))
-                if envelope.get("type") != "post":
-                    continue
-                self._handle_post(name, envelope, self.wfile, sub_lock)
+                etype = envelope.get("type")
+                if etype == "control":
+                    self._handle_control(name, envelope, self.wfile, sub_lock)
+                elif etype == "post":
+                    self._handle_post(name, envelope, self.wfile, sub_lock)
         finally:
             with _subscribers_lock:
                 _subscribers.pop(sub_id, None)
+
+    def _handle_control(
+        self,
+        name: str,
+        envelope: dict[str, Any],
+        wfile: BinaryIO,
+        sub_lock: threading.Lock,
+    ) -> None:
+        action = str(envelope.get("action", "")).strip().lower()
+        if action != "start_discussion":
+            _send_line(
+                wfile,
+                sub_lock,
+                {"type": "error", "text": f"unknown_control: {action!r}"},
+            )
+            return
+        reason = str(envelope.get("text", "")).strip() or "agent_requested"
+        with _turn_lock:
+            with _log_lock:
+                note = {
+                    "seq": next(_seq_counter),
+                    "from": name,
+                    "text": f"[start_discussion] {reason}",
+                    "thread_id": envelope.get("thread_id", "pool"),
+                    "done": False,
+                    "agree": False,
+                    "timestamp": time.time(),
+                    "meta": "start_discussion",
+                }
+                _log.append(note)
+            _broadcast({"type": "message", **note})
+            _enter_discuss_phase_locked(reason="start_discussion", by=name)
+        _send_line(
+            wfile,
+            sub_lock,
+            {"type": "ok", "text": "discussion_started"},
+        )
 
     def _handle_post(
         self,
@@ -118,11 +216,12 @@ class PoolHandler(socketserver.StreamRequestHandler):
         wfile: BinaryIO,
         sub_lock: threading.Lock,
     ) -> None:
-        global _turn_index, _round_active
+        global _turn_index, _round_active, _phase
 
         is_turn_taker = name in _turn_order
         text = str(envelope.get("text", ""))
         done = message_says_done(text)
+        agree = message_says_agree(text)
 
         with _turn_lock:
             if is_turn_taker:
@@ -133,7 +232,10 @@ class PoolHandler(socketserver.StreamRequestHandler):
                         sub_lock,
                         {
                             "type": "error",
-                            "text": "round_ended: wait for a new user message to start a new round",
+                            "text": (
+                                "round_ended: wait for a new user message or "
+                                "start_discussion_round"
+                            ),
                         },
                     )
                     return
@@ -141,14 +243,17 @@ class PoolHandler(socketserver.StreamRequestHandler):
                     _send_line(
                         wfile,
                         sub_lock,
-                        {"type": "error", "text": f"not_your_turn: it is currently {expected!r}'s turn"},
+                        {
+                            "type": "error",
+                            "text": f"not_your_turn: it is currently {expected!r}'s turn",
+                        },
                     )
                     return
             else:
-                # A message from outside the turn order (typically the human
-                # user) always (re)starts a fresh round at the front.
+                # Human (or non-turn agent): restart a fresh discussion round.
                 _turn_index = 0
                 _round_active = True
+                _phase = "discuss"
 
             message = {
                 "seq": next(_seq_counter),
@@ -156,6 +261,8 @@ class PoolHandler(socketserver.StreamRequestHandler):
                 "text": text,
                 "thread_id": envelope.get("thread_id", "pool"),
                 "done": done,
+                "agree": agree,
+                "phase": _phase,
                 "timestamp": time.time(),
             }
             with _log_lock:
@@ -166,20 +273,42 @@ class PoolHandler(socketserver.StreamRequestHandler):
             report_messages(agent=name, architecture="shared_pool", count=count)
             _broadcast({"type": "message", **message})
 
-            if is_turn_taker and done:
+            if not is_turn_taker:
+                _broadcast(
+                    {
+                        "type": "phase",
+                        "phase": "discuss",
+                        "reason": "user_message",
+                        "from": name,
+                    }
+                )
+                _broadcast_turn_locked()
+                return
+
+            if _phase == "discuss":
+                # DONE does not end discussion; only unanimous AGREE → execute.
+                if _all_turn_takers_agree_locked():
+                    _enter_execute_phase_locked()
+                else:
+                    _turn_index = (_turn_index + 1) % len(_turn_order)
+                    _broadcast_turn_locked()
+                return
+
+            # execute phase
+            if done:
                 _round_active = False
+                _phase = "idle"
                 _broadcast(
                     {
                         "type": "round_end",
                         "reason": "agent_said_done",
                         "from": name,
+                        "phase": "idle",
                     }
                 )
-            elif is_turn_taker:
-                _turn_index = (_turn_index + 1) % len(_turn_order)
-                _broadcast({"type": "turn", "name": _current_turn_locked(), "round_active": True})
             else:
-                _broadcast({"type": "turn", "name": _current_turn_locked(), "round_active": True})
+                _turn_index = (_turn_index + 1) % len(_turn_order)
+                _broadcast_turn_locked()
 
 
 class ThreadedPool(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -200,23 +329,16 @@ def run_pool_server(
         order_desc = " -> ".join(_turn_order) if _turn_order else "(no turn order; free-for-all)"
         print(f"Shared message pool listening on {host}:{port}")
         print(f"Turn order: {order_desc}")
+        print("Phases: discuss (until all AGREE) → execute (until DONE); start_discussion reopens discuss.")
         server.serve_forever()
 
 
 class PoolClient:
-    """A connection to the shared pool. Every accepted ``post`` is broadcast
-    to every connected client, including the sender, and every new
-    connection is replayed the full history before live messages start
-    flowing. Used by both robot agents and the plain human CLI
-    (``pool_cli.py``) -- there is nothing agent-specific about this
-    transport.
+    """Connection to the shared pool (agents + human CLI).
 
-    The pool enforces a round-robin turn order server-side: a post from an
-    agent whose turn it is not is rejected with a private ``error`` message
-    (never added to the shared log); a post from outside the turn order
-    (e.g. the human user) always starts a fresh round. ``on_turn`` tells you
-    whose turn it currently is; ``on_round_end`` fires as soon as any
-    turn-taker posts a message containing the word ``DONE``.
+    Discussion continues until every turn-taker's latest post AGREEs; then the
+    server enters execute phase. DONE ends the round only in execute.
+    ``start_discussion`` reopens a discussion round.
     """
 
     def __init__(self, name: str, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
@@ -227,10 +349,12 @@ class PoolClient:
         self._message_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._turn_handlers: list[Callable[[str | None], None]] = []
         self._round_end_handlers: list[Callable[[dict[str, Any]], None]] = []
+        self._phase_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._error_handlers: list[Callable[[str], None]] = []
         self.history: list[dict[str, Any]] = []
         self.current_turn: str | None = None
         self.round_active: bool = True
+        self.phase: str = "discuss"
         self._history_ready = threading.Event()
 
         self._send_json({"type": "hello", "name": self.name})
@@ -257,11 +381,20 @@ class PoolClient:
             if etype == "turn":
                 self.current_turn = envelope.get("name")
                 self.round_active = bool(envelope.get("round_active", True))
+                if "phase" in envelope:
+                    self.phase = str(envelope.get("phase") or self.phase)
                 for handler in self._turn_handlers:
                     handler(self.current_turn)
                 continue
+            if etype == "phase":
+                self.phase = str(envelope.get("phase") or self.phase)
+                self.round_active = True
+                for handler in self._phase_handlers:
+                    handler(envelope)
+                continue
             if etype == "round_end":
                 self.round_active = False
+                self.phase = str(envelope.get("phase") or "idle")
                 for handler in self._round_end_handlers:
                     handler(envelope)
                 continue
@@ -269,23 +402,22 @@ class PoolClient:
                 for handler in self._error_handlers:
                     handler(str(envelope.get("text", "")))
                 continue
+            if etype == "ok":
+                continue
 
     def on_message(self, handler: Callable[[dict[str, Any]], None]) -> None:
-        """Called for EVERY accepted message, including this client's own --
-        filter on ``msg["from"]`` yourself if you want to ignore your own posts."""
         self._message_handlers.append(handler)
 
     def on_turn(self, handler: Callable[[str | None], None]) -> None:
-        """Called with the name of whoever's turn it now is, every time the
-        turn advances (including right after connecting)."""
         self._turn_handlers.append(handler)
 
     def on_round_end(self, handler: Callable[[dict[str, Any]], None]) -> None:
-        """Called when a turn-taker posts a message containing DONE."""
         self._round_end_handlers.append(handler)
 
+    def on_phase(self, handler: Callable[[dict[str, Any]], None]) -> None:
+        self._phase_handlers.append(handler)
+
     def on_error(self, handler: Callable[[str], None]) -> None:
-        """Called when one of OUR posts was rejected (not our turn / round ended)."""
         self._error_handlers.append(handler)
 
     def wait_for_history(self, timeout: float = 5.0) -> None:
@@ -293,6 +425,17 @@ class PoolClient:
 
     def post(self, text: str, *, thread_id: str = "pool") -> None:
         self._send_json({"type": "post", "text": text, "thread_id": thread_id})
+
+    def start_discussion(self, reason: str = "", *, thread_id: str = "pool") -> None:
+        """Ask the pool to reopen a discuss phase (until all AGREE again)."""
+        self._send_json(
+            {
+                "type": "control",
+                "action": "start_discussion",
+                "text": reason,
+                "thread_id": thread_id,
+            }
+        )
 
     def recent(self, limit: int = 20) -> list[dict[str, Any]]:
         return self.history[-limit:]
@@ -313,10 +456,7 @@ def main() -> None:
     parser.add_argument(
         "--turn-order",
         default=None,
-        help="Comma-separated agent names, e.g. SmallDeliveryRobot_0,SmallDeliveryRobot_1. "
-        "Defaults to the fleet order from config.py. An empty string removes server-side "
-        "enforcement entirely, but pool_agent.py only speaks when told it's its turn, so "
-        "agents will stay silent unless you also change how they react.",
+        help="Comma-separated agent names. Defaults to fleet order from config.py.",
     )
     args = parser.parse_args()
     turn_order = None

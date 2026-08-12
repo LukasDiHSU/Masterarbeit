@@ -1,0 +1,12 @@
+Boxes_a (NL → motion / pathfinding) — single-line prompts for CLI paste
+
+Copy ONE line below into the CLI (no line breaks inside the prompt).
+
+=== EASY — copy the next line only ===
+You are on the boxes_a map (world: boxes_a). Send SmallDeliveryRobot_0 to the north cache, then to the collection area. Use tools to look up landmark coordinates and navigate. Report when done.
+
+=== MEDIUM — copy the next line only ===
+You are on the boxes_a map (world: boxes_a). There are three caches (north, south, east) and one collection area. Allocate SmallDeliveryRobot_0..SmallDeliveryRobot_3 so that each cache is visited and material is brought to the collection area (or robots rendezvous there after visiting their cache). Look up landmarks via tools. Avoid collisions. Report when the task is complete.
+
+=== HARD — copy the next line only ===
+You are on the boxes_a map (world: boxes_a). With six robots, cover north/south/east caches and bring everything to the collection area as quickly as possible. Allocate work, navigate with tools, resolve conflicts. Report when complete.

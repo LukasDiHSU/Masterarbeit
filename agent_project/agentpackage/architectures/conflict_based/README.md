@@ -12,18 +12,21 @@
                          R3 stays silent
 ```
 
-- **Solo by default.** Each `robot_peer_agent` works alone with MCP tools
-  (`list_available_boxes`, `navigate_to_pose`, `pickup_box`, …). There is
-  **no** `ask_all_peers` and no continuous discussion.
-- **Event gate.** A background poller reads the MCP event log
-  (`box_missing`, `nav_aborted`, `conflict`). When an event’s participants
-  include this peer, negotiation unlocks **only** toward that subset via
-  `negotiate_with` / `end_negotiation`.
+- **Solo by default.** Each `robot_peer_agent` works alone with MCP tools.
+  Peer talk is `negotiate_with` on conflict events only (whiteboard = storage).
+- **Before ending:** `report_done_and_confirm(summary)` tells every peer what
+  this robot did and collects AGREE/DISAGREE on whether the fleet mission is
+  finished. The agent may claim done only if `all_agree` is true.
+- **Event gate.** A background poller reads the MCP event log. Tool failures
+  (nav abort, box_missing, station_occupied, drive_failed, …) emit events.
+  When an event’s participants include this peer — including a
+  `blocking_robot` on nav failure — negotiation unlocks **only** toward that
+  subset via `negotiate_with` / `end_negotiation`.
 - **Mesh transport** (`mesh_bus.py`) stays as the point-to-point channel for
   those gated negotiations — not as a always-on chat fabric.
-- **`mission_cli.py`**: assign a solo mission to one robot
-  (`mission SmallDeliveryRobot_0 …`) or inject a multi-robot conflict
-  (`conflict SmallDeliveryRobot_0,SmallDeliveryRobot_1 bottleneck`). Replaces the old fleet-wide broadcast CLI.
+- **`mission_cli.py`**: mesh name `CLI`. Paste a prompt (no command prefix) —
+  it is sent to **all** robots in parallel as solo missions. They negotiate
+  on conflict events and must `report_done_and_confirm` before finishing.
 
 ## Token / communication hypothesis
 

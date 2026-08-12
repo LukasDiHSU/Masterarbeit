@@ -1,0 +1,37 @@
+[
+  {
+    "id": "station_nw",
+    "name": "NW quadrant",
+    "x": -10.8,
+    "y": 10.8,
+    "z": 0.0
+  },
+  {
+    "id": "station_ne",
+    "name": "NE quadrant",
+    "x": 10.8,
+    "y": 10.8,
+    "z": 0.0
+  },
+  {
+    "id": "station_se",
+    "name": "SE quadrant",
+    "x": 10.8,
+    "y": -10.8,
+    "z": 0.0
+  },
+  {
+    "id": "station_sw",
+    "name": "SW quadrant",
+    "x": -10.8,
+    "y": -10.8,
+    "z": 0.0
+  },
+  {
+    "id": "crossing",
+    "name": "center crossing",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  }
+]

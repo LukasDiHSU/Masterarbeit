@@ -46,8 +46,11 @@ def run_trace_monitor(
 ) -> None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((host, port))
-    print(f"Agent Trace listening (UDP) on {host}:{port}")
-    print("Showing LLM replies and tool start/end for all agents. Ctrl+C to quit.\n")
+    print(f"Agent Trace listening (UDP) on {host}:{port}", flush=True)
+    print(
+        "Showing LLM replies and tool start/end for all agents. Ctrl+C to quit.\n",
+        flush=True,
+    )
 
     try:
         while True:
