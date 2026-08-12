@@ -56,7 +56,7 @@ _DEFAULT_STATIONS = [
     {"id": "station_A", "name": "Station A", "x": -5.0, "y": -5.0, "box_id": "box_1", "available": True, "last_box_id": "box_1"},
     {"id": "station_B", "name": "Station B", "x": -5.0, "y": 5.0, "box_id": "box_2", "available": True, "last_box_id": "box_2"},
     {"id": "station_C", "name": "Station C", "x": 5.0, "y": 5.0, "box_id": "box_3", "available": True, "last_box_id": "box_3"},
-    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": None, "available": False, "last_box_id": None},
+    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": "box_4", "available": True, "last_box_id": None},
 ]
 
 STATIONS: list[dict] = deepcopy(_DEFAULT_STATIONS)

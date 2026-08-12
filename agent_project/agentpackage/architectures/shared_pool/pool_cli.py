@@ -78,6 +78,16 @@ def main() -> None:
             flush=True,
         )
 
+    def show_execute(envelope: dict) -> None:
+        elapsed = _elapsed_since_start()
+        extra = f"  elapsed={format_elapsed(elapsed)}" if elapsed is not None else ""
+        agents = envelope.get("agents") or []
+        who = ", ".join(str(a) for a in agents) if agents else "all agents"
+        print(
+            f"\n... EXECUTE (parallel) for {who}{extra} ...",
+            flush=True,
+        )
+
     def show_phase(envelope: dict) -> None:
         nonlocal execute_at
         phase = str(envelope.get("phase") or "")
@@ -141,12 +151,13 @@ def main() -> None:
 
     client.on_message(show)
     client.on_turn(show_turn)
+    client.on_execute(show_execute)
     client.on_phase(show_phase)
     client.on_round_end(show_round_end)
 
     print(f"Connected to the shared pool as {args.name!r}.")
     print("Type a message and press Enter to start a DISCUSS round (agents speak in order).")
-    print("Agents discuss until all AGREE → EXECUTE phase → DONE ends the round.")
+    print("Agents discuss until all AGREE → ALL execute in parallel → DONE ends the round.")
     print("Agents may call start_discussion_round to replan. Ctrl+C to quit.")
     print(
         "Timing (User window + timings.log): first reply, all-AGREE, and until DONE.\n",

@@ -102,6 +102,7 @@ def _broadcast_turn_locked() -> None:
 
 
 def _enter_execute_phase_locked() -> None:
+    """Enter execute: wake ALL agents at once (parallel work, no turn order)."""
     global _phase, _turn_index
     _phase = "execute"
     _turn_index = 0
@@ -110,10 +111,19 @@ def _enter_execute_phase_locked() -> None:
             "type": "phase",
             "phase": "execute",
             "reason": "all_agree",
-            "message": "All agents AGREEd — execute phase started.",
+            "message": "All agents AGREEd — execute phase started (parallel).",
         }
     )
-    _broadcast_turn_locked()
+    # Not a single-agent turn: every turn-taker should start MCP work now.
+    _broadcast(
+        {
+            "type": "execute",
+            "phase": "execute",
+            "reason": "all_agree",
+            "agents": list(_turn_order),
+            "message": "Agreed plan is in the pool — execute YOUR role in parallel.",
+        }
+    )
 
 
 def _enter_discuss_phase_locked(*, reason: str, by: str) -> None:
@@ -225,7 +235,6 @@ class PoolHandler(socketserver.StreamRequestHandler):
 
         with _turn_lock:
             if is_turn_taker:
-                expected = _current_turn_locked()
                 if not _round_active:
                     _send_line(
                         wfile,
@@ -239,16 +248,21 @@ class PoolHandler(socketserver.StreamRequestHandler):
                         },
                     )
                     return
-                if name != expected:
-                    _send_line(
-                        wfile,
-                        sub_lock,
-                        {
-                            "type": "error",
-                            "text": f"not_your_turn: it is currently {expected!r}'s turn",
-                        },
-                    )
-                    return
+                # Discuss is turn-based; execute is free-for-all (parallel).
+                if _phase == "discuss":
+                    expected = _current_turn_locked()
+                    if name != expected:
+                        _send_line(
+                            wfile,
+                            sub_lock,
+                            {
+                                "type": "error",
+                                "text": (
+                                    f"not_your_turn: it is currently {expected!r}'s turn"
+                                ),
+                            },
+                        )
+                        return
             else:
                 # Human (or non-turn agent): restart a fresh discussion round.
                 _turn_index = 0
@@ -294,7 +308,7 @@ class PoolHandler(socketserver.StreamRequestHandler):
                     _broadcast_turn_locked()
                 return
 
-            # execute phase
+            # execute phase — parallel; any agent may post status; DONE ends round.
             if done:
                 _round_active = False
                 _phase = "idle"
@@ -306,9 +320,6 @@ class PoolHandler(socketserver.StreamRequestHandler):
                         "phase": "idle",
                     }
                 )
-            else:
-                _turn_index = (_turn_index + 1) % len(_turn_order)
-                _broadcast_turn_locked()
 
 
 class ThreadedPool(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -328,8 +339,12 @@ def run_pool_server(
     with ThreadedPool((host, port), PoolHandler) as server:
         order_desc = " -> ".join(_turn_order) if _turn_order else "(no turn order; free-for-all)"
         print(f"Shared message pool listening on {host}:{port}")
-        print(f"Turn order: {order_desc}")
-        print("Phases: discuss (until all AGREE) → execute (until DONE); start_discussion reopens discuss.")
+        print(f"Discuss turn order: {order_desc}")
+        print(
+            "Phases: discuss (turn-based until all AGREE) → "
+            "execute (ALL agents in parallel until DONE); "
+            "start_discussion reopens discuss."
+        )
         server.serve_forever()
 
 
@@ -337,8 +352,8 @@ class PoolClient:
     """Connection to the shared pool (agents + human CLI).
 
     Discussion continues until every turn-taker's latest post AGREEs; then the
-    server enters execute phase. DONE ends the round only in execute.
-    ``start_discussion`` reopens a discussion round.
+    server enters execute and wakes all agents in parallel. DONE ends the round
+    only in execute. ``start_discussion`` reopens a discussion round.
     """
 
     def __init__(self, name: str, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
@@ -348,6 +363,7 @@ class PoolClient:
         self._send_lock = threading.Lock()
         self._message_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._turn_handlers: list[Callable[[str | None], None]] = []
+        self._execute_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._round_end_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._phase_handlers: list[Callable[[dict[str, Any]], None]] = []
         self._error_handlers: list[Callable[[str], None]] = []
@@ -386,6 +402,13 @@ class PoolClient:
                 for handler in self._turn_handlers:
                     handler(self.current_turn)
                 continue
+            if etype == "execute":
+                self.phase = "execute"
+                self.round_active = True
+                self.current_turn = None
+                for handler in self._execute_handlers:
+                    handler(envelope)
+                continue
             if etype == "phase":
                 self.phase = str(envelope.get("phase") or self.phase)
                 self.round_active = True
@@ -410,6 +433,10 @@ class PoolClient:
 
     def on_turn(self, handler: Callable[[str | None], None]) -> None:
         self._turn_handlers.append(handler)
+
+    def on_execute(self, handler: Callable[[dict[str, Any]], None]) -> None:
+        """Called when the pool enters parallel execute (after unanimous AGREE)."""
+        self._execute_handlers.append(handler)
 
     def on_round_end(self, handler: Callable[[dict[str, Any]], None]) -> None:
         self._round_end_handlers.append(handler)
