@@ -1,0 +1,12 @@
+{
+  "session_id": "centralized_20260814_015128",
+  "architecture": "centralized",
+  "agent_count": 4,
+  "agent_world": "stations",
+  "started_at": "2026-08-14T01:51:28+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "",
+  "saved_as": "bottleneck_medium_hcmas_r1_fail",
+  "saved_at": "2026-08-14T02:01:44.386099+02:00"
+}

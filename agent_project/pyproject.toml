@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentpackage"
 version = "0.2.0"
-description = "Multi-agent robot fleet system: centralized, conflict-based, HMAS-1, HMAS-2, and shared-pool coordination architectures"
+description = "Multi-agent robot fleet system: centralized, conflict-based, HMAS-1, HMAS-2, and AgentNet coordination architectures"
 requires-python = ">=3.11"
 dependencies = [
     "langchain",
@@ -20,9 +20,10 @@ dependencies = [
 packages = [
     "agentpackage",
     "agentpackage.architectures",
+    "agentpackage.architectures.agentnet",
     "agentpackage.architectures.centralized",
+    "agentpackage.architectures.dmas",
     "agentpackage.architectures.conflict_based",
     "agentpackage.architectures.hmas1",
     "agentpackage.architectures.hmas2",
-    "agentpackage.architectures.shared_pool",
 ]

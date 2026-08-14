@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import cached_property
 from typing import Any
@@ -15,17 +16,54 @@ from ...config import (
     DEFAULT_MESH_BASE_PORT,
     DEFAULT_MESH_HOST,
     TB_IDS,
-    STATION_CAPACITY_RULE,
     build_peer_table,
     nav_id_for_tb,
     peer_name_for_robot_id,
     robot_peer_name,
 )
+from ...instructions import conflict_mission_wrapper, conflict_robot
 from ...mcp_client import load_mcp_tools_safe
 from .event_gate import format_event_prompt, parse_mcp_json, participants_for_event
 from .mesh_bus import MeshNode
 
 _COMPLETION_CHECK_RE = re.compile(r"^\s*COMPLETION\s+CHECK\b", re.IGNORECASE)
+
+_INCOMPLETE_MARKERS = (
+    "not complete",
+    "not completed",
+    "not finished",
+    "not done",
+    "not yet",
+    "did not",
+    "didn't",
+    "was not able",
+    "were not able",
+    "unable",
+    "could not",
+    "couldn't",
+    "cannot",
+    "incomplete",
+    "blocked",
+    "aborted",
+    "abort",
+    "failed",
+    "failure",
+    "timed out",
+    "timeout",
+    "still working",
+    "still trying",
+    "stuck",
+    "gave up",
+    "no station/box moves",
+    "remains",
+    "remaining",
+)
+
+
+def reports_incomplete(text: str) -> list[str]:
+    """Return the markers showing a summary admits the work is not finished."""
+    low = (text or "").lower()
+    return [m for m in _INCOMPLETE_MARKERS if m in low]
 
 
 class RobotPeerAgent(BaseAgent):
@@ -42,7 +80,9 @@ class RobotPeerAgent(BaseAgent):
         self.nav_id = nav_id_for_tb(robot_id)
         self.mesh = mesh
         self.peer_names = peer_names
-        self._active_thread_id = "default"
+        # Per-thread: the event poller runs turns while a mesh mission turn is
+        # still open, and one must not count as "nested" inside the other.
+        self._local = threading.local()
         self._gate_lock = threading.Lock()
         self._allowed_peers: set[str] | None = None
         self._active_event: dict[str, Any] | None = None
@@ -50,7 +90,6 @@ class RobotPeerAgent(BaseAgent):
         self._my_part_done = False
         self._done_summary = ""
         self._status_note = "mission started; still working"
-        self._request_depth = 0
         self._peer_says_done: set[str] = set()
         name = robot_peer_name(robot_id)
         others = [p for p in peer_names if p != name]
@@ -59,61 +98,27 @@ class RobotPeerAgent(BaseAgent):
             AgentSpec(
                 name=name,
                 description=f"Event-triggered peer for {name}. Solo by default.",
-                system_prompt=(
-                    f"You are {name} in the CONFLICT-BASED architecture.\n"
-                    "\n"
-                    "WHAT YOU CAN DO:\n"
-                    "- Work alone with MCP tools: list_worlds, get_map_info, list_available_boxes, get_station, "
-                    f"rank_stations_by_distance(robot_id='{self.nav_id}'), get_robot_pose, "
-                    "distance_to_station, get_laser_snapshot, get_peer_distances, "
-                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
-                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
-                    "pickup_box/drop_box with that robot_id, get_events.\n"
-                    f"- {STATION_CAPACITY_RULE}\n"
-                    "- Station ids are station_A..station_D (short A/B/C/D also work).\n"
-                    "- ACTION: rank_stations_by_distance once → navigate_to_pose. "
-                    "Do not call get_peer_distances before navigating. "
-                    "Only after nav fails: get_peer_distances and/or drive_distance, then retry.\n"
-                    "- Tool failures emit MCP events; negotiation opens when you (and any "
-                    "blocking peer) are involved.\n"
-                    "- On an open event: talk FIRST with negotiate_with, then optionally store "
-                    "a short fact on the whiteboard (storage only), then end_negotiation.\n"
-                    "- Before you end your mission reply you MUST call "
-                    "report_done_and_confirm(summary=...) to tell peers what you did and ask "
-                    f"whether the fleet task is finished. Peers: {', '.join(others) or '(none)'}.\n"
-                    "  Only treat the round as finished if that tool returns all_agree=true. "
-                    "If anyone DISAGREEs, keep working (or help) and call it again later.\n"
-                    "- If a peer tells you the deliveries are already complete (boxes at the "
-                    "right stations), BELIEVE them: call report_done_and_confirm, do NOT pick "
-                    "boxes back up from destinations, do NOT undo finished work.\n"
-                    "- Optional: set_work_status(note=...) while working so peers see progress "
-                    "during completion checks.\n"
-                    "\n"
-                    "WHITEBOARD (storage only — NOT chat):\n"
-                    "- Store durable facts only. Do NOT chat or replace negotiate_with.\n"
-                    "\n"
-                    "WHAT YOU CANNOT DO:\n"
-                    "- No continuous group discussion. SEND to peers only when negotiation is "
-                    "open OR via report_done_and_confirm.\n"
-                    "- negotiate_with fails outside an event — keep working alone.\n"
-                    "- Do not chat via the whiteboard.\n"
-                    "- Do not end your final mission answer without report_done_and_confirm.\n"
-                    "- There is no master; do not wait for one.\n"
-                    "\n"
-                    "WORDING: say you SEND a message. Do not say broadcast.\n"
-                    "FLEET: Other robots share this map. Navigate first; on failure use "
-                    "get_peer_distances / drive_distance to clear peers, then retry.\n"
-                    "TOOLS: If the same tool with the same arguments fails twice, do not call "
-                    "it a third time — change the goal/approach or report failure.\n"
-                    "STYLE: keep every message as short but precise as possible. Never hallucinate values."
+                system_prompt=conflict_robot(
+                    name=name,
+                    nav_id=self.nav_id,
+                    peers=", ".join(others) or "(none)",
                 ),
             ),
             architecture="conflict_based",
         )
 
+    @property
+    def _request_depth(self) -> int:
+        return int(getattr(self._local, "depth", 0))
+
+    @property
+    def _active_thread_id(self) -> str:
+        return str(getattr(self._local, "thread_id", "default"))
+
     def invoke(self, message: str, thread_id: str = "default") -> str:
-        self._active_thread_id = thread_id
-        self._request_depth += 1
+        outer_thread_id = self._active_thread_id
+        self._local.thread_id = thread_id
+        self._local.depth = self._request_depth + 1
         try:
             # Peer told us the fleet is done — remember that for completion checks.
             low = (message or "").lower()
@@ -135,8 +140,8 @@ class RobotPeerAgent(BaseAgent):
                     self._status_note = "peer reports deliveries complete"
             return super().invoke(message, thread_id=thread_id)
         finally:
-            self._request_depth = max(0, self._request_depth - 1)
-            self._active_thread_id = "default"
+            self._local.depth = max(0, self._request_depth - 1)
+            self._local.thread_id = outer_thread_id
 
     def open_negotiation(self, allowed_peers: list[str], event: dict[str, Any] | None = None) -> None:
         with self._gate_lock:
@@ -162,7 +167,9 @@ class RobotPeerAgent(BaseAgent):
             text or "",
             flags=re.IGNORECASE | re.DOTALL,
         )
-        summary_low = (summary_match.group(1) if summary_match else text or "").lower()
+        peer_summary = summary_match.group(1) if summary_match else text or ""
+        summary_low = peer_summary.lower()
+        peer_admits_incomplete = reports_incomplete(peer_summary)
         peer_claims_fleet_done = any(
             k in summary_low
             for k in (
@@ -186,7 +193,7 @@ class RobotPeerAgent(BaseAgent):
             summary = self._done_summary
             status = self._status_note
             status_l = (status or "").lower()
-            if peer_claims_fleet_done:
+            if peer_claims_fleet_done and not peer_admits_incomplete:
                 self._peer_says_done.add(from_peer)
             peers_done = set(self._peer_says_done)
 
@@ -200,7 +207,14 @@ class RobotPeerAgent(BaseAgent):
             )
         )
 
-        # I already finished my part → always AGREE so the peer can close.
+        # The asking peer itself says it did not finish → never rubber-stamp it.
+        if peer_admits_incomplete:
+            return (
+                f"DISAGREE: your own summary says it is not finished "
+                f"({', '.join(peer_admits_incomplete[:3])}). "
+                f"I ({self.spec.name}) status: {status or 'in progress'}"
+            )
+        # I already finished my part → AGREE so the peer can close.
         if done:
             return (
                 f"AGREE: fleet finished from my side. "
@@ -324,10 +338,35 @@ class RobotPeerAgent(BaseAgent):
                 )
 
             summary = (summary or "").strip() or "my assigned work"
+            own_gaps = reports_incomplete(summary)
             with self._status_lock:
-                self._my_part_done = True
+                self._my_part_done = not own_gaps
                 self._done_summary = summary
-                self._status_note = f"part done: {summary}"
+                self._status_note = (
+                    f"still working (reported unfinished): {summary}"
+                    if own_gaps
+                    else f"part done: {summary}"
+                )
+
+            if own_gaps:
+                return json.dumps(
+                    {
+                        "all_agree": False,
+                        "summary_sent": summary,
+                        "own_report_incomplete": True,
+                        "incomplete_markers": own_gaps,
+                        "message": (
+                            "Your own summary says the work is not finished, so no "
+                            "completion check was sent. Keep working: retry the goal, "
+                            "or use get_events / get_peer_distances and resolve the "
+                            "blocker with the peer once negotiation opens. Call this "
+                            "tool again only when you actually finished."
+                        ),
+                        "replies": {},
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                )
 
             others = [p for p in self.peer_names if p != self.spec.name]
             if not others:
@@ -415,7 +454,20 @@ class RobotPeerAgent(BaseAgent):
         if self.spec.name not in peers:
             return None
         others = [p for p in peers if p != self.spec.name]
+        with self._gate_lock:
+            same_round = (
+                self._allowed_peers == set(others)
+                and (self._active_event or {}).get("type") == event.get("type")
+            )
+        if same_round:
+            # Blocked navigation re-aborts every few seconds; keep the open
+            # negotiation instead of starting a turn per repeat.
+            return None
         self.open_negotiation(others, event=event)
+        print(
+            f"[{self.spec.name}] negotiation open on {event.get('type')} "
+            f"with {', '.join(others) or '(none)'}"
+        )
         prompt = format_event_prompt(event, self.spec.name, peers)
         try:
             return self.invoke(prompt, thread_id=f"event-{event.get('type')}-{event.get('ts')}")
@@ -426,10 +478,21 @@ class RobotPeerAgent(BaseAgent):
 
 def _poll_events_loop(robot: RobotPeerAgent, stop: threading.Event, interval: float = 1.0) -> None:
     next_index = 0
+    warned = ""
+    # A reused MCP server still holds the previous run's event log; those
+    # conflicts are over and must not open negotiation now.
+    started_at = time.time()
     while not stop.wait(interval):
         payload = robot._call_mcp_tool("get_events", {"since_index": next_index})
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or "events" not in payload:
+            # Without this poll no event ever opens negotiation, so make the
+            # failure visible instead of degrading to solo-only silently.
+            detail = str(payload)[:200]
+            if detail != warned:
+                warned = detail
+                print(f"\n[event-poll] get_events unusable: {detail}")
             continue
+        warned = ""
         events = payload.get("events") or []
         next_index = int(payload.get("next_index", next_index))
         if not events:
@@ -438,6 +501,12 @@ def _poll_events_loop(robot: RobotPeerAgent, stop: threading.Event, interval: fl
         held_by = held if isinstance(held, dict) else {}
         for event in events:
             if not isinstance(event, dict):
+                continue
+            try:
+                stale = float(event.get("ts", 0.0)) < started_at
+            except (TypeError, ValueError):
+                stale = False
+            if stale:
                 continue
             print(f"\n[event] {json.dumps(event, ensure_ascii=False)}")
             reply = robot.handle_event(event, held_by=held_by)
@@ -521,12 +590,7 @@ def main() -> None:
             line = input(f"{my_name}> ").strip()
             if not line:
                 continue
-            mission = (
-                f"SOLO MISSION (negotiate on events; before ending call "
-                f"report_done_and_confirm):\n{line}\n"
-                f"Use robot_id '{robot.nav_id}' for navigate_to_pose / pickup_box / drop_box.\n"
-                f"{STATION_CAPACITY_RULE}"
-            )
+            mission = conflict_mission_wrapper(line, nav_id=robot.nav_id)
             reply = robot.invoke(mission, thread_id=args.thread_id)
             print(f"[{my_name}] {reply}")
     except (KeyboardInterrupt, EOFError):

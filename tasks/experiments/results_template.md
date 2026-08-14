@@ -2,7 +2,7 @@
 
 One block per scenario. Fill averages over ≥ 5 runs per cell.
 
-Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `shared_pool`
+Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `agentnet`
 
 ## Stations
 
@@ -12,17 +12,17 @@ Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `sha
 | Easy | conflict_based | | | | | | |
 | Easy | HMAS-1 | | | | | | |
 | Easy | HMAS-2 | | | | | | |
-| Easy | shared_pool | | | | | | |
+| Easy | agentnet | | | | | | |
 | Medium | centralized | | | | | | |
 | Medium | conflict_based | | | | | | |
 | Medium | HMAS-1 | | | | | | |
 | Medium | HMAS-2 | | | | | | |
-| Medium | shared_pool | | | | | | |
+| Medium | agentnet | | | | | | |
 | Hard | centralized | | | | | | |
 | Hard | conflict_based | | | | | | |
 | Hard | HMAS-1 | | | | | | |
 | Hard | HMAS-2 | | | | | | |
-| Hard | shared_pool | | | | | | |
+| Hard | agentnet | | | | | | |
 
 ## Bottleneck
 
@@ -32,17 +32,17 @@ Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `sha
 | Easy | conflict_based | | | | | | |
 | Easy | HMAS-1 | | | | | | |
 | Easy | HMAS-2 | | | | | | |
-| Easy | shared_pool | | | | | | |
+| Easy | agentnet | | | | | | |
 | Medium | centralized | | | | | | |
 | Medium | conflict_based | | | | | | |
 | Medium | HMAS-1 | | | | | | |
 | Medium | HMAS-2 | | | | | | |
-| Medium | shared_pool | | | | | | |
+| Medium | agentnet | | | | | | |
 | Hard | centralized | | | | | | |
 | Hard | conflict_based | | | | | | |
 | Hard | HMAS-1 | | | | | | |
 | Hard | HMAS-2 | | | | | | |
-| Hard | shared_pool | | | | | | |
+| Hard | agentnet | | | | | | |
 
 ## Cross
 
@@ -52,17 +52,17 @@ Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `sha
 | Easy | conflict_based | | | | | | |
 | Easy | HMAS-1 | | | | | | |
 | Easy | HMAS-2 | | | | | | |
-| Easy | shared_pool | | | | | | |
+| Easy | agentnet | | | | | | |
 | Medium | centralized | | | | | | |
 | Medium | conflict_based | | | | | | |
 | Medium | HMAS-1 | | | | | | |
 | Medium | HMAS-2 | | | | | | |
-| Medium | shared_pool | | | | | | |
+| Medium | agentnet | | | | | | |
 | Hard | centralized | | | | | | |
 | Hard | conflict_based | | | | | | |
 | Hard | HMAS-1 | | | | | | |
 | Hard | HMAS-2 | | | | | | |
-| Hard | shared_pool | | | | | | |
+| Hard | agentnet | | | | | | |
 
 ## Boxes_a
 
@@ -72,17 +72,17 @@ Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `sha
 | Easy | conflict_based | | | | | | |
 | Easy | HMAS-1 | | | | | | |
 | Easy | HMAS-2 | | | | | | |
-| Easy | shared_pool | | | | | | |
+| Easy | agentnet | | | | | | |
 | Medium | centralized | | | | | | |
 | Medium | conflict_based | | | | | | |
 | Medium | HMAS-1 | | | | | | |
 | Medium | HMAS-2 | | | | | | |
-| Medium | shared_pool | | | | | | |
+| Medium | agentnet | | | | | | |
 | Hard | centralized | | | | | | |
 | Hard | conflict_based | | | | | | |
 | Hard | HMAS-1 | | | | | | |
 | Hard | HMAS-2 | | | | | | |
-| Hard | shared_pool | | | | | | |
+| Hard | agentnet | | | | | | |
 
 ## Boxes_b
 
@@ -92,14 +92,14 @@ Architectures: `centralized` · `conflict_based` · `HMAS-1` · `HMAS-2` · `sha
 | Easy | conflict_based | | | | | | |
 | Easy | HMAS-1 | | | | | | |
 | Easy | HMAS-2 | | | | | | |
-| Easy | shared_pool | | | | | | |
+| Easy | agentnet | | | | | | |
 | Medium | centralized | | | | | | |
 | Medium | conflict_based | | | | | | |
 | Medium | HMAS-1 | | | | | | |
 | Medium | HMAS-2 | | | | | | |
-| Medium | shared_pool | | | | | | |
+| Medium | agentnet | | | | | | |
 | Hard | centralized | | | | | | |
 | Hard | conflict_based | | | | | | |
 | Hard | HMAS-1 | | | | | | |
 | Hard | HMAS-2 | | | | | | |
-| Hard | shared_pool | | | | | | |
+| Hard | agentnet | | | | | | |

@@ -13,7 +13,7 @@
 ```
 
 - **Solo by default.** Each `robot_peer_agent` works alone with MCP tools.
-  Peer talk is `negotiate_with` on conflict events only (whiteboard = storage).
+  Peer talk is `negotiate_with` on conflict events only.
 - **Before ending:** `report_done_and_confirm(summary)` tells every peer what
   this robot did and collects AGREE/DISAGREE on whether the fleet mission is
   finished. The agent may claim done only if `all_agree` is true.

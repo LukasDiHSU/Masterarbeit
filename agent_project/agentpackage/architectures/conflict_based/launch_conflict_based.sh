@@ -42,11 +42,12 @@ detect_terminal || exit 1
 init_experiment_session "conflict_based"
 
 MCP_URL="http://$MCP_CONNECT_HOST:$MCP_PORT/sse"
-SHARED_ENV="AGENT_COUNT=$AGENT_COUNT AGENT_MCP_URL=$MCP_URL"
+SHARED_ENV="AGENT_COUNT=$AGENT_COUNT AGENT_WORLD=$AGENT_WORLD AGENT_MCP_URL=$MCP_URL"
 
 echo "Launching CONFLICT-BASED architecture..."
 echo "  MCP bind:    $MCP_HOST:$MCP_PORT"
 echo "  MCP connect: $MCP_URL"
+echo "  AGENT_WORLD: $AGENT_WORLD"
 echo "  Mesh base:   $MESH_HOST:$MESH_BASE_PORT (SmallDeliveryRobot_0..N-1)"
 echo "  Agents: $AGENT_COUNT peers + mission CLI"
 echo "  Usage monitor: $MONITOR_HOST:$MONITOR_PORT (UDP)"
@@ -57,7 +58,7 @@ launch_window "Usage Monitor" \
 launch_window "Agent Trace" \
   "python -m agentpackage.trace_monitor --host \"$MONITOR_HOST\" --port \"$TRACE_MONITOR_PORT\""
 launch_window "MCP Server (shared)" \
-  "python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
+  "AGENT_WORLD=$AGENT_WORLD python -m agentpackage.mcpserver --host \"$MCP_HOST\" --port \"$MCP_PORT\""
 
 wait_for_tcp "$MCP_CONNECT_HOST" "$MCP_PORT" "MCP server"
 for ((i=AGENT_COUNT-1; i>=0; i--)); do
@@ -66,7 +67,7 @@ for ((i=AGENT_COUNT-1; i>=0; i--)); do
 done
 sleep 1
 launch_window "Mission CLI" \
-  "AGENT_COUNT=$AGENT_COUNT python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
+  "AGENT_COUNT=$AGENT_COUNT AGENT_WORLD=$AGENT_WORLD python -m agentpackage.architectures.conflict_based.mission_cli --host \"$MESH_HOST\" --base-port \"$MESH_BASE_PORT\" --cli-port \"$MESH_CLI_PORT\""
 
 echo "Done. Check the opened terminal windows."
 echo "Save this run: ./agentpackage/architectures/save_experiment.sh <run_name> [--stop]"

@@ -3,6 +3,18 @@
 # Usage: source this file, then call parse_agent_count "$@"
 # Afterward: AGENT_COUNT is set/exported; remaining args are in LAUNCH_ARGS.
 
+# Sourced first by every launch script, so .env is in the environment before any
+# default (AGENT_COUNT here, AGENT_WORLD in _launch_common.sh) is applied.
+_AGENTS_ARCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=_load_dotenv.sh
+source "$_AGENTS_ARCH_DIR/_load_dotenv.sh"
+_AGENT_PROJECT_DIR="$(cd "$_AGENTS_ARCH_DIR/../.." && pwd)"
+_load_dotenv "$_AGENT_PROJECT_DIR/.env"
+if [ ! -f "$_AGENT_PROJECT_DIR/.env" ] && [ -f "$_AGENT_PROJECT_DIR/.env.example" ]; then
+  echo "note: no agent_project/.env found (.env.example is only a template," \
+       "its values are NOT read). Using the shell environment." >&2
+fi
+
 parse_agent_count() {
   local requested="${AGENTS:-${AGENT_COUNT:-4}}"
   LAUNCH_ARGS=()

@@ -3,7 +3,7 @@
 Copy for each trial.
 
 ```text
-[ ] Architecture: centralized | conflict_based | HMAS-1 | HMAS-2 | shared_pool
+[ ] Architecture: centralized | conflict_based | HMAS-1 | HMAS-2 | agentnet
 [ ] Scenario: stations | bottleneck | cross | boxes_a | boxes_b
 [ ] Difficulty: easy | medium | hard
 [ ] AGENT_COUNT / robots online: ________

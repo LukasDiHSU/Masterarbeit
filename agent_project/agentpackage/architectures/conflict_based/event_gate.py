@@ -74,7 +74,22 @@ def participants_for_event(event: dict[str, Any], held_by: dict[str, Any] | None
 
 
 def parse_mcp_json(raw: str | Any) -> Any:
-    if isinstance(raw, (dict, list)):
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, list):
+        # langchain-mcp-adapters hands back content blocks, e.g.
+        # [{"type": "text", "text": "{...}", "id": "lc_..."}] — unwrap them
+        # before deciding this is a plain JSON array.
+        texts: list[str] = []
+        for block in raw:
+            if isinstance(block, str):
+                texts.append(block)
+            elif isinstance(block, dict) and isinstance(block.get("text"), str):
+                texts.append(block["text"])
+        if texts:
+            parsed = parse_mcp_json("\n".join(texts))
+            if parsed is not None:
+                return parsed
         return raw
     text = str(raw).strip()
     try:
@@ -92,8 +107,6 @@ def format_event_prompt(event: dict[str, Any], my_peer: str, allowed_peers: list
         "Do not contact any other robot. Do not start unrelated tasks.\n"
         "1) Talk FIRST: if peers are listed, use negotiate_with to exchange status and "
         "agree who yields / who proceeds.\n"
-        "2) Only AFTER talking may you optionally store a short agreed fact on the "
-        "whiteboard (storage only — never use the whiteboard as chat).\n"
-        "3) When resolved, call end_negotiation.\n"
+        "2) When resolved, call end_negotiation.\n"
         "Keep replies as short but precise as possible."
     )

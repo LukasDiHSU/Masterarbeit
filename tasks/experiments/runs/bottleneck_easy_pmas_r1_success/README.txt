@@ -1,0 +1,11 @@
+Active experiment session: shared_pool_20260813_215408
+Architecture: shared_pool
+Agents: 2
+
+Terminal output is appended under logs/ while the run is live.
+
+When you want to stop and keep this trial:
+  cd "/home/lukas/Masterarbeit/agent_project"
+  ./agentpackage/architectures/save_experiment.sh <your_run_name>
+  # or with stop:
+  ./agentpackage/architectures/save_experiment.sh <your_run_name> --stop

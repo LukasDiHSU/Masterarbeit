@@ -1,0 +1,11 @@
+{
+  "session_id": "conflict_based_20260813_180831",
+  "architecture": "conflict_based",
+  "agent_count": 2,
+  "started_at": "2026-08-13T18:08:31+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "",
+  "saved_as": "stations_easy_conflict_r1_success",
+  "saved_at": "2026-08-13T18:10:58.220071+02:00"
+}

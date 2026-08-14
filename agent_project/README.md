@@ -13,19 +13,17 @@ they can be compared directly (see `agentpackage/architectures/`):
 2. **Conflict-based** — peers work alone by default (no master/broker for
    routine work); mesh negotiation opens only when MCP events such as
    conflicts involve them, and only toward that event’s participants.
-3. **HMAS-1** — central planner primes an initial plan; robots then discuss
-   in fixed turn order (each turn sees the plan plus prior comments) until
-   one outputs EXECUTE; actions are dispatched over the star broker.
+3. **HMAS-1** — central planner primes a short multi-step plan; robots then
+   vote in fixed turn order (AGREE, or DISAGREE on an exception) until the
+   chunk is agreed; actions are dispatched over the star broker.
 4. **HMAS-2** — central planner proposes a fleet plan; each robot’s local
    LLM reviews its assignment (`AGREE` / `DISAGREE`); the planner re-plans
    until consensus, then sends execute instructions (star broker only).
-5. **Shared pool (blackboard, turn-based)** — shared log with no
-   addressing. Every agent and the human user connect to one shared
-   broadcast log; new joiners are replayed the full history, and every post
-   goes to everyone. The pool itself enforces a fixed speaking order
-   (`SmallDeliveryRobot_0 -> … -> _N-1 -> repeat`); a user
-   message always restarts the round at the front, and the round ends as
-   soon as any agent posts the token `DONE`.
+5. **AgentNet (DMAS on a mesh)** — no central planner. The robots take turns
+   until they agree on the next few actions, execute that chunk, and meet
+   again with the new state. The mission always enters at
+   `SmallDeliveryRobot_0`, which only chairs the speaking order. It ends when
+   every robot says `FINISHED` in the same discussion round.
 
 ## Usage monitor + agent trace
 
@@ -59,11 +57,10 @@ How it works:
   single request) after every `invoke()`. The same callback path emits
   live `trace` packets (LLM replies, tool_start, tool_end, turn_end).
 - Each transport also counts **inter-agent messages** and reports its
-  cumulative count: `agent_bus.BusClient.send()` (centralized),
-  `mesh_bus.MeshNode.send()` (conflict_based), and the shared pool server's
-  accepted-post handler (rejected out-of-turn posts don't count, since they
-  never reached anyone). HMAS-1 and HMAS-2 reuse the centralized `BusClient`
-  tagged `architecture="HMAS-1"` / `"HMAS-2"`.
+  cumulative count: `agent_bus.BusClient.send()` (centralized) and
+  `mesh_bus.MeshNode.send()` (conflict_based and agentnet, tagged by the
+  architecture that owns the node). HMAS-1 and HMAS-2 reuse the centralized
+  `BusClient` tagged `architecture="HMAS-1"` / `"HMAS-2"`.
 - Reporting is one-way UDP, fire-and-forget: nothing breaks if the monitor
   isn't running, and cumulative (not delta) snapshots make it robust to any
   dropped packet -- you just miss one intermediate update, never drift.
@@ -93,7 +90,8 @@ recorded terminal shells.
   `list_robots`, `get_robot_pose` / `get_all_robot_poses`,
   `distance_to_station`, `rank_stations_by_distance`, `get_peer_distances` (after nav failure),
   `drive_distance` (open-loop cmd_vel), `get_laser_snapshot`, `navigate_to_pose`,
-  plus station/box inventory and whiteboard/events.
+  plus station/box inventory (`set_world` / `get_map_info` sync landmarks from
+  `worlds/items/{world}.json`) and events.
 - `agentpackage/mcp_client.py` — loads those MCP tools into LangChain agents.
 - `agentpackage/BaseAgents.py` — thin wrapper around
   `langchain.agents.create_agent` with a per-agent checkpointer, blocking
@@ -126,16 +124,19 @@ printing the commands if no graphical terminal is available):
 # Conflict-based: N solo peers + mission CLI; negotiate only on events
 ./agentpackage/architectures/conflict_based/launch_conflict_based.sh --agents 4
 
-# HMAS-1: 1 broker + N robots + 1 planner; central initial plan then
-# turn-based robot dialogue until EXECUTE.
+# HMAS-1: 1 broker + N robots + 1 planner; central multi-step plan, robots
+# AGREE or DISAGREE on exceptions, then execute the chunk.
 ./agentpackage/architectures/hmas1/launch_hmas1.sh --agents 4
 
 # HMAS-2: 1 broker + N local reviewers + 1 planner; plan → AGREE/DISAGREE
 # feedback loop → execute (no mesh).
 ./agentpackage/architectures/hmas2/launch_hmas2.sh --agents 4
 
-# Shared pool: 1 pool server + N pool agents + 1 human CLI, no addressing
-./agentpackage/architectures/shared_pool/launch_shared_pool.sh --agents 4
+# DMAS: N robots + mission CLI; CLI chairs discuss → one short leg → meet again
+./agentpackage/architectures/dmas/launch_dmas.sh --agents 4
+
+# AgentNet: N DMAS nodes + task CLI; mission enters at SmallDeliveryRobot_0
+./agentpackage/architectures/agentnet/launch_agentnet.sh --agents 4
 ```
 
 Fleet size `N` is `AGENT_COUNT` (also `AGENTS=N` or `--agents N`), allowed

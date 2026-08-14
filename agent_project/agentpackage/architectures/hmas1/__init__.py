@@ -1,3 +1,4 @@
-"""HMAS-1 architecture: one central priming plan + turn-based robot discussion
-until unanimous AGREE, then execute. Further rounds via start_discussion_round.
+"""HMAS-1: a central LLM primes each chunk with a short multi-step plan, the
+robot agents follow it (AGREE) unless they vote DISAGREE on an exception, and
+the agreed chunk is executed before the next one is planned.
 """

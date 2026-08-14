@@ -28,7 +28,7 @@ the centralized star broker.
   for conflict-based only and are not exposed here. No peer messaging.
 - **Transport**: reuses `architectures/centralized/agent_bus.py` + broker.
 
-Contrast with **HMAS-1** (central plan primes turn-based dialogue until EXECUTE)
+Contrast with **HMAS-1** (central multi-step plan; robots AGREE or DISAGREE on exceptions)
 and plain **centralized** / CMAS (central assigns with no local review loop).
 
 Run: `./launch_hmas2.sh` (optional `--agents 2|4|6|8`)

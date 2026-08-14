@@ -88,11 +88,12 @@ Look up station coordinates via tools. Report when all deliveries are done.
 | **Centralized** | Prompt → master. Workers: `_0`, `_1` | Prompt → master. Workers: `_0`…`_3` | Prompt → master. Workers: `_0`…`_5` |
 | **Conflict-based** | Prompt → CLI / one peer; fleet `_0`…`_1` | Prompt → CLI; fleet `_0`…`_3` | Prompt → CLI; fleet `_0`…`_5` |
 | **HMAS-1 / HMAS-2** | Prompt → planner | same | same |
-| **Shared pool** | Prompt → pool CLI; turn order `_0` → `_1` | turn order `_0`…`_3` | turn order over all 6 |
+| **AgentNet** | Prompt → task CLI; nodes `_0`…`_1` | nodes `_0`…`_3` | nodes `_0`…`_5` |
 
 ## Extra checks
 
 - Did allocation actually happen (not one robot doing everything)?
 - Were station coords fetched via tools (not hallucinated)?
-- For HMAS-1: did dialogue reach EXECUTE before navigation finished?
+- For HMAS-1: did robots AGREE to the planner's chunk (or DISAGREE with a corrected EXECUTE) before navigation finished?
 - For HMAS-2: did all involved robots AGREE before EXECUTE?
+- For AgentNet: did they execute a short chunk then meet again, and end only when every robot said FINISHED?

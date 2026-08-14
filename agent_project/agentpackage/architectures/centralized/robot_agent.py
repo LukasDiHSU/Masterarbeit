@@ -5,7 +5,8 @@ import threading
 from functools import cached_property
 
 from ...BaseAgents import BaseAgent, AgentSpec
-from ...config import TB_IDS, STATION_CAPACITY_RULE, nav_id_for_tb, robot_peer_name
+from ...config import TB_IDS, nav_id_for_tb, robot_peer_name
+from ...instructions import centralized_robot
 from ...mcp_client import load_mcp_tools_safe
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -24,41 +25,7 @@ class RobotAgent(BaseAgent):
             AgentSpec(
                 name=name,
                 description=f"Worker for {name}; only answers the master.",
-                system_prompt=(
-                    f"You are {name} in the CENTRALIZED architecture.\n"
-                    "\n"
-                    "WHAT YOU CAN DO:\n"
-                    "- Answer messages from the master.\n"
-                    f"- MCP tools: list_worlds, get_map_info, list_available_boxes, get_station, "
-                    f"rank_stations_by_distance(robot_id='{self.nav_id}'), get_robot_pose, "
-                    f"distance_to_station, get_laser_snapshot, get_peer_distances, "
-                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
-                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
-                    "pickup_box/drop_box with that robot_id, whiteboard.\n"
-                    "- Station ids are station_A..station_D (short A/B/C/D also work). "
-                    "Prefer navigate_xy from rank_stations_by_distance (slightly off the pad).\n"
-                    f"- {STATION_CAPACITY_RULE} "
-                    "If unsure before drop_box, call get_station.\n"
-                    "\n"
-                    "WHAT YOU CANNOT DO:\n"
-                    "- You cannot send messages to other robots; only the master can delegate.\n"
-                    "- You do not invent fleet-wide plans; execute what the master asks.\n"
-                    "\n"
-                    "ACTION (keep tool use minimal):\n"
-                    "- For 'go to farthest/nearest station': call rank_stations_by_distance ONCE, "
-                    "then navigate_to_pose immediately. Do not call get_peer_distances first.\n"
-                    "- Do not call get_all_robot_poses / list_stations / get_robot_pose repeatedly "
-                    "for the same task. One gather → act → report.\n"
-                    "- Only if navigate_to_pose fails: call get_peer_distances and/or "
-                    "drive_distance (e.g. 1 m at ±90 deg) to clear a peer, then retry navigate.\n"
-                    "\n"
-                    "WORDING: say you SEND or receive a message. Do not say broadcast.\n"
-                    "FLEET: Other robots share this map. Do not probe peers before navigating; "
-                    "nav failure is usually another robot — then use get_peer_distances / drive_distance.\n"
-                    "TOOLS: If the same tool with the same arguments fails twice, do not call "
-                    "it a third time — change the goal/approach or report failure.\n"
-                    "STYLE: keep every message as short but precise as possible. Never hallucinate values."
-                ),
+                system_prompt=centralized_robot(name=name, nav_id=self.nav_id),
             ),
             architecture="centralized",
         )

@@ -13,7 +13,7 @@ from langchain.agents import create_agent
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langgraph.checkpoint.memory import InMemorySaver
 
-from .config import DEFAULT_MODEL
+from .config import DEFAULT_MODEL, build_chat_model
 from .monitor import report_tokens, report_trace
 from .timing import format_elapsed, record_timing
 
@@ -188,7 +188,7 @@ class BaseAgent:
     @cached_property
     def agent(self):
         return create_agent(
-            model=self.model,
+            model=build_chat_model(self.model),
             tools=self._retrieve_tools(),
             system_prompt=self.spec.system_prompt,
             name=self.spec.name,

@@ -7,17 +7,10 @@ from functools import cached_property
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, STATION_CAPACITY_RULE, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...instructions import HMAS2_REVIEW_PREFIX, hmas2_planner
 from ...mcp_client import load_planning_mcp_tools
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-_REVIEW_PREFIX = (
-    "PLAN REVIEW REQUEST — do NOT execute yet. "
-    "Check only YOUR assignment. Prefer ZERO tools; reply AGREE: or DISAGREE: "
-    "in one line. If you must pick farthest/nearest station, call "
-    "rank_stations_by_distance once — do not sense peers, lasers, or events.\n\n"
-    "FLEET PLAN:\n"
-)
 
 
 class PlannerAgent(BaseAgent):
@@ -37,57 +30,7 @@ class PlannerAgent(BaseAgent):
                     "Central HMAS-2 planner: proposes a fleet plan, collects local "
                     "feedback, re-plans until consensus, then sends execute messages."
                 ),
-                system_prompt=(
-                    f"You are the central planner for {fleet} (HMAS-2 architecture, "
-                    f"{AGENT_COUNT} robots).\n"
-                    "\n"
-                    "WHAT YOU CAN DO:\n"
-                    "- Talk to the human user.\n"
-                    "- Before drafting a plan, inspect the world with MCP map tools: "
-                    "list_worlds, get_map_info, list_stations, list_available_boxes, "
-                    "get_station, get_held_boxes, get_all_robot_poses. Use real station "
-                    "coords and box locations — do not invent them.\n"
-                    "- Draft ONE short fleet plan with clear per-robot assignments "
-                    "inside that single document.\n"
-                    "- collect_feedback(plan, recipients): SEND that plan as a REVIEW "
-                    "request (not execution) to recipients='all' or e.g. "
-                    "'SmallDeliveryRobot_0,SmallDeliveryRobot_2'. "
-                    "Each robot replies AGREE: … or DISAGREE: …\n"
-                    "- ask_robot(robot, message): SEND a follow-up or an EXECUTE instruction "
-                    "to exactly one robot after consensus.\n"
-                    "- ask_all_robots(message) / ask_selected_robots(robots, message): SEND "
-                    "the same EXECUTE (or other) message to many robots in parallel.\n"
-                    "\n"
-                    "WHAT YOU CANNOT DO:\n"
-                    "- You have no navigate/pickup/drop tools; robots execute those.\n"
-                    "- Robots cannot message each other; only you coordinate.\n"
-                    "- Do not tell robots to execute until every involved robot has AGREEd "
-                    "on the current plan (or you re-planned and they AGREEd).\n"
-                    "- Do not invent a different plan per robot via separate collect_feedback "
-                    "calls with different texts for the same goal — put roles in one plan.\n"
-                    "- Do not ask the user which tool to call.\n"
-                    "\n"
-                    f"{STATION_CAPACITY_RULE}\n"
-                    "Plan only empty drop destinations; for swaps, clear pads first.\n"
-                    "\n"
-                    "WORDING: say you SEND a message / SEND the plan. Do not say broadcast.\n"
-                    "\n"
-                    "WORKFLOW:\n"
-                    "1) Inspect map/stations/boxes (and optionally robot poses) with MCP tools.\n"
-                    "2) Draft one short fleet plan (who moves where; who holds).\n"
-                    "3) collect_feedback until all recipients AGREE (on DISAGREE, revise and "
-                    "collect again).\n"
-                    "4) Only then SEND execute instructions, clearly marked as EXECUTE.\n"
-                    "   - Moving robot: EXECUTE with concrete x/y (from their AGREE navigate_xy "
-                    "if they reported it) — one ask_robot is enough.\n"
-                    "   - Idle robots: either omit EXECUTE, or a one-line "
-                    "'EXECUTE: HOLD. Reply HOLDING. Do not use tools.' "
-                    "Do NOT ask them to laser-scan or monitor surroundings.\n"
-                    "FLEET: Robots share one map; plans must avoid collisions between peers.\n"
-                    "TOOLS: If the same tool/ask fails twice with the same args, do not retry "
-                    "a third identical call — change the plan or report failure.\n"
-                    "STYLE: keep every message as short but precise as possible. Never hallucinate values."
-                ),
+                system_prompt=hmas2_planner(fleet=fleet, n=AGENT_COUNT),
             ),
             architecture="HMAS-2",
         )
@@ -193,7 +136,7 @@ class PlannerAgent(BaseAgent):
             resolved = self._resolve_recipients(recipients)
             if isinstance(resolved, dict):
                 return json.dumps(resolved)
-            body = _REVIEW_PREFIX + plan.strip()
+            body = HMAS2_REVIEW_PREFIX + plan.strip()
             replies = self._ask_many(resolved, body)
             summary = self._summarize_feedback(replies)
             summary["recipients"] = resolved

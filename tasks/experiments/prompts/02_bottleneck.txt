@@ -3,10 +3,10 @@ Bottleneck (crossing / priority) — single-line prompts for CLI paste
 Copy ONE line below into the CLI (no line breaks inside the prompt).
 
 === EASY — copy the next line only ===
-You are on the bottleneck map (world: bottleneck). The two robots should exchange their positions by crossing the bottleneck (west ↔ east). Use tools to look up west/east stations and the gap. Coordinate so you do not deadlock in the gap. Report when both robots have reached the opposite side.
+You are on the bottleneck map (world: bottleneck). The two robots should exchange their positions by crossing the bottleneck. Only one robot can go through the bottleneck at a time. Coordinate so you do not deadlock in the gap. Report when both robots have reached their positions.
 
 === MEDIUM — copy the next line only ===
-You are on the bottleneck map (world: bottleneck_1). The robots should exchange their positions by crossing the bottleneck. SmallDeliveryRobot_0 and SmallDeliveryRobot_2 should be prioritized. Use tools to look up west/east stations and the gap. Avoid deadlock in the gap. Report when all robots have reached their target sides.
+You are on the bottleneck map (world: bottleneck_1). The robots should exchange their positions by crossing the bottleneck. SmallDeliveryRobot_0 and SmallDeliveryRobot_1 are on the west side, while SmallDeliveryRobot_1 and SmallDeliveryRobot_2 are on the east side. Only one robot can go through the bottleneck at a time. Avoid deadlock in the gap. Report when all robots have reached their target sides.
 
 === HARD — copy the next line only ===
-You are on the bottleneck map (world: bottleneck_2). Six robots must cross the bottleneck to exchange sides (west ↔ east). Priorities: SmallDeliveryRobot_0 and SmallDeliveryRobot_2 highest; then _1 and _3; then _4 and _5. Only as many robots as safely fit may be in the gap at once. Resolve conflicts; no permanent deadlock. Report when all robots have reached their target sides.
+You are on the bottleneck map (world: bottleneck_2). Six robots must cross the bottleneck to exchange sides. Priorities: SmallDeliveryRobot_0 and SmallDeliveryRobot_2 highest; then _1 and _3; then _4 and _5. Only one robot can go through the bottleneck at a time. Avoid deadlock in the gap. Report when all robots have reached their target sides.

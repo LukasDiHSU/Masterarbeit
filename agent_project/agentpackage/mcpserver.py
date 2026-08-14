@@ -23,6 +23,9 @@ NAV_TIMEOUT_SEC = float(os.environ.get("MCP_NAV_TIMEOUT_SEC", "180"))
 TOOL_TEXT_MAX_CHARS = int(os.environ.get("MCP_TOOL_TEXT_MAX_CHARS", "1200"))
 # Peer within this distance of self or goal counts as "in the way" after Nav2 fails.
 NAV_BLOCKER_RADIUS_M = float(os.environ.get("MCP_NAV_BLOCKER_RADIUS_M", "2.0"))
+# Max map-frame distance from station center for pickup_box / drop_box.
+# Approach poses from rank_stations_by_distance sit ~1.2 m off the pad.
+MANIP_RADIUS_M = float(os.environ.get("MCP_MANIP_RADIUS_M", "1.8"))
 DEFAULT_WORLD_ID = os.environ.get("AGENT_WORLD", "stations").strip() or "stations"
 
 # Protect station/box inventory when concurrent tool calls run in threads.
@@ -66,9 +69,10 @@ _DEFAULT_STATIONS = [
 STATIONS: list[dict] = deepcopy(_DEFAULT_STATIONS)
 # robot_id -> box_id currently held (or None)
 HELD_BY: dict[str, str | None] = {}
+# World id whose items/*.json currently backs STATIONS (list_stations / get_station).
+ACTIVE_WORLD_ID: str = DEFAULT_WORLD_ID
 
-# --- Shared whiteboard + event log ------------------------------------------
-WHITEBOARD: list[str] = []
+# --- Shared event log --------------------------------------------------------
 EVENTS: list[dict] = []
 
 
@@ -78,10 +82,26 @@ def _emit_event(event_type: str, **payload) -> dict:
     return event
 
 
-def _tool_error(event_type: str, *, error: str, **payload: Any) -> str:
-    """Return an error JSON and always append a matching MCP event for peers."""
-    event = _emit_event(event_type, error=error, **payload)
-    body = {"error": error, "event": event, **payload}
+def _tool_error(
+    event_type: str,
+    *,
+    error: str,
+    payload: dict[str, Any] | None = None,
+    **extra: Any,
+) -> str:
+    """Return an error JSON and always append a matching MCP event for peers.
+
+    Prefer ``payload={...}`` when forwarding a dict that may already contain
+    ``robot_id`` / ``error``. Explicit ``error`` always wins. ``extra`` overlays
+    ``payload`` for individual fields.
+    """
+    clean: dict[str, Any] = {}
+    if payload:
+        clean.update(payload)
+    clean.update(extra)
+    clean.pop("error", None)
+    event = _emit_event(event_type, error=error, **clean)
+    body = {"error": error, **clean, "event": event}
     return json.dumps(body, indent=2)
 
 
@@ -117,6 +137,23 @@ def _normalize_station_id(station_id: str) -> str | None:
         for station in STATIONS:
             if station["id"] == candidate:
                 return candidate
+
+    # Unique short alias: "east" → station_east, "gap" → gap, "north" → north cache id
+    matches: list[str] = []
+    for station in STATIONS:
+        sid = str(station["id"])
+        sid_l = sid.lower()
+        name_l = str(station.get("name") or "").lower()
+        name_compact = re.sub(r"\s+", "_", name_l)
+        if sid_l == compact or sid_l.endswith("_" + compact):
+            matches.append(sid)
+        elif compact in name_l.split() or name_compact == compact or name_compact.endswith(
+            "_" + compact
+        ):
+            matches.append(sid)
+    uniq = list(dict.fromkeys(matches))
+    if len(uniq) == 1:
+        return uniq[0]
     return None
 
 
@@ -190,17 +227,22 @@ def _worlds_root() -> Path:
 
 
 def _canonical_station_id_from_item(raw_id: str) -> str | None:
-    """Map items.json ids (station_a, station_nw, …) to inventory ids."""
+    """Map items.json landmark ids to inventory ids.
+
+    Accepts every landmark in the active world file (station_A, station_west,
+    gap, item_1 / caches, crossing, …) — not only station_A..D.
+    """
     s = (raw_id or "").strip()
     if not s:
         return None
-    low = s.lower().replace("-", "_")
+    low = s.lower().replace("-", "_").replace(" ", "_")
+    low = re.sub(r"_+", "_", low).strip("_")
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", low):
+        return None
     m = re.fullmatch(r"station_([a-d])", low)
     if m:
         return f"station_{m.group(1).upper()}"
-    if low.startswith("station_"):
-        return low  # station_nw / station_ne / …
-    return None
+    return low
 
 
 def _safe_world_id(world_id: str) -> str | None:
@@ -211,7 +253,7 @@ def _safe_world_id(world_id: str) -> str | None:
 
 
 def _stations_from_world_items(world_id: str) -> list[dict] | None:
-    """Build STATIONS inventory from items/{world_id}.json landmark entries."""
+    """Build STATIONS inventory from *all* landmarks in items/{world_id}.json."""
     wid = _safe_world_id(world_id)
     if wid is None:
         return None
@@ -238,25 +280,32 @@ def _stations_from_world_items(world_id: str) -> list[dict] | None:
         except Exception:
             continue
         name = str(item.get("name") or sid)
-        stations.append(
-            {
-                "id": sid,
-                "name": name.title() if name.lower().startswith("station") else name,
-                "x": x,
-                "y": y,
-                "box_id": None,
-                "available": False,
-                "last_box_id": None,
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": sid,
+            "name": name.title() if name.lower().startswith("station") else name,
+            "x": x,
+            "y": y,
+            "box_id": None,
+            "available": False,
+            "last_box_id": None,
+        }
+        # Optional box fields in items.json override defaults.
+        if "box_id" in item:
+            entry["box_id"] = item.get("box_id")
+            entry["available"] = bool(item.get("available", entry["box_id"] is not None))
+            entry["last_box_id"] = item.get("last_box_id", entry["box_id"])
+        if item.get("note"):
+            entry["note"] = str(item["note"])
+        stations.append(entry)
 
     if not stations:
         return None
 
-    # Box occupancy comes from _DEFAULT_STATIONS (edit that list per difficulty).
-    # Items JSON only supplies landmark poses for the active world scale.
+    # For classic A–D pads, merge built-in box layout when items omit box fields.
     defaults_by_id = {s["id"]: s for s in _DEFAULT_STATIONS}
     for station in stations:
+        if station.get("box_id") is not None or station.get("available"):
+            continue
         default = defaults_by_id.get(station["id"])
         if default is None:
             continue
@@ -272,10 +321,16 @@ def _load_stations_for_world(world_id: str | None = None) -> list[dict]:
     return loaded if loaded else deepcopy(_DEFAULT_STATIONS)
 
 
-def _apply_stations_for_world(world_id: str | None = None) -> None:
+def _apply_stations_for_world(world_id: str | None = None) -> str:
+    """Reload STATIONS/HELD_BY from items/{world}.json. Returns active world id."""
+    global ACTIVE_WORLD_ID
+    wid = (world_id or "").strip() or DEFAULT_WORLD_ID
+    safe = _safe_world_id(wid) or DEFAULT_WORLD_ID
     STATIONS.clear()
-    STATIONS.extend(_load_stations_for_world(world_id))
+    STATIONS.extend(_load_stations_for_world(safe))
     HELD_BY.clear()
+    ACTIVE_WORLD_ID = safe
+    return ACTIVE_WORLD_ID
 
 
 # Prefer landmarks from items/{AGENT_WORLD}.json (supports stations_1 / stations_2).
@@ -487,15 +542,72 @@ def list_worlds() -> str:
 
 
 @mcp.tool()
+def set_world(world_id: str) -> str:
+    """Set the active world and reload landmarks into list_stations / get_station.
+
+    Loads poses (and optional box fields) from worlds/items/{world_id}.json.
+    Use this (or get_map_info with the same world_id) so inventory matches the map.
+    """
+    wid = _safe_world_id(world_id)
+    if wid is None:
+        return json.dumps(
+            {
+                "error": "invalid_world_id",
+                "world_id": world_id,
+                "hint": "Use an id from list_worlds (e.g. stations, bottleneck).",
+            },
+            indent=2,
+        )
+    path = _worlds_root() / "items" / f"{wid}.json"
+    if not path.is_file() and wid != DEFAULT_WORLD_ID:
+        # Still apply (may fall back to built-in A–D) but warn.
+        active = _apply_stations_for_world(wid)
+        return json.dumps(
+            {
+                "success": True,
+                "warning": "items_json_missing",
+                "world_id": active,
+                "items_json": str(path),
+                "stations": STATIONS,
+                "hint": "No items file; inventory may be built-in defaults.",
+            },
+            indent=2,
+        )
+    active = _apply_stations_for_world(wid)
+    return json.dumps(
+        {
+            "success": True,
+            "world_id": active,
+            "items_json": str(path),
+            "station_count": len(STATIONS),
+            "stations": STATIONS,
+        },
+        indent=2,
+    )
+
+
+@mcp.tool()
 def get_map_info(world_id: str = "") -> str:
-    """Get map metadata and landmark items for a world (default: AGENT_WORLD or stations).
+    """Get map metadata and landmark items for a world (default: active / AGENT_WORLD).
 
     Returns Nav2 map.yaml fields (resolution, origin, …), approximate bounds from
     the .pgm size when available, and items/*.json landmarks (stations, notes).
-    Does not return raw occupancy pixels or full SDF meshes.
+    When world_id is given (or differs from the active world), also reloads
+    list_stations / get_station from that world's items.json so map and inventory
+    stay one source of truth. Does not return raw occupancy pixels or full SDF.
     """
-    wid = (world_id or "").strip() or DEFAULT_WORLD_ID
-    return json.dumps(_build_map_info(wid), indent=2)
+    wid = (world_id or "").strip() or ACTIVE_WORLD_ID or DEFAULT_WORLD_ID
+    if wid != ACTIVE_WORLD_ID:
+        _apply_stations_for_world(wid)
+    info = _build_map_info(wid)
+    info["active_world_id"] = ACTIVE_WORLD_ID
+    info["stations"] = STATIONS
+    info["hint"] = (
+        "Landmarks and list_stations share this world_id. Use item/station x/y "
+        "as map-frame goals. Prefer goals slightly off pads if notes say "
+        "visual-only. Occupancy grid is in map.yaml/pgm."
+    )
+    return json.dumps(info, indent=2)
 
 # --- ROS 2 CLI helpers -------------------------------------------------------
 
@@ -846,21 +958,6 @@ def _parse_laser_snapshot(text: str, parsed: Any | None = None) -> dict[str, Any
     }
 
 
-# --- Whiteboard --------------------------------------------------------------
-
-@mcp.tool()
-def add_to_whiteboard(message: str) -> str:
-    """Add a message to the shared whiteboard."""
-    WHITEBOARD.append(message)
-    return "Message added to whiteboard."
-
-
-@mcp.tool()
-def get_whiteboard() -> str:
-    """Get all messages on the whiteboard."""
-    return json.dumps(WHITEBOARD)
-
-
 # --- Events ------------------------------------------------------------------
 
 @mcp.tool()
@@ -914,14 +1011,23 @@ def emit_conflict(robot_ids: str, reason: str = "conflict", detail: str = "") ->
 
 @mcp.tool()
 def list_stations() -> str:
-    """List every station: id, name, pose, box_id, and available.
+    """List landmarks/stations for the active world (see set_world / get_map_info).
 
-    Capacity: each station holds at most ONE box.
+    Source: worlds/items/{active_world_id}.json (same as get_map_info items).
+    Capacity: each pad holds at most ONE box when box tools are used.
     - Occupied / pickable: box_id set and available=true → pickup_box OK, drop_box FAILS.
     - Empty: box_id is null and available=false → drop_box OK, pickup_box FAILS.
     Use this (or get_station) before dropping so you never target an occupied pad.
+    Non-pad landmarks (gap, caches, …) appear here for navigation coordinates.
     """
-    return json.dumps(STATIONS, indent=2)
+    return json.dumps(
+        {
+            "world_id": ACTIVE_WORLD_ID,
+            "count": len(STATIONS),
+            "stations": STATIONS,
+        },
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -975,14 +1081,80 @@ def get_held_boxes() -> str:
     return json.dumps(HELD_BY, indent=2)
 
 
-@mcp.tool()
-def pickup_box(robot_id: str, station_id: str) -> str:
-    """Pick up the box at a station for this robot.
+def _ensure_near_station(
+    robot: str,
+    station: dict,
+    *,
+    tool: str,
+) -> str | None:
+    """Return an error JSON if the robot is too far (or pose unavailable); else None.
 
-    On failure (missing box, wrong station, already holding), emits an MCP event
-    so conflict-based peers can open negotiation.
+    Must run *outside* ``_STATE_LOCK`` — pose fetch uses ROS CLI and can block.
     """
-    robot = robot_id.strip()
+    if not _ros2_available():
+        return _tool_error(
+            "pose_failed",
+            error="ros2_not_found",
+            tool=tool,
+            robot_id=robot,
+            station_id=station.get("id"),
+            hint="ROS 2 required to verify proximity before pickup/drop.",
+        )
+    pose = _fetch_robot_pose(robot)
+    if not pose.get("success"):
+        return _tool_error(
+            "pose_failed",
+            error=str(pose.get("error") or "pose_unavailable"),
+            tool=tool,
+            robot_id=robot,
+            station_id=station.get("id"),
+            hint="Cannot verify proximity; retry get_robot_pose then navigate closer.",
+        )
+    dx = float(pose["x"]) - float(station["x"])
+    dy = float(pose["y"]) - float(station["y"])
+    dist = math.hypot(dx, dy)
+    if dist <= MANIP_RADIUS_M:
+        return None
+    sid = station.get("id")
+    return _tool_error(
+        "too_far_from_station",
+        error="too_far_from_station",
+        tool=tool,
+        robot_id=robot,
+        station_id=sid,
+        distance_m=round(dist, 3),
+        max_distance_m=MANIP_RADIUS_M,
+        robot_xy={"x": pose["x"], "y": pose["y"]},
+        station_xy={"x": station["x"], "y": station["y"]},
+        message=(
+            f"{robot} is {dist:.2f} m from {sid} "
+            f"(need ≤ {MANIP_RADIUS_M} m). Navigate closer before {tool}."
+        ),
+        hint=(
+            "Call rank_stations_by_distance or get_station, then navigate_to_pose "
+            "to the station's navigate_xy / pad, then retry pickup_box/drop_box."
+        ),
+    )
+
+
+def _pickup_box_sync(robot_id: str, station_id: str) -> str:
+    robot = _normalize_robot_id(robot_id) or (robot_id or "").strip()
+    station = _find_station(station_id)
+    if station is None:
+        return _tool_error(
+            "station_not_found",
+            error="station_not_found",
+            tool="pickup_box",
+            robot_id=robot,
+            station_id=station_id,
+            allowed=_station_ids(),
+            hint="Use station_A..station_D (or short A/B/C/D).",
+        )
+
+    near_err = _ensure_near_station(robot, station, tool="pickup_box")
+    if near_err is not None:
+        return near_err
+
     with _STATE_LOCK:
         station = _find_station(station_id)
         if station is None:
@@ -1026,25 +1198,45 @@ def pickup_box(robot_id: str, station_id: str) -> str:
             {
                 "success": True,
                 "robot_id": robot,
-                "station_id": station_id,
+                "station_id": station["id"],
                 "box_id": box_id,
-                "message": f"{robot} picked up {box_id} from {station_id}",
+                "distance_m_ok": True,
+                "max_distance_m": MANIP_RADIUS_M,
+                "message": f"{robot} picked up {box_id} from {station['id']}",
             }
         )
 
 
 @mcp.tool()
-def drop_box(robot_id: str, station_id: str) -> str:
-    """Drop the box this robot is holding onto a station. Station MUST be empty.
+async def pickup_box(robot_id: str, station_id: str) -> str:
+    """Pick up the box at a station for this robot.
 
-    Capacity: each station holds at most ONE box. Drop only when box_id is null
-    and available=false (verify with get_station / list_stations first).
-    If the pad already has a box, this fails with station_occupied — free it
-    with pickup_box or choose another empty station. For swaps (A↔C), pick both
-    sources before dropping so destinations are clear.
-    On failure emits an MCP event.
+    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame). Navigate
+    to the pad / navigate_xy first; remote teleports fail with too_far_from_station.
+    On failure (too far, missing box, already holding), emits an MCP event so
+    conflict-based peers can open negotiation.
     """
-    robot = robot_id.strip()
+    return await asyncio.to_thread(_pickup_box_sync, robot_id, station_id)
+
+
+def _drop_box_sync(robot_id: str, station_id: str) -> str:
+    robot = _normalize_robot_id(robot_id) or (robot_id or "").strip()
+    station = _find_station(station_id)
+    if station is None:
+        return _tool_error(
+            "station_not_found",
+            error="station_not_found",
+            tool="drop_box",
+            robot_id=robot,
+            station_id=station_id,
+            allowed=_station_ids(),
+            hint="Use station_A..station_D (or short A/B/C/D).",
+        )
+
+    near_err = _ensure_near_station(robot, station, tool="drop_box")
+    if near_err is not None:
+        return near_err
+
     with _STATE_LOCK:
         station = _find_station(station_id)
         if station is None:
@@ -1097,21 +1289,42 @@ def drop_box(robot_id: str, station_id: str) -> str:
             {
                 "success": True,
                 "robot_id": robot,
-                "station_id": station_id,
+                "station_id": station["id"],
                 "box_id": box_id,
-                "message": f"{robot} dropped {box_id} at {station_id}",
+                "distance_m_ok": True,
+                "max_distance_m": MANIP_RADIUS_M,
+                "message": f"{robot} dropped {box_id} at {station['id']}",
             }
         )
 
 
 @mcp.tool()
+async def drop_box(robot_id: str, station_id: str) -> str:
+    """Drop the box this robot is holding onto a station. Station MUST be empty.
+
+    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame). Navigate
+    first; remote teleports fail with too_far_from_station.
+    Capacity: each station holds at most ONE box. Drop only when box_id is null
+    and available=false (verify with get_station / list_stations first).
+    If the pad already has a box, this fails with station_occupied — free it
+    with pickup_box or choose another empty station. For swaps (A↔C), pick both
+    sources before dropping so destinations are clear.
+    On failure emits an MCP event.
+    """
+    return await asyncio.to_thread(_drop_box_sync, robot_id, station_id)
+
+
+@mcp.tool()
 def reset_stations() -> str:
-    """Reset stations and held boxes from items/{AGENT_WORLD}.json (or built-in defaults)."""
-    _apply_stations_for_world(DEFAULT_WORLD_ID)
+    """Reset stations and held boxes from the active world's items.json.
+
+    Reloads items/{ACTIVE_WORLD_ID}.json (set via AGENT_WORLD, set_world, or get_map_info).
+    """
+    active = _apply_stations_for_world(ACTIVE_WORLD_ID)
     return json.dumps(
         {
             "success": True,
-            "world_id": DEFAULT_WORLD_ID,
+            "world_id": active,
             "stations": STATIONS,
         },
         indent=2,
@@ -1150,9 +1363,11 @@ def _get_robot_pose_sync(robot_id: str) -> str:
         return _tool_error(
             "pose_failed",
             error=str(pose.get("error") or "pose_unavailable"),
-            tool="get_robot_pose",
-            robot_id=robot,
-            **{k: v for k, v in pose.items() if k != "error"},
+            payload={
+                **{k: v for k, v in pose.items() if k not in ("error", "success")},
+                "tool": "get_robot_pose",
+                "robot_id": robot,
+            },
         )
     return json.dumps(pose, indent=2)
 

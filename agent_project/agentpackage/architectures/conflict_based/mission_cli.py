@@ -9,12 +9,12 @@ from ...config import (
     DEFAULT_MESH_CLI_PORT,
     DEFAULT_MESH_HOST,
     MESH_CLI_NAME,
-    STATION_CAPACITY_RULE,
     TB_IDS,
     build_peer_table,
     nav_id_for_tb,
     robot_peer_name,
 )
+from ...instructions import conflict_mission_wrapper
 from ...timing import format_elapsed, record_timing
 from .mesh_bus import MeshNode
 
@@ -44,16 +44,7 @@ def main() -> None:
     def _send_one(peer: str, text: str) -> tuple[str, str, float]:
         rid = peer  # peer name == robot id
         nav = nav_id_for_tb(rid)
-        mission = (
-            f"SOLO MISSION (work alone; negotiate only if an event opens):\n{text}\n"
-            f"Use robot_id '{nav}' for navigate_to_pose / pickup_box / drop_box.\n"
-            f"Other robots received the same prompt and work in parallel.\n"
-            f"{STATION_CAPACITY_RULE}\n"
-            f"Do not chat on the whiteboard — peer talk is negotiate_with after a conflict.\n"
-            f"BEFORE you finish: call report_done_and_confirm(summary=...) to tell peers "
-            f"what you did and get AGREE/DISAGREE that the fleet task is finished. "
-            f"Only end as done if all_agree is true."
-        )
+        mission = conflict_mission_wrapper(text, nav_id=nav, parallel=True)
         t0 = time.perf_counter()
         try:
             mesh._wait_for_link(peer, timeout=60.0)

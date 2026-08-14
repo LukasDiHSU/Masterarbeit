@@ -1,25 +1,29 @@
+"""HMAS-1 local robot agent (Chen et al., arXiv:2309.15943, Fig. 1).
+
+The agent has two jobs. During dialogue it follows the central planner's
+multi-step plan (AGREE) unless it sees an exception, in which case it votes
+DISAGREE and may send a corrected EXECUTE. During execution it receives one
+verified symbolic action and runs it through pre-defined primitives -- no LLM
+call, so the agreed plan is carried out exactly as agreed.
+"""
+
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import threading
-from functools import cached_property
-
-from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, STATION_CAPACITY_RULE, nav_id_for_tb, robot_peer_name
-from ...mcp_client import load_mcp_tools_safe
+from ...config import AGENT_COUNT, TB_IDS, nav_id_for_tb, robot_peer_name
+from ...instructions import hmas1_robot
+from ...monitor import report_trace
+from ...paper_protocol import ACTION_SYNTAX, execute_action, parse_action
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-
-_EXECUTE_APPROVED_RE = re.compile(r"EXECUTE\s+APPROVED", re.IGNORECASE)
+from .dialogue import EXECUTE_DISPATCH_PREFIX
 
 
 class HMAS1RobotAgent(BaseAgent):
-    """Local HMAS-1 agent: turn-based discussion until AGREE, then execute;
-    may request another discussion round via ``start_discussion_round``.
-    """
+    """Local agent: dialogue partner first, deterministic executor second."""
 
     def __init__(self, robot_id: str, *, bus: BusClient | None = None):
         if robot_id not in TB_IDS:
@@ -27,118 +31,53 @@ class HMAS1RobotAgent(BaseAgent):
         self.robot_id = robot_id
         self.nav_id = nav_id_for_tb(robot_id)
         self.bus = bus
-        self._in_execute = False
         name = robot_peer_name(robot_id)
 
         super().__init__(
             AgentSpec(
                 name=name,
-                description=(
-                    f"HMAS-1 local agent for {name}: discuss until AGREE, then execute."
-                ),
-                system_prompt=(
-                    f"You are {name} in the HMAS-1 architecture ({AGENT_COUNT} robots).\n"
-                    "\n"
-                    "ROLE SPLIT:\n"
-                    "- The central planner sends ONE priming plan (or a re-discussion context).\n"
-                    "- Robots then discuss in fixed turn order. Each turn you see the plan plus "
-                    "all prior robot comments.\n"
-                    "- Discussion ends only when EVERY robot's latest message starts with AGREE.\n"
-                    "- Then you receive EXECUTE APPROVED and carry out YOUR part with MCP tools.\n"
-                    "\n"
-                    "WHAT YOU CAN DO:\n"
-                    "- On a discussion turn: refine the plan. Prefer few or zero MCP tools "
-                    "(list_available_boxes, get_station if needed). Reply AGREE: … or DISAGREE: …\n"
-                    "- Do not navigate/pickup/drop during discussion turns.\n"
-                    "- On EXECUTE APPROVED: carry out YOUR action with MCP: "
-                    f"rank_stations_by_distance if needed, get_robot_pose, distance_to_station, "
-                    f"navigate_to_pose(robot_id='{self.nav_id}', x, y), "
-                    f"drive_distance(robot_id='{self.nav_id}', distance_m, direction_deg), "
-                    "get_peer_distances, pickup_box/drop_box with that robot_id, etc. "
-                    "Act with few tools: gather once, then navigate. "
-                    "Only after nav fails: get_peer_distances and/or drive_distance, then retry.\n"
-                    f"- {STATION_CAPACITY_RULE} "
-                    "If unsure before drop_box, call get_station.\n"
-                    "- If you need a fleet replan after/during execute problems, call "
-                    "start_discussion_round(reason=...) and/or end your reply with "
-                    "NEED_DISCUSSION: <reason>.\n"
-                    "\n"
-                    "WHAT YOU CANNOT DO:\n"
-                    "- Do not wait for the planner to confirm receipt of the plan.\n"
-                    "- You cannot message other robots directly; turn-taking is orchestrated.\n"
-                    "- Do not end discussion alone with EXECUTE — only AGREE/DISAGREE during "
-                    "discussion. Unanimous AGREE triggers execute.\n"
-                    "- Do not invent a wholly different mission; refine the given plan.\n"
-                    "\n"
-                    "WORDING: say you SEND or receive a message. Do not say broadcast.\n"
-                    "FLEET: Other robots share this map. Navigate first; on failure use "
-                    "get_peer_distances / drive_distance to clear peers, then retry.\n"
-                    "TOOLS: If the same tool with the same arguments fails twice, do not call "
-                    "it a third time — change the goal/approach or report failure.\n"
-                    "STYLE: keep every message as short but precise as possible. Never hallucinate values."
+                description=f"HMAS-1 local agent for {name}.",
+                system_prompt=hmas1_robot(
+                    name=name, n=AGENT_COUNT, action_syntax=ACTION_SYNTAX
                 ),
             ),
             architecture="HMAS-1",
         )
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
-        self._in_execute = bool(_EXECUTE_APPROVED_RE.search(message or ""))
-        try:
-            return super().invoke(message, thread_id=thread_id)
-        finally:
-            self._in_execute = False
+        text = (message or "").strip()
+        if text.startswith(EXECUTE_DISPATCH_PREFIX):
+            return self._run_assigned_action(text)
+        return super().invoke(message, thread_id=thread_id)
 
-    @cached_property
-    def _mcp_tools_by_name(self) -> dict:
-        return {t.name: t for t in load_mcp_tools_safe()}
-
-    def _retrieve_tools(self):
-        local_tools = list(self._mcp_tools_by_name.values())
-
-        @tool
-        def start_discussion_round(reason: str, plan_update: str = "") -> str:
-            """Request another HMAS-1 discussion round (until unanimous AGREE), then execute.
-
-            Prefer this when you hit a conflict that needs fleet replan. If you are currently
-            answering an EXECUTE APPROVED message, end that reply with NEED_DISCUSSION: <reason>
-            (this tool reminds you); the planner starts the round after execute returns.
-            When idle, this tool asks the planner to start discussion immediately.
-
-            Args:
-                reason: Why a new discussion is needed.
-                plan_update: Optional updated plan fragment for the fleet.
-            """
-            reason = (reason or "").strip() or "replan needed"
-            plan_update = (plan_update or "").strip()
-            if self._in_execute or self.bus is None:
-                return (
-                    f"Discussion requested. End your reply with a line exactly like:\n"
-                    f"NEED_DISCUSSION: {reason}\n"
-                    "Finish any safe local action first; do not block waiting for peers."
-                )
-            payload = f"START_DISCUSSION\nreason: {reason}\nplan: {plan_update}"
-            try:
-                return self.bus.ask(
-                    to=PLANNER_NAME,
-                    text=payload,
-                    thread_id=f"{self.spec.name}->discussion",
-                )
-            except Exception as e:
-                return json.dumps(
-                    {
-                        "error": "start_discussion_failed",
-                        "message": str(e),
-                        "hint": f"End your reply with NEED_DISCUSSION: {reason}",
-                    }
-                )
-
-        return [*local_tools, start_discussion_round]
+    def _run_assigned_action(self, message: str) -> str:
+        name = robot_peer_name(self.robot_id)
+        body = message[len(EXECUTE_DISPATCH_PREFIX) :].strip()
+        action = parse_action(body, name)
+        if action is None:
+            return json.dumps(
+                {"ok": False, "error": "unparsable_action", "received": body[:160]}
+            )
+        report_trace(
+            agent=name,
+            architecture="HMAS-1",
+            kind="tool_start",
+            text=action.text(),
+            tool="execute_action",
+        )
+        result = execute_action(action)
+        report_trace(
+            agent=name,
+            architecture="HMAS-1",
+            kind="tool_end",
+            text=json.dumps(result, default=str),
+            tool="execute_action",
+        )
+        return json.dumps(result, default=str)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Run one HMAS-1 robot agent (AGREE discussion → execute)."
-    )
+    parser = argparse.ArgumentParser(description="Run one HMAS-1 robot agent.")
     parser.add_argument(
         "--robot-id",
         "--tb-id",
@@ -148,7 +87,6 @@ def main() -> None:
     )
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--thread-id", default="local")
     args = parser.parse_args()
 
     my_name = robot_peer_name(args.robot_id)
@@ -156,29 +94,25 @@ def main() -> None:
     robot = HMAS1RobotAgent(args.robot_id, bus=bus)
 
     def handle_message(msg: dict) -> None:
-        msg_type = msg.get("type")
-        if msg_type == "error":
+        if msg.get("type") == "error":
             print(f"\n[broker error] {msg.get('text', '')}")
             return
-        if msg_type != "agent_request":
+        if msg.get("type") != "agent_request":
             return
 
         src = str(msg.get("from", "?"))
         text = str(msg.get("text", ""))
         thread_id = str(msg.get("thread_id", src))
         request_id = msg.get("request_id")
-
-        print(f"\n[{src} -> {my_name}] {text}")
+        kind = "execute" if text.strip().startswith(EXECUTE_DISPATCH_PREFIX) else "dialogue"
+        print(f"\n[{src} -> {my_name}] {kind} request")
 
         def _job() -> None:
             try:
                 reply = robot.invoke(text, thread_id=thread_id)
             except Exception as e:
-                reply = (
-                    f"{my_name} failed to process request: {type(e).__name__}: {e}. "
-                    "Please retry with a shorter request or reduced context."
-                )
-            print(f"[{my_name}] {reply}")
+                reply = f"{my_name} failed to process request: {type(e).__name__}: {e}"
+            print(f"[{my_name}] {reply.strip()[:400]}")
             bus.send(
                 type="agent_reply",
                 to=src,
@@ -193,16 +127,11 @@ def main() -> None:
 
     bus.on_message(handle_message)
 
-    print(f"{my_name} is online (HMAS-1). Discuss until AGREE, then execute.")
-    print("Type directly to chat with this robot locally. Use Ctrl+C to exit.\n")
+    print(f"{my_name} online (HMAS-1). Waiting for planning dialogue and action dispatch.")
+    print("Ctrl+C to exit.\n")
 
     try:
-        while True:
-            line = input(f"{my_name}> ").strip()
-            if not line:
-                continue
-            reply = robot.invoke(line, thread_id=args.thread_id)
-            print(f"[{my_name}] {reply}")
+        threading.Event().wait()
     except (KeyboardInterrupt, EOFError):
         print()
     finally:

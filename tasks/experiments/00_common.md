@@ -10,26 +10,47 @@ Pptx names → current code:
 |---|---|---|---|---|
 | Zentral | **centralized** | `master` | 1 master + N robot workers | Master delegates via `ask_robot` / `ask_all_robots` / `ask_selected_robots` |
 | Dezentral | **conflict_based** | mission CLI / one peer | N peer robots, no master | Solo by default; mesh negotiation only on conflict events |
-| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Planner sends one initial plan; robots discuss in turn order until EXECUTE |
+| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Per chunk: planner proposes a short multi-step plan, robots AGREE (or DISAGREE on an exception) in turn order; the chunk runs when everyone has agreed and the verifier passes |
 | (Hybrid variant) | **HMAS-2** | `planner` | 1 planner + N robots | Planner collects AGREE/DISAGREE, then EXECUTE |
-| Pool | **shared_pool** | pool CLI | N pool agents + pool server | Round-robin posts; no addressing; end with `DONE` |
+| Dezentral (AgentNet / DMAS) | **agentnet** | task CLI | N mesh nodes, Agent 0 chairs turns | Robots agree on a short action chunk, execute it, meet again; done when every robot says `FINISHED` |
 
 Run every scenario × difficulty on **all five** architectures when possible.
-Minimum fair set for the thesis comparison (pptx slide set): centralized, conflict_based, HMAS-1, shared_pool.
+Minimum fair set for the thesis comparison (pptx slide set): centralized, conflict_based, HMAS-1, agentnet.
 
 ## Shared MCP context
 
 Every robot agent uses the shared MCP server (`agentpackage/mcpserver.py`):
 stations/boxes inventory, `rank_stations_by_distance`, `navigate_to_pose`,
-`drive_distance` (recovery), poses, whiteboard. Conflict-based also uses events.
+`drive_distance` (recovery), poses. Conflict-based also uses events.
+
+**One world source of truth:** set `AGENT_WORLD` to the map you run, either in
+`agent_project/.env` or per run (`AGENT_WORLD=bottleneck_1 ./…/launch_hmas1.sh
+--agents 2`). Note that `.env.example` is only a template — nothing reads it.
+Launch scripts load `.env` and pass the world into the MCP process, so
+`list_stations` / `get_map_info("")` match `worlds/items/{AGENT_WORLD}.json`;
+the launcher warns if no such file exists. Calling `get_map_info(world_id=…)` or
+`set_world` also switches inventory (including non-pad landmarks like `gap`,
+caches). Do not assume A–D stations on every map. Restart MCP after changing
+the world.
 
 Do **not** paste full coordinate tables into the user prompt — agents look them up
 with tools (`list_stations`, `get_station`, `rank_stations_by_distance`, …).
+
+**No invented coordinates:** every architecture's prompts carry the shared
+`COORDINATE_RULE` (`agentpackage/config.py`) — an agent may only pass x/y that
+came from a tool result or the user prompt, and may only drive to positions
+that exist on the active map. Treat a run in which a robot navigates to a
+made-up pose as a failure and note it.
 
 **Station capacity:** each station holds at most **one** box. Empty pads have
 `box_id=null` and `available=false`. `drop_box` fails on occupied stations
 (`station_occupied`). For opposing swaps (e.g. A↔C), clear destinations (pick
 first / stage) before dropping. Robots also hold at most one box.
+
+**Proximity:** `pickup_box` / `drop_box` only succeed when the robot is within
+`MCP_MANIP_RADIUS_M` (default 1.8 m) of the station. Always
+`navigate_to_pose` (prefer `navigate_xy` from `rank_stations_by_distance`)
+before pick/drop; remote teleports return `too_far_from_station`.
 
 Every prompt starts with the map/world name (e.g. `You are on the stations map
 (world: stations).`). Keep that line when pasting.
@@ -41,24 +62,37 @@ multi-line blocks in the scenario markdown.
 **Timing (all architectures — wall-clock until the system thinks it is done):**
 - **centralized** / **HMAS-1** / **HMAS-2** — master/planner chat prints `elapsed until done` after each user message’s final reply.
 - **conflict_based** — Mission CLI: paste prompt → all peers in parallel; clock stops when every peer has replied.
-- **shared_pool** — pool CLI: from your post until an agent posts `DONE` in the execute phase (also logs first agent reply). Discuss ends only when all agents `AGREE`.
+- **agentnet** — task CLI: from handing the mission to `SmallDeliveryRobot_0` until the fleet reports back (`agentnet_until_done`).
 - All append to `timings.log` under the active experiment session (`tasks/experiments/runs/_active/…`, kept after `save_experiment.sh`).
 
-**Discussion architectures:**
-- **HMAS-1** — planner primes once; robots discuss turn-by-turn until unanimous `AGREE`, then execute. Replan via `start_discussion_round` / `NEED_DISCUSSION`.
-- **shared_pool** — same AGREE→execute idea on the blackboard; `start_discussion_round` reopens discuss.
+**HMAS-1 (paper protocol, Chen et al. arXiv:2309.15943):**
+The central planner proposes a **short multi-step chunk** (1–`HMAS1_CHUNK_STEPS`,
+default 4, actions per robot, joined with `;`). Robots take turns and **follow
+that plan** (`AGREE`) unless they see an exception (`DISAGREE`, optionally with
+a corrected `EXECUTE`). The chunk runs once every robot has agreed and the
+verifier accepts it (later actions are checked as if earlier ones succeeded).
+A failed physical action stops the rest of the chunk and the planner is asked
+again with the new state.
+- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 chunks), `PAPER_MAX_DIALOGUE_ROUNDS` (3), `PAPER_MAX_SYNTAX_RETRIES` (3), `HMAS1_CHUNK_STEPS` (4). Hitting a limit ends the mission as a failure.
+
+**AgentNet (DMAS variant, Chen et al. arXiv:2309.15943):** no planner. The
+robots take turns until an `EXECUTE` block with 1–`AGENTNET_CHUNK_STEPS` (2)
+actions per robot passes the verifier; they execute that chunk and meet again.
+The mission ends only when **every** robot says `FINISHED` in the same
+discussion round. Agent 0 chairs the speaking order and does not propose a
+privileged plan.
 
 Robot names in prompts: `SmallDeliveryRobot_0` … `SmallDeliveryRobot_{N-1}`
 (legacy `tb1`/`robot_tb1` still resolve, but prefer remroc ids).
 
 ## What to give the agent structure (every run)
 
-| Input | Centralized | Conflict-based | HMAS-1 / HMAS-2 | Shared pool |
+| Input | Centralized | Conflict-based | HMAS-1 / HMAS-2 | AgentNet |
 |---|---|---|---|---|
-| **User prompt** | → `master` chat | → mission CLI / one peer | → `planner` chat | → pool CLI |
+| **User prompt** | → `master` chat | → mission CLI / one peer | → `planner` chat | → task CLI (always enters at `SmallDeliveryRobot_0`) |
 | **Scenario** | remroc world + matching `worlds/items/<name>.json` / MCP stations | same | same | same |
-| **Active robots** | start only the N workers you need; prompt names participants | start only N peers | same N robots | start only N pool agents |
-| **Do not** | message workers directly for the scored run | paste the same prompt into every peer | skip consensus / dialogue before execute | address one robot as if private DM |
+| **Active robots** | start only the N workers you need; prompt names participants | start only N peers | same N robots | start only N nodes |
+| **Do not** | message workers directly for the scored run | paste the same prompt into every peer | skip consensus / dialogue before execute | hand the mission to any agent but `_0` |
 
 ## Metrics (every run)
 

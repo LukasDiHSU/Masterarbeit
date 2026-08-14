@@ -3,10 +3,10 @@ Stations (package delivery) — single-line prompts for CLI paste
 Copy ONE line below into the CLI (no line breaks inside the prompt).
 
 === EASY — copy the next line only ===
-You are on the stations map (world: stations). Deliver package P1 from station A to station C, and package P2 from station B to station D. Allocate the two orders among SmallDeliveryRobot_0 and SmallDeliveryRobot_1 and complete both deliveries. Each station holds only one box — drop only on empty pads. Use the station/box tools to look up coordinates. Report when all deliveries are done.
+You are on the stations map (world: stations). Deliver package P1 from station A to station C, and package P2 from station B to station D. Allocate the two orders among SmallDeliveryRobot_0 and SmallDeliveryRobot_1 and complete both deliveries. Each station holds only one box — drop only on empty pads. Report when all deliveries are done.
 
 === MEDIUM — copy the next line only ===
-You are on the stations map (world: stations_1). Deliver package P1 from station A to C, package P2 from B to D, package P3 from C to A, and package P4 from D to B. Allocate the orders among the robots and complete all deliveries. Each station holds only one box — destinations must be empty before drop; for swaps, pick both sources (or stage) so pads are free before dropping. Use the station/box tools to look up coordinates. Report when all deliveries are done.
+You are on the stations map (world: stations_1). Deliver package P1 from station A to C, package P2 from B to D, package P3 from C to A, and package P4 from D to B. Allocate the orders among the robots and complete all deliveries. Each station holds only one box — destinations must be empty before drop. Report when all deliveries are done.
 
 === HARD — copy the next line only ===
-You are on the stations map (world: stations_2). Deliver these packages: P1: A → C; P2: B → D; P3: C → A; P4: D → B; P5: A → B; P6: C → D; P7: B → A; P8: D → C. Allocate all orders among SmallDeliveryRobot_0..SmallDeliveryRobot_5. Prefer parallel deliveries; resolve corridor conflicts. Each station holds only one box — never drop onto an occupied pad; for swaps clear destinations first. Look up station coordinates via tools. Report when all deliveries are done.
+You are on the stations map (world: stations_2). Deliver these packages: P1: A → C; P2: B → D; P3: C → A; P4: D → B; P5: A → B; P6: C → D; P7: B → A; P8: D → C. Allocate the orders among the robots and complete all deliveries. Each station holds only one box — destinations must be empty before drop. Report when all deliveries are done.

@@ -7,7 +7,8 @@ from functools import cached_property
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, TB_IDS, STATION_CAPACITY_RULE, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
+from ...instructions import centralized_master
 from ...mcp_client import load_planning_mcp_tools
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -26,36 +27,8 @@ class MasterAgent(BaseAgent):
             AgentSpec(
                 name="master",
                 description=f"Coordinates {AGENT_COUNT} robot agents and delegates work automatically.",
-                system_prompt=(
-                    f"You are the master coordinator for {fleet} (centralized architecture, "
-                    f"{AGENT_COUNT} robots: {robot_list}).\n"
-                    "\n"
-                    "WHAT YOU CAN DO:\n"
-                    "- Answer the human user.\n"
-                    "- Before assigning work, inspect the world with MCP map tools: "
-                    "list_worlds, get_map_info, list_stations, list_available_boxes, "
-                    "get_station, get_held_boxes, get_all_robot_poses. Use these to "
-                    "build a concrete plan (who picks which box, where to deliver).\n"
-                    f"- ask_robot(robot, message): SEND a message to one robot "
-                    f"({robot_list}) and wait for its reply.\n"
-                    "- ask_all_robots: SEND the same message to every robot and wait for all replies.\n"
-                    "- ask_selected_robots_parallel: SEND the same message to a subset of robots.\n"
-                    "\n"
-                    "WHAT YOU CANNOT DO:\n"
-                    "- Robots cannot send messages to each other; only you can delegate.\n"
-                    "- You have no navigate/pickup/drop tools — robots do the physical work.\n"
-                    "- Do not ask the user which tool to call when the request already implies it.\n"
-                    "\n"
-                    f"{STATION_CAPACITY_RULE}\n"
-                    "Plan only empty drop destinations; for swaps, clear pads first.\n"
-                    "\n"
-                    "WORDING: say you SEND a message. Do not say broadcast.\n"
-                    "FLEET: All robots share one map; assign paths that avoid collisions and "
-                    "remind robots to check nearby peers before moving.\n"
-                    "TOOLS: If the same ask/tool pattern fails twice, do not retry a third "
-                    "identical call — change the plan or report failure.\n"
-                    "STYLE: keep every message as short but precise as possible. "
-                    "After tool replies, synthesize one short answer. Never hallucinate values."
+                system_prompt=centralized_master(
+                    fleet=fleet, n=AGENT_COUNT, robot_list=robot_list
                 ),
             ),
             architecture="centralized",

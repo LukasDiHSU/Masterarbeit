@@ -60,7 +60,7 @@ Report when all robots have reached their target sides.
 | **Centralized** | Prompt → master | Prompt → master | Prompt → master |
 | **Conflict-based** | Prompt → CLI / one peer | same | same |
 | **HMAS-1 / HMAS-2** | Prompt → planner | same | same |
-| **Shared pool** | Prompt → pool CLI | same | same |
+| **AgentNet** | Prompt → task CLI | same | same |
 
 ## Extra checks
 

@@ -1,0 +1,11 @@
+{
+  "session_id": "hmas1_20260813_180256",
+  "architecture": "hmas1",
+  "agent_count": 2,
+  "started_at": "2026-08-13T18:02:56+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "",
+  "saved_as": "stations_easy_hmas1_r1_success",
+  "saved_at": "2026-08-13T18:05:18.743208+02:00"
+}

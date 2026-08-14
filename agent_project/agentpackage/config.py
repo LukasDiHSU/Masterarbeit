@@ -1,7 +1,46 @@
 import os
 import re
+from typing import Any
 
-DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5")
+from .instructions import COORDINATES as COORDINATE_RULE
+from .instructions import STATION_CAPACITY as STATION_CAPACITY_RULE
+
+DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5.4-mini")
+
+# OpenAI reasoning models (e.g. gpt-5.6-luna): chat.completions + function tools
+# require reasoning_effort="none". Use /v1/responses for non-none effort + tools.
+ALLOWED_REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
+
+AGENT_REASONING_EFFORT=os.getenv("AGENT_REASONING_EFFORT", "none")
+
+def _parse_reasoning_effort() -> str:
+    raw = os.getenv("AGENT_REASONING_EFFORT", "none").strip().lower()
+    if raw not in ALLOWED_REASONING_EFFORTS:
+        raise ValueError(
+            f"AGENT_REASONING_EFFORT must be one of {ALLOWED_REASONING_EFFORTS}, "
+            f"got {raw!r}"
+        )
+    return raw
+
+
+REASONING_EFFORT = _parse_reasoning_effort()
+
+
+def build_chat_model(model: str | None = None, **kwargs: Any):
+    """LangChain chat model with configured ``reasoning_effort``.
+
+    ``create_agent`` accepts a model instance; passing the string alone lets
+    langchain-openai use Luna's default ``medium``, which 400s with tools on
+    ``/v1/chat/completions``.
+    """
+    from langchain.chat_models import init_chat_model
+
+    return init_chat_model(
+        model or DEFAULT_MODEL,
+        reasoning_effort=kwargs.pop("reasoning_effort", REASONING_EFFORT),
+        **kwargs,
+    )
+
 
 # Number of working robots (SmallDeliveryRobot_0 .. _N-1). Leaders/planners are separate.
 ALLOWED_AGENT_COUNTS = (2, 4, 6, 8)
@@ -58,23 +97,13 @@ PLANNER_MESH_PORT = int(os.getenv("AGENT_PLANNER_MESH_PORT", "9100"))
 MESH_CLI_NAME = "CLI"  # Must sort *before* SmallDeliveryRobot_* so CLI dials peers
 DEFAULT_MESH_CLI_PORT = int(os.getenv("AGENT_MESH_CLI_PORT", "9099"))
 
-# --- Shared message pool architecture (blackboard) ------------------------
-DEFAULT_POOL_HOST = os.getenv("AGENT_POOL_HOST", "127.0.0.1")
-DEFAULT_POOL_PORT = int(os.getenv("AGENT_POOL_PORT", "8866"))
+# --- AgentNet DMAS variant (decentralized round-based consensus) ----------
+# Reuses the mesh transport and ports above. The mission always enters here;
+# that robot chairs turn-taking but does not plan for the others.
+AGENTNET_ENTRY_ROBOT = ROBOT_IDS[0]
+DMAS_TURN_ORDER = tuple(ROBOT_IDS)
 
-# Fixed round-robin speaking order (SmallDeliveryRobot_0 -> … -> _N-1 -> repeat).
-POOL_TURN_ORDER = tuple(ROBOT_IDS)
-
-# Shared inventory rule for all architecture system prompts (stations/boxes).
-STATION_CAPACITY_RULE = (
-    "STATION CAPACITY: Each station holds at most ONE box. "
-    "Empty = box_id is null and available=false. "
-    "Never drop_box on an occupied station (box_id set or available=true); "
-    "check get_station / list_stations first. "
-    "For opposing swaps (e.g. A↔C), pick up from both ends (or stage) so "
-    "destinations are empty before dropping. "
-    "Robots also hold at most ONE box; drop before picking another."
-)
+# STATION_CAPACITY_RULE / COORDINATE_RULE are re-exported from instructions.py.
 
 # --- Usage monitor ----------------------------------------------------------
 DEFAULT_MONITOR_HOST = os.getenv("AGENT_MONITOR_HOST", "127.0.0.1")

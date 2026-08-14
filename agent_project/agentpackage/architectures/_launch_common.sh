@@ -25,6 +25,21 @@ EXPERIMENT_LOG_DIR=""
 EXPERIMENT_PID_FILE=""
 EXPERIMENT_META_FILE=""
 
+# Active map for MCP list_stations / get_map_info (items/{AGENT_WORLD}.json).
+# Set it in agent_project/.env or before launch, e.g.
+#   AGENT_WORLD=bottleneck_1 ./launch_hmas1.sh --agents 2
+AGENT_WORLD="${AGENT_WORLD:-stations}"
+export AGENT_WORLD
+
+# A typo here is invisible later: the MCP server falls back to the built-in
+# A–D stations and every agent plans on landmarks that are not on the map.
+_AGENT_WORLD_ITEMS="${AGENT_WORLDS_DIR:-$REPO_ROOT/worlds}/items/$AGENT_WORLD.json"
+if [ ! -f "$_AGENT_WORLD_ITEMS" ]; then
+  echo "WARNING: no landmarks file for AGENT_WORLD='$AGENT_WORLD'" >&2
+  echo "         expected $_AGENT_WORLD_ITEMS" >&2
+  echo "         list_stations will fall back to the built-in A-D stations." >&2
+fi
+
 _slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//; s/_+/_/g'
 }
@@ -69,6 +84,7 @@ init_experiment_session() {
   "session_id": "$EXPERIMENT_SESSION_ID",
   "architecture": "$architecture",
   "agent_count": ${AGENT_COUNT:-0},
+  "agent_world": "${AGENT_WORLD:-}",
   "started_at": "$(date -Iseconds)",
   "project_root": "$PROJECT_ROOT",
   "status": "running",
