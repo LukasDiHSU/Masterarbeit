@@ -1,38 +1,30 @@
-"""HMAS-1 dialogue helpers (Chen et al., arXiv:2309.15943, Fig. 1/3b).
+"""HMAS-1 dialogue helpers.
 
-A central LLM planner proposes a short multi-step plan; the robots' LLMs then
-take turns. They follow that plan (AGREE) unless they see an exception, in
-which case they vote DISAGREE and may send a corrected EXECUTE. The chunk
-runs once every robot has agreed on the plan on the table.
+A central LLM planner proposes a short natural-language plan (one leg per
+robot, DMAS-style). The robots take turns: they follow it (AGREE) unless they
+see an exception (DISAGREE / corrected PLAN). Agreed legs are carried out with
+MCP tools, then the new state opens the next round.
 """
 
 from __future__ import annotations
 
-import os
 import re
 from typing import Any
 
 from ...config import TB_IDS, resolve_robot_id, robot_peer_name
 from ...instructions import (
+    DMAS_EXECUTION_REPORT,
+    dmas_execution_how,
     hmas1_planner_closing,
     hmas1_planner_role,
     hmas1_robot_closing,
     hmas1_robot_role,
 )
-from ...paper_protocol import (
-    ACTION_SYNTAX,
-    Environment,
-    StepHistory,
-    build_planning_prompt,
-)
+from ...paper_protocol import Environment, StepHistory, build_planning_prompt
+from ..dmas.protocol import PLAN, parse_legs, parse_turn, verify_plan
 
 EXECUTE_DISPATCH_PREFIX = "EXECUTE_ACTION:"
-
-try:
-    CHUNK_STEPS = max(1, int(os.getenv("HMAS1_CHUNK_STEPS", "4").strip()))
-except (TypeError, ValueError):
-    CHUNK_STEPS = 4
-
+_EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
 AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE | re.MULTILINE)
 DISAGREE_RE = re.compile(r"^\s*DISAGREE\b", re.IGNORECASE | re.MULTILINE)
 
@@ -43,6 +35,28 @@ def looks_agree(text: str) -> bool:
 
 def looks_disagree(text: str) -> bool:
     return bool(DISAGREE_RE.search(text or ""))
+
+
+def legs_text(legs: dict[str, str], participants: list[str]) -> str:
+    return "\n".join(f"{robot}: {legs.get(robot, '(no leg)')}" for robot in participants)
+
+
+def parse_hmas1_plan(
+    text: str, participants: list[str]
+) -> tuple[dict[str, str] | None, list[str]]:
+    """Accept a DMAS-style PLAN or an EXECUTE block with ``Name: leg`` lines."""
+    turn = parse_turn(text, participants)
+    legs = dict(turn.legs) if turn.kind == PLAN else {}
+    if not legs and _EXECUTE_RE.search(text or ""):
+        body = _EXECUTE_RE.split(text or "", maxsplit=1)
+        if len(body) > 1:
+            legs = parse_legs(body[-1], participants)
+    if not legs:
+        return None, []
+    errors = verify_plan(legs, participants)
+    if errors:
+        return None, errors
+    return legs, []
 
 
 def resolve_participants(recipients: str) -> list[str] | dict[str, Any]:
@@ -91,10 +105,9 @@ def build_central_plan_prompt(
         participants=participants,
         step_index=step_index,
         role_line=hmas1_planner_role(),
-        closing_instruction=hmas1_planner_closing(
-            chunk_steps=CHUNK_STEPS, action_syntax=ACTION_SYNTAX
-        ),
+        closing_instruction=hmas1_planner_closing(),
         syntax_feedback=syntax_feedback,
+        include_action_menu=False,
     )
 
 
@@ -129,16 +142,30 @@ def build_turn_prompt(
         ),
         initial_plan=initial_plan,
         dialogue=dialogue,
-        closing_instruction=hmas1_robot_closing(
-            chunk_steps=CHUNK_STEPS, action_syntax=ACTION_SYNTAX
-        ),
+        closing_instruction=hmas1_robot_closing(),
         syntax_feedback=syntax_feedback,
+        include_action_menu=False,
     )
 
 
-def build_execute_dispatch(action_text: str, *, step_index: int, chunk_step: int = 1) -> str:
+def build_execute_dispatch(leg: str, *, step_index: int) -> str:
     return (
-        f"{EXECUTE_DISPATCH_PREFIX} {action_text}\n"
-        f"(planning chunk {step_index}, action {chunk_step}; "
-        "the fleet agreed on this plan)"
+        f"{EXECUTE_DISPATCH_PREFIX} {leg.strip()}\n"
+        f"(planning round {step_index}; the fleet agreed on this plan)"
+    )
+
+
+def build_execution_prompt(*, speaker: str, nav_id: str, leg: str, round_index: int) -> str:
+    return (
+        f"The fleet agreed on this round (round {round_index}). Carry out YOUR "
+        "leg now, nothing more.\n"
+        "\n"
+        "[Your Leg]\n"
+        f"{leg.strip()}\n"
+        "\n"
+        "[How]\n"
+        f"{dmas_execution_how(speaker=speaker, nav_id=nav_id)}\n"
+        "\n"
+        "[Report]\n"
+        f"{DMAS_EXECUTION_REPORT}"
     )

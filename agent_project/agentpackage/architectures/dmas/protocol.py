@@ -143,6 +143,11 @@ def parse_turn(text: str, participants: list[str]) -> Turn:
     return Turn(kind=INVALID, raw=text)
 
 
+def parse_legs(text: str, participants: list[str]) -> dict[str, str]:
+    """``Name: leg`` lines from a PLAN/EXECUTE body."""
+    return _parse_legs((text or "").splitlines(), participants)
+
+
 def _parse_legs(lines: list[str], participants: list[str]) -> dict[str, str]:
     legs: dict[str, str] = {}
     for raw_line in lines:

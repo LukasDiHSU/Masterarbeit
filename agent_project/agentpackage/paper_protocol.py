@@ -5,10 +5,10 @@ rules-based verifier checks them against the available-action list, the
 actions are mapped onto pre-defined robot primitives, and the resulting
 state is fed back as context for the next meeting.
 
-Used by HMAS-1 (a short multi-step chunk primed by a central planner; robots
-AGREE unless they vote DISAGREE on an exception) and by the AgentNet DMAS
-variant (a short chunk of actions, no planner; the fleet reconvenes after
-the chunk and ends only when every robot says FINISHED).
+Used by AgentNet (a short chunk of symbolic actions, no planner; the fleet
+reconvenes after the chunk and ends only when every robot says FINISHED).
+HMAS-1 uses the world snapshot and StepHistory from this module, but plans
+in natural language like DMAS.
 """
 
 from __future__ import annotations
@@ -727,6 +727,7 @@ def build_planning_prompt(
     initial_plan: str = "",
     syntax_feedback: str = "",
     closing_instruction: str,
+    include_action_menu: bool = True,
 ) -> str:
     """Assemble the paper's prompt components in a fixed order."""
     parts = [
@@ -740,9 +741,14 @@ def build_planning_prompt(
         "",
         f"[Current State] (planning step {step_index}/{MAX_PLAN_STEPS})",
         env.state_text(),
-        "",
-        "[Robot State & Capability]",
-        env.action_menu_text(participants),
+    ]
+    if include_action_menu:
+        parts += [
+            "",
+            "[Robot State & Capability]",
+            env.action_menu_text(participants),
+        ]
+    parts += [
         "",
         "[Ground Truth]",
         GROUND_TRUTH,

@@ -1,10 +1,9 @@
 """HMAS-1 central planner (Chen et al., arXiv:2309.15943, Fig. 3b).
 
-Planning runs as a deterministic outer loop over chunks. Each chunk the
-central LLM proposes a short multi-step plan, the robot agents vote on it
-in turn-taking dialogue (AGREE unless they see an exception), a rules-based
-verifier accepts the plan on the table, and the actions are dispatched step
-by step. The resulting state feeds the next chunk.
+Each round the central LLM proposes a short natural-language plan (one leg
+per robot). The robots vote AGREE unless they see an exception, then each
+executor carries out its own leg with MCP tools. The resulting state opens
+the next round.
 """
 
 from __future__ import annotations
@@ -14,41 +13,50 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import cached_property
 
 from ...BaseAgents import AgentSpec, BaseAgent
 from ...config import AGENT_COUNT, PLANNER_NAME, fleet_prompt_range
 from ...instructions import hmas1_planner
+from ...mcp_client import load_mcp_tools_safe
 from ...paper_protocol import (
     MAX_DIALOGUE_ROUNDS,
     MAX_PLAN_STEPS,
     MAX_SYNTAX_RETRIES,
     TASK_COMPLETE_RE,
-    Action,
     Environment,
     StepHistory,
-    assignment_text,
-    pad_plan,
-    parse_plan_block,
-    plan_assignments,
-    plan_text,
-    results_text,
-    verify_plan,
 )
 from ...timing import format_elapsed, record_timing
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 from .dialogue import (
-    CHUNK_STEPS,
     build_central_plan_prompt,
     build_execute_dispatch,
     build_turn_prompt,
+    legs_text,
     looks_agree,
     looks_disagree,
+    parse_hmas1_plan,
     resolve_participants,
+)
+
+_PLANNER_MAP_TOOLS = frozenset(
+    {
+        "list_stations",
+        "list_available_boxes",
+        "get_station",
+        "get_held_boxes",
+        "get_all_robot_poses",
+        "get_robot_pose",
+        "get_map_info",
+        "rank_stations_by_distance",
+        "distance_to_station",
+    }
 )
 
 
 class CentralPlannerAgent(BaseAgent):
-    """LLM that proposes the initial multi-step plan for one chunk."""
+    """LLM that proposes the initial natural-language plan for one round."""
 
     def __init__(self):
         fleet = fleet_prompt_range()
@@ -56,19 +64,28 @@ class CentralPlannerAgent(BaseAgent):
             AgentSpec(
                 name=PLANNER_NAME,
                 description=(
-                    "HMAS-1 central planner: proposes a short multi-step plan "
-                    "per chunk; robots follow it unless they vote DISAGREE."
+                    "HMAS-1 central planner: proposes a short natural-language "
+                    "plan per round; robots follow it unless they vote DISAGREE."
                 ),
-                system_prompt=hmas1_planner(
-                    fleet=fleet, n=AGENT_COUNT, chunk_steps=CHUNK_STEPS
-                ),
+                system_prompt=hmas1_planner(fleet=fleet, n=AGENT_COUNT),
             ),
             architecture="HMAS-1",
         )
 
+    @cached_property
+    def _mcp_tools_by_name(self) -> dict:
+        return {
+            t.name: t
+            for t in load_mcp_tools_safe()
+            if t.name in _PLANNER_MAP_TOOLS
+        }
+
+    def _retrieve_tools(self):
+        return list(self._mcp_tools_by_name.values())
+
 
 class HMAS1Session:
-    """One user mission, planned chunk by chunk until done or a limit is hit."""
+    """One user mission, planned round by round until done or a limit is hit."""
 
     def __init__(self, *, bus: BusClient, planner: CentralPlannerAgent):
         self.bus = bus
@@ -104,23 +121,17 @@ class HMAS1Session:
         text: str,
         participants: list[str],
         history: StepHistory,
-    ) -> tuple[dict[str, list[Action]] | None, list[str]]:
-        plan, problems = parse_plan_block(text, participants)
-        if not plan:
-            return None, problems
-        errors = problems + verify_plan(
-            plan, participants, self.env, max_steps=CHUNK_STEPS
-        )
-        if errors:
+    ) -> tuple[dict[str, str] | None, list[str]]:
+        legs, errors = parse_hmas1_plan(text, participants)
+        if legs is None:
             return None, errors
-        padded = pad_plan(plan, participants)
-        first = plan_assignments(padded)[0]
-        if history.repeats_recent(assignment_text(first, participants)):
+        rendered = legs_text(legs, participants)
+        if history.repeats_recent(rendered):
             return None, [
-                "this exact first step already ran in the last two steps "
+                "this exact plan already ran in the last two rounds "
                 "without changing anything — propose something different."
             ]
-        return padded, []
+        return legs, []
 
     def _dialogue(
         self,
@@ -130,8 +141,8 @@ class HMAS1Session:
         participants: list[str],
         step_index: int,
         initial_plan: str,
-    ) -> tuple[dict[str, list[Action]] | None, list[dict[str, str]], str]:
-        """Turn-taking until every robot agrees on a verified chunk."""
+    ) -> tuple[dict[str, str] | None, list[dict[str, str]], str]:
+        """Turn-taking until every robot agrees on a verified plan."""
         dialogue: list[dict[str, str]] = []
         syntax_feedback = ""
         agreed: set[str] = set()
@@ -142,8 +153,8 @@ class HMAS1Session:
         if table_plan is None:
             syntax_feedback = (
                 "The central planner's proposal has problems:\n- "
-                + "\n- ".join(initial_errors or ["no valid EXECUTE chunk"])
-                + "\nYou cannot AGREE yet — send a corrected EXECUTE block."
+                + "\n- ".join(initial_errors or ["no valid PLAN"])
+                + "\nYou cannot AGREE yet — send a corrected PLAN block."
             )
 
         for round_idx in range(1, MAX_DIALOGUE_ROUNDS + 1):
@@ -180,35 +191,35 @@ class HMAS1Session:
                     if replacement is not None:
                         same_as_table = (
                             table_plan is not None
-                            and plan_text(replacement, participants)
-                            == plan_text(table_plan, participants)
+                            and legs_text(replacement, participants)
+                            == legs_text(table_plan, participants)
                         )
                         if same_as_table:
                             agreed.add(speaker)
                         else:
                             table_plan = replacement
                             agreed = {speaker}
-                            initial_plan = (
-                                "EXECUTE\n" + plan_text(table_plan, participants)
+                            initial_plan = "PLAN\n" + legs_text(
+                                table_plan, participants
                             )
                         syntax_feedback = ""
                         if agreed == set(participants):
                             return table_plan, dialogue, "agreed"
                         break
 
-                    if parse_plan_block(reply, participants)[0]:
+                    if replacement is None and problems:
                         retries += 1
                         if retries >= MAX_SYNTAX_RETRIES:
                             syntax_feedback = ""
                             print(
-                                f"[planner] {speaker} could not produce a valid chunk "
+                                f"[planner] {speaker} could not produce a valid plan "
                                 f"in {MAX_SYNTAX_RETRIES} tries; moving to the next speaker."
                             )
                             break
                         syntax_feedback = (
-                            "Your EXECUTE block was rejected by the plan checker:\n- "
+                            "Your PLAN was rejected:\n- "
                             + "\n- ".join(problems)
-                            + "\nSend a corrected EXECUTE block."
+                            + "\nSend a corrected PLAN block."
                         )
                         print(f"[planner] syntax check rejected {speaker}: {problems}")
                         continue
@@ -221,7 +232,7 @@ class HMAS1Session:
                                 break
                             syntax_feedback = (
                                 "There is no valid plan on the table yet — you cannot "
-                                "AGREE. Send EXECUTE with a legal chunk."
+                                "AGREE. Send PLAN with a legal leg for every robot."
                             )
                             continue
                         agreed.add(speaker)
@@ -234,7 +245,7 @@ class HMAS1Session:
                         agreed.clear()
                         syntax_feedback = (
                             f"{speaker} voted DISAGREE:\n{reply.strip()[:400]}\n"
-                            "The plan is contested. Send a corrected EXECUTE block; "
+                            "The plan is contested. Send a corrected PLAN block; "
                             "do not AGREE to the old plan."
                         )
                         print(f"[planner] {speaker} voted DISAGREE")
@@ -247,34 +258,23 @@ class HMAS1Session:
 
     def _execute(
         self,
-        assignment: dict[str, Action],
+        legs: dict[str, str],
         *,
         step_index: int,
-        chunk_step: int,
-    ) -> dict[str, dict]:
-        """Dispatch each verified action to its robot; they run in parallel."""
-        results: dict[str, dict] = {}
+    ) -> dict[str, str]:
+        """Dispatch each agreed leg; robots run them in parallel with MCP."""
+        results: dict[str, str] = {}
 
-        def _one(peer: str) -> tuple[str, dict]:
-            message = build_execute_dispatch(
-                assignment[peer].text(),
-                step_index=step_index,
-                chunk_step=chunk_step,
-            )
-            reply = self._ask_robot(peer, message, thread_id=f"exec-{step_index}-{chunk_step}")
-            try:
-                parsed = json.loads(reply)
-            except (json.JSONDecodeError, TypeError):
-                parsed = {"ok": False, "action": assignment[peer].text(), "error": reply}
-            if not isinstance(parsed, dict):
-                parsed = {"ok": False, "action": assignment[peer].text(), "error": reply}
-            return peer, parsed
+        def _one(peer: str) -> tuple[str, str]:
+            message = build_execute_dispatch(legs[peer], step_index=step_index)
+            reply = self._ask_robot(peer, message, thread_id=f"exec-{step_index}")
+            return peer, reply
 
-        with ThreadPoolExecutor(max_workers=max(1, len(assignment))) as pool:
-            futures = [pool.submit(_one, peer) for peer in assignment]
+        with ThreadPoolExecutor(max_workers=max(1, len(legs))) as pool:
+            futures = [pool.submit(_one, peer) for peer in legs]
             for future in as_completed(futures):
-                peer, parsed = future.result()
-                results[peer] = parsed
+                peer, reply = future.result()
+                results[peer] = reply
         return results
 
     def run(self, task: str, participants: list[str]) -> dict:
@@ -292,7 +292,7 @@ class HMAS1Session:
                 }
 
             state_before = self.env.state_text()
-            print(f"\n=== planning chunk {step_index}/{MAX_PLAN_STEPS} ===")
+            print(f"\n=== planning round {step_index}/{MAX_PLAN_STEPS} ===")
             print(state_before)
 
             initial_plan = self._central_plan(
@@ -328,7 +328,7 @@ class HMAS1Session:
                 return {
                     "status": "failed_no_consensus",
                     "reason": (
-                        f"no agreed chunk after {MAX_DIALOGUE_ROUNDS} dialogue "
+                        f"no agreed plan after {MAX_DIALOGUE_ROUNDS} dialogue "
                         f"rounds in step {step_index}"
                     ),
                     "steps_taken": step_index - 1,
@@ -336,51 +336,22 @@ class HMAS1Session:
                     "transcript": transcript,
                 }
 
-            print(f"[EXECUTE chunk {step_index}]\n{plan_text(plan, participants)}")
-            interrupted = False
-            for chunk_step, assignment in enumerate(plan_assignments(plan), start=1):
-                actions = assignment_text(assignment, participants)
-                print(f"[EXECUTE chunk {step_index} step {chunk_step}]\n{actions}")
-                results = self._execute(
-                    assignment, step_index=step_index, chunk_step=chunk_step
-                )
-                outcome_text = results_text(results)
-                print(f"[result chunk {step_index} step {chunk_step}]\n{outcome_text}")
-                history.add(
-                    state_before if chunk_step == 1 else "(after previous action of this chunk)",
-                    actions,
-                    outcome_text,
-                )
-                transcript.append(
-                    {
-                        "chunk": step_index,
-                        "step": chunk_step,
-                        "actions": actions,
-                        "result": outcome_text,
-                    }
-                )
-                self.env.refresh()
-                state_before = self.env.state_text()
-                failed = [
-                    peer
-                    for peer, parsed in results.items()
-                    if not parsed.get("ok", False)
-                    and assignment[peer].verb != "wait"
-                ]
-                if failed:
-                    print(
-                        f"[planner] chunk interrupted after step {chunk_step}: "
-                        f"{', '.join(failed)} failed — replanning from the new state."
-                    )
-                    interrupted = True
-                    break
-
-            if interrupted:
-                continue
+            rendered = legs_text(plan, participants)
+            print(f"[EXECUTE round {step_index}]\n{rendered}")
+            results = self._execute(plan, step_index=step_index)
+            outcome_text = "\n".join(
+                f"{peer}: {' '.join((results.get(peer) or '').split())[:240]}"
+                for peer in participants
+            )
+            print(f"[result round {step_index}]\n{outcome_text}")
+            history.add(state_before, rendered, outcome_text)
+            transcript.append(
+                {"round": step_index, "plan": rendered, "result": outcome_text}
+            )
 
         return {
             "status": "failed_step_limit",
-            "reason": f"reached the planning-chunk limit ({MAX_PLAN_STEPS})",
+            "reason": f"reached the planning-round limit ({MAX_PLAN_STEPS})",
             "steps_taken": MAX_PLAN_STEPS,
             "transcript": transcript,
         }
@@ -389,8 +360,8 @@ class HMAS1Session:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "HMAS-1 planner: multi-step chunks primed centrally, robots AGREE "
-            "or DISAGREE on exceptions."
+            "HMAS-1 planner: natural-language legs primed centrally, robots "
+            "AGREE or DISAGREE on exceptions, then execute with MCP tools."
         )
     )
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -414,9 +385,8 @@ def main() -> None:
 
     print(f"HMAS-1 planner online. Robots: {', '.join(participants)}")
     print(
-        f"Limits: {MAX_PLAN_STEPS} chunks, up to {CHUNK_STEPS} actions/robot, "
-        f"{MAX_DIALOGUE_ROUNDS} dialogue rounds per chunk, "
-        f"{MAX_SYNTAX_RETRIES} syntax retries per speaker."
+        f"Limits: {MAX_PLAN_STEPS} rounds, {MAX_DIALOGUE_ROUNDS} dialogue "
+        f"rounds per plan, {MAX_SYNTAX_RETRIES} syntax retries per speaker."
     )
     print("Type the mission and press Enter. Ctrl+C to exit.\n")
 

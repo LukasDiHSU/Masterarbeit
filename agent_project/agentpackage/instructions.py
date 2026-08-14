@@ -38,9 +38,7 @@ COORDINATES = (
 
 GROUND_TRUTH = (
     "Only the stations and boxes listed above exist. Never invent a station, "
-    "a box or a coordinate, and never target a place that is not in the "
-    "available action list — the robots drive to the looked-up positions of "
-    "these landmarks only."
+    "a box or a coordinate. Drive only to looked-up positions of these landmarks."
 )
 
 NO_INVENT = (
@@ -256,79 +254,92 @@ def conflict_mission_wrapper(
 # HMAS-1
 # =============================================================================
 
-def hmas1_chunk_syntax(*, chunk_steps: int, action_syntax: str) -> str:
-    return (
-        f"A chunk is 1 to {chunk_steps} actions per robot, joined with ';'. "
-        "Later actions are checked as if the earlier ones already succeeded, "
-        "so move_to(station); pick(station) is legal in one chunk. "
-        "Reply with EXECUTE on its own line, then one line per robot:\n"
-        "EXECUTE\n<RobotName>: <action>; <action>\n...\n"
-        f"Use only {action_syntax}. Two robots must never target the same "
-        "station in the same step. At least one robot must do something other "
-        "than wait() in the first step."
-    )
-
-
-def hmas1_planner(*, fleet: str, n: int, chunk_steps: int) -> str:
+def hmas1_planner(*, fleet: str, n: int) -> str:
     return compose(
         f"You are the central task planner for {fleet} ({n} robots) "
         "in the HMAS-1 multi-robot framework.",
-        "You propose a SHORT MULTI-STEP plan (a chunk) that the robots "
-        "will follow. They vote AGREE unless they see an exception; they "
-        "do not re-plan every single action. After the chunk executes you "
-        "are asked again with the new state.",
+        "You propose one short natural-language plan for this round. The robots "
+        "follow it (AGREE) unless they see an exception (DISAGREE). After they "
+        "carry out their legs you are asked again with the new state.",
+        "Before you propose a PLAN, inspect the world with your map tools: "
+        "list_stations, get_station, get_all_robot_poses, get_held_boxes, "
+        "rank_stations_by_distance. Copy station ids and x/y from those results. "
+        "The snapshot in the prompt is a hint; if you need a number, look it up.",
         "HARD RULES:\n"
-        f"- 1 to {chunk_steps} actions per robot, joined with ';'. "
-        "Later actions are checked as if the earlier ones already "
-        "succeeded, so move_to(station); pick(station) is legal.\n"
-        "- Use ONLY the action syntax from the available action list. "
-        "A later pick/drop may target a station the robot first move_to's "
-        "in this chunk, even if pick/drop is not in the current menu.\n"
-        "- Every robot listed. Assign wait() only when a robot genuinely "
-        "must hold still; the first step of the chunk must do real work.\n"
-        "- A station holds at most one box; never send two robots to the "
-        "same station in the same step.\n"
-        "- pick/drop only work when that robot stands at the station, so "
-        "move_to first and pick later in the same chunk or the next one.\n"
-        "- Answer with the EXECUTE block only, no prose, no explanations.\n"
+        "- A leg is small: at most one drive plus at most one pick or drop. "
+        "Anything further is decided in the next round.\n"
+        "- Every robot gets one line. Write 'wait' only when a robot must hold; "
+        "a plan where everybody waits is rejected.\n"
+        "- Two robots must not be sent to the same station in one round.\n"
+        "- Answer with the PLAN block only, no prose.\n"
         f"- {NO_INVENT}",
+        STATION_CAPACITY,
+        COORDINATES,
+        "You may call inspection tools first. Your final answer must be only "
+        "the requested block.",
     )
 
 
-def hmas1_robot(*, name: str, n: int, action_syntax: str) -> str:
+def hmas1_robot(*, name: str, n: int, nav_id: str) -> str:
     return compose(
         f"You are {name}, one robot in a fleet of {n} "
         "(HMAS-1 multi-robot framework).",
-        "A central planner proposes a short multi-step plan (several actions "
-        "per robot, joined with ';'). You and your peers then take turns. "
-        "Follow that plan: answer AGREE if it works for YOU. Vote DISAGREE "
-        "only on an exception (illegal action, two robots at one station, "
-        "a pick/drop that cannot work, a clash with the mission). The chunk "
-        "runs once every robot has AGREEd; then you are asked again with the "
-        "new state.",
+        "A central planner proposes a short natural-language plan (one leg per "
+        "robot). You and your peers then take turns. Follow that plan: answer "
+        "AGREE if it works for YOU. Vote DISAGREE only on an exception (two "
+        "robots at one station, a pick that cannot work, a clash with the "
+        "mission). The round runs once every robot has AGREEd.",
+        "Before you object, you may inspect the world with list_stations, "
+        "get_station, get_all_robot_poses, get_held_boxes, "
+        f"rank_stations_by_distance(robot_id='{nav_id}').",
         "HOW TO BE USEFUL:\n"
-        "- Speak from YOUR robot's perspective: your position, what you carry, "
-        "and whether the actions assigned to you make sense.\n"
-        "- Watch for conflicts your peers cannot see: two robots heading for "
-        "one station in the same step, a drop onto an occupied station, or a "
-        "pick without a move_to first.\n"
-        "- Later actions in a chunk are legal if earlier ones would make them "
-        f"so (move_to then pick). Action syntax: {action_syntax}; several "
-        "joined with ';'.\n"
+        "- Speak from YOUR robot's perspective: position, what you carry, "
+        "whether the assigned leg makes sense.\n"
         "- If the plan works, answer AGREE. Do not rewrite it and do not "
         "comment just to look busy.\n"
         "- Never invent stations, boxes or coordinates: only the landmarks "
         "in the state exist.",
-        "You do not drive anything yourself while talking: execution happens "
-        "only after the fleet has agreed.",
-        "STYLE: AGREE, or DISAGREE plus a corrected EXECUTE, nothing else.",
+        "You cannot drive, pick or drop while talking — those tools belong to "
+        "the executor after consensus.",
+        STATION_CAPACITY,
+        COORDINATES,
+        "STYLE: AGREE, or DISAGREE plus a corrected PLAN, nothing else.",
     )
 
 
-def hmas1_planner_closing(*, chunk_steps: int, action_syntax: str) -> str:
+def hmas1_executor(*, name: str, nav_id: str) -> str:
+    return compose(
+        f"You are {name}, a delivery robot in a hybrid fleet (HMAS-1).",
+        "The fleet has agreed on a plan and you now carry out YOUR "
+        f"leg of it, always with robot_id '{nav_id}'. The other "
+        "robots run their legs at the same time. Do only your leg: "
+        "the planner discusses again right after this round.",
+        "Navigate to a station before you pick or drop there.",
+        STATION_CAPACITY,
+        COORDINATES,
+        "If the same tool fails twice with the same arguments, stop "
+        "and report what blocked you instead of trying again.",
+        "Report only what really happened. Never claim a pickup, drop "
+        "or move that the tools did not confirm. Keep it short.",
+    )
+
+
+def hmas1_plan_format() -> str:
     return (
-        "Propose the next chunk — not just one action per robot. "
-        + hmas1_chunk_syntax(chunk_steps=chunk_steps, action_syntax=action_syntax)
+        "PLAN\n"
+        "<RobotName>: <that robot's short leg for this round>\n"
+        "<RobotName>: <that robot's short leg for this round>\n"
+        "(one line per robot, every robot listed; station ids and x/y copied "
+        "from a tool result, never guessed numbers)"
+    )
+
+
+def hmas1_planner_closing() -> str:
+    return (
+        "Propose one short leg per robot for THIS round — not a full mission "
+        "script. A leg is at most one drive plus at most one pick or drop.\n"
+        "Reply with:\n"
+        + hmas1_plan_format()
         + "\nIf the task is already achieved in the current state, reply "
         "TASK_COMPLETE and nothing else."
     )
@@ -337,7 +348,7 @@ def hmas1_planner_closing(*, chunk_steps: int, action_syntax: str) -> str:
 def hmas1_planner_role() -> str:
     return (
         "You are the CENTRAL PLANNER of a multi-robot fleet (HMAS-1). "
-        "You propose a short multi-step plan for this chunk; the robots "
+        "You propose a short natural-language plan for this round; the robots "
         "follow it unless one of them votes DISAGREE because of an exception."
     )
 
@@ -347,29 +358,28 @@ def hmas1_robot_role(
 ) -> str:
     return (
         f"You are {speaker}, one robot of a fleet (HMAS-1 local agent). "
-        f"Speaking order this chunk: {order} "
+        f"Speaking order this round: {order} "
         f"(dialogue round {round_idx}/{max_rounds}). "
         f"Your peers are {peers}. "
         "Follow the plan on the table unless YOU see an exception."
     )
 
 
-def hmas1_robot_closing(*, chunk_steps: int, action_syntax: str) -> str:
+def hmas1_robot_closing() -> str:
     return (
-        "The central planner already proposed a multi-step plan. Stick to it. "
-        "Vote against it only when there is an exception: an illegal action, "
-        "two robots sent to the same station in one step, a pick/drop that "
-        "cannot work, or a clash with the mission.\n"
+        "The central planner already proposed a plan. Stick to it. "
+        "Vote against it only when there is an exception: two robots sent to "
+        "the same station, a pick/drop that cannot work, or a clash with the "
+        "mission.\n"
         "Respond in ONE of these ways:\n"
         "1) AGREE — the plan works for YOUR robot. Do not rewrite it. The "
-        "chunk runs once every robot has AGREEd.\n"
+        "round starts once every robot has AGREEd.\n"
         "2) DISAGREE — there is an exception. One or two sentences why, then "
-        "preferably a corrected EXECUTE block for every robot.\n"
-        "3) EXECUTE a replacement chunk if you must change the plan:\n"
-        + hmas1_chunk_syntax(chunk_steps=chunk_steps, action_syntax=action_syntax)
+        "preferably a corrected PLAN for every robot.\n"
+        "3) PLAN a replacement if you must change the assignment:\n"
+        + hmas1_plan_format()
         + "\n4) If the whole task is already done, reply TASK_COMPLETE.\n"
-        "Do not invent stations. If the plan on the table works, answer AGREE "
-        "— do not comment and do not copy EXECUTE just to look busy."
+        "Do not invent stations. If the plan on the table works, answer AGREE."
     )
 
 

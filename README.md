@@ -10,7 +10,7 @@ base class:
 |---|---|---|---|
 | Centralized | `agent_project/agentpackage/architectures/centralized` | Star (hub-and-spoke) via a central broker | Only the master agent |
 | Conflict-based | `agent_project/agentpackage/architectures/conflict_based` | Mesh peers solo by default; negotiate only on conflicts/events | Peers negotiate only when an event involves them |
-| HMAS-1 | `agent_project/agentpackage/architectures/hmas1` | Central multi-step plan; robots AGREE or DISAGREE on exceptions | Planner primes; robots vote in turns |
+| HMAS-1 | `agent_project/agentpackage/architectures/hmas1` | Central natural-language plan; robots AGREE or DISAGREE on exceptions | Planner primes; robots vote, then execute via MCP |
 | HMAS-2 | `agent_project/agentpackage/architectures/hmas2` | Star with local review: central plan → AGREE/DISAGREE → re-plan until consensus → execute | Only the central planner |
 | AgentNet | `agent_project/agentpackage/architectures/agentnet` | Mesh without a planner; robots take turns, execute a short chunk, meet again | Nobody delegates a whole mission — they agree on the next few actions together. Agent 0 only chairs the speaking order. Ends when every robot says FINISHED |
 

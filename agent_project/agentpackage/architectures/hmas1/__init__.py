@@ -1,4 +1,4 @@
-"""HMAS-1: a central LLM primes each chunk with a short multi-step plan, the
-robot agents follow it (AGREE) unless they vote DISAGREE on an exception, and
-the agreed chunk is executed before the next one is planned.
+"""HMAS-1: a central LLM primes each round with a short natural-language plan,
+the robot agents follow it (AGREE) unless they vote DISAGREE on an exception,
+and each robot then executes its own leg with MCP tools.
 """

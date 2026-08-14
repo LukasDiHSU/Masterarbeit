@@ -10,7 +10,7 @@ Pptx names → current code:
 |---|---|---|---|---|
 | Zentral | **centralized** | `master` | 1 master + N robot workers | Master delegates via `ask_robot` / `ask_all_robots` / `ask_selected_robots` |
 | Dezentral | **conflict_based** | mission CLI / one peer | N peer robots, no master | Solo by default; mesh negotiation only on conflict events |
-| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Per chunk: planner proposes a short multi-step plan, robots AGREE (or DISAGREE on an exception) in turn order; the chunk runs when everyone has agreed and the verifier passes |
+| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Per round: planner proposes one natural-language leg per robot, robots AGREE (or DISAGREE on an exception); each robot then executes its leg with MCP tools |
 | (Hybrid variant) | **HMAS-2** | `planner` | 1 planner + N robots | Planner collects AGREE/DISAGREE, then EXECUTE |
 | Dezentral (AgentNet / DMAS) | **agentnet** | task CLI | N mesh nodes, Agent 0 chairs turns | Robots agree on a short action chunk, execute it, meet again; done when every robot says `FINISHED` |
 
@@ -65,15 +65,13 @@ multi-line blocks in the scenario markdown.
 - **agentnet** — task CLI: from handing the mission to `SmallDeliveryRobot_0` until the fleet reports back (`agentnet_until_done`).
 - All append to `timings.log` under the active experiment session (`tasks/experiments/runs/_active/…`, kept after `save_experiment.sh`).
 
-**HMAS-1 (paper protocol, Chen et al. arXiv:2309.15943):**
-The central planner proposes a **short multi-step chunk** (1–`HMAS1_CHUNK_STEPS`,
-default 4, actions per robot, joined with `;`). Robots take turns and **follow
-that plan** (`AGREE`) unless they see an exception (`DISAGREE`, optionally with
-a corrected `EXECUTE`). The chunk runs once every robot has agreed and the
-verifier accepts it (later actions are checked as if earlier ones succeeded).
-A failed physical action stops the rest of the chunk and the planner is asked
-again with the new state.
-- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 chunks), `PAPER_MAX_DIALOGUE_ROUNDS` (3), `PAPER_MAX_SYNTAX_RETRIES` (3), `HMAS1_CHUNK_STEPS` (4). Hitting a limit ends the mission as a failure.
+**HMAS-1 (hybrid of DMAS, Chen et al. arXiv:2309.15943):**
+The central planner proposes a **short natural-language plan** (one leg per
+robot: at most one drive plus at most one pick or drop). Robots take turns and
+**follow that plan** (`AGREE`) unless they see an exception (`DISAGREE`,
+optionally with a corrected `PLAN`). Then each robot carries out **its own
+leg with MCP tools** (`navigate_to_pose` / `pickup_box` / …), same as DMAS.
+- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 rounds), `PAPER_MAX_DIALOGUE_ROUNDS` (3), `PAPER_MAX_SYNTAX_RETRIES` (3). Hitting a limit ends the mission as a failure.
 
 **AgentNet (DMAS variant, Chen et al. arXiv:2309.15943):** no planner. The
 robots take turns until an `EXECUTE` block with 1–`AGENTNET_CHUNK_STEPS` (2)

@@ -1,5 +1,5 @@
-Active experiment session: shared_pool_20260813_215408
-Architecture: shared_pool
+Active experiment session: centralized_20260814_225213
+Architecture: centralized
 Agents: 2
 
 Terminal output is appended under logs/ while the run is live.

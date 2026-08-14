@@ -1,79 +1,127 @@
-"""HMAS-1 local robot agent (Chen et al., arXiv:2309.15943, Fig. 1).
+"""HMAS-1 local robot: discusses the central plan, then executes its own leg.
 
-The agent has two jobs. During dialogue it follows the central planner's
-multi-step plan (AGREE) unless it sees an exception, in which case it votes
-DISAGREE and may send a corrected EXECUTE. During execution it receives one
-verified symbolic action and runs it through pre-defined primitives -- no LLM
-call, so the agreed plan is carried out exactly as agreed.
+During dialogue the discussion LLM (no drive tools) votes AGREE / DISAGREE.
+After consensus the executor LLM carries out the agreed natural-language leg
+with MCP tools — same split as DMAS.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import threading
+from functools import cached_property
 
 from ...BaseAgents import AgentSpec, BaseAgent
 from ...config import AGENT_COUNT, TB_IDS, nav_id_for_tb, robot_peer_name
-from ...instructions import hmas1_robot
-from ...monitor import report_trace
-from ...paper_protocol import ACTION_SYNTAX, execute_action, parse_action
+from ...instructions import hmas1_executor, hmas1_robot
+from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-from .dialogue import EXECUTE_DISPATCH_PREFIX
+from .dialogue import EXECUTE_DISPATCH_PREFIX, build_execution_prompt
+
+_EXECUTOR_BLOCKED_TOOLS = frozenset(
+    {
+        "get_events",
+        "clear_events",
+        "emit_conflict",
+        "set_world",
+        "reset_stations",
+        "list_worlds",
+    }
+)
+
+_DISCUSSION_MAP_TOOLS = frozenset(
+    {
+        "list_stations",
+        "list_available_boxes",
+        "get_station",
+        "get_held_boxes",
+        "get_all_robot_poses",
+        "get_robot_pose",
+        "get_map_info",
+        "rank_stations_by_distance",
+        "distance_to_station",
+    }
+)
 
 
-class HMAS1RobotAgent(BaseAgent):
-    """Local agent: dialogue partner first, deterministic executor second."""
+class DiscussionAgent(BaseAgent):
+    def __init__(self, peer_name: str, nav_id: str):
+        super().__init__(
+            AgentSpec(
+                name=f"{peer_name}:planner",
+                description=f"HMAS-1 discussion agent of {peer_name}.",
+                system_prompt=hmas1_robot(name=peer_name, n=AGENT_COUNT, nav_id=nav_id),
+            ),
+            architecture="HMAS-1",
+        )
 
+    @cached_property
+    def _mcp_tools_by_name(self) -> dict:
+        return {
+            t.name: t
+            for t in load_mcp_tools_safe()
+            if t.name in _DISCUSSION_MAP_TOOLS
+        }
+
+    def _retrieve_tools(self):
+        return list(self._mcp_tools_by_name.values())
+
+
+class ExecutorAgent(BaseAgent):
+    def __init__(self, peer_name: str, nav_id: str):
+        super().__init__(
+            AgentSpec(
+                name=peer_name,
+                description=f"HMAS-1 executor of {peer_name}.",
+                system_prompt=hmas1_executor(name=peer_name, nav_id=nav_id),
+            ),
+            architecture="HMAS-1",
+        )
+
+    @cached_property
+    def _mcp_tools_by_name(self) -> dict:
+        return {
+            t.name: t
+            for t in load_mcp_tools_safe()
+            if t.name not in _EXECUTOR_BLOCKED_TOOLS
+        }
+
+    def _retrieve_tools(self):
+        return list(self._mcp_tools_by_name.values())
+
+
+class HMAS1RobotAgent:
     def __init__(self, robot_id: str, *, bus: BusClient | None = None):
         if robot_id not in TB_IDS:
             raise ValueError(f"Unknown robot {robot_id!r}; allowed: {list(TB_IDS)}")
         self.robot_id = robot_id
         self.nav_id = nav_id_for_tb(robot_id)
         self.bus = bus
-        name = robot_peer_name(robot_id)
-
-        super().__init__(
-            AgentSpec(
-                name=name,
-                description=f"HMAS-1 local agent for {name}.",
-                system_prompt=hmas1_robot(
-                    name=name, n=AGENT_COUNT, action_syntax=ACTION_SYNTAX
-                ),
-            ),
-            architecture="HMAS-1",
-        )
+        self.name = robot_peer_name(robot_id)
+        self.discussion = DiscussionAgent(self.name, self.nav_id)
+        self.executor = ExecutorAgent(self.name, self.nav_id)
+        self._exec_lock = threading.Lock()
+        self._round = 0
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
         text = (message or "").strip()
         if text.startswith(EXECUTE_DISPATCH_PREFIX):
-            return self._run_assigned_action(text)
-        return super().invoke(message, thread_id=thread_id)
+            return self._run_leg(text)
+        return self.discussion.invoke(text, thread_id=thread_id)
 
-    def _run_assigned_action(self, message: str) -> str:
-        name = robot_peer_name(self.robot_id)
+    def _run_leg(self, message: str) -> str:
         body = message[len(EXECUTE_DISPATCH_PREFIX) :].strip()
-        action = parse_action(body, name)
-        if action is None:
-            return json.dumps(
-                {"ok": False, "error": "unparsable_action", "received": body[:160]}
+        # Drop the parenthetical round note the planner appends.
+        leg = body.split("\n(planning round", 1)[0].strip()
+        self._round += 1
+        with self._exec_lock:
+            prompt = build_execution_prompt(
+                speaker=self.name,
+                nav_id=self.nav_id,
+                leg=leg,
+                round_index=self._round,
             )
-        report_trace(
-            agent=name,
-            architecture="HMAS-1",
-            kind="tool_start",
-            text=action.text(),
-            tool="execute_action",
-        )
-        result = execute_action(action)
-        report_trace(
-            agent=name,
-            architecture="HMAS-1",
-            kind="tool_end",
-            text=json.dumps(result, default=str),
-            tool="execute_action",
-        )
-        return json.dumps(result, default=str)
+            return self.executor.invoke(prompt, thread_id=f"exec-r{self._round}")
 
 
 def main() -> None:
@@ -127,7 +175,7 @@ def main() -> None:
 
     bus.on_message(handle_message)
 
-    print(f"{my_name} online (HMAS-1). Waiting for planning dialogue and action dispatch.")
+    print(f"{my_name} online (HMAS-1). Waiting for planning dialogue and leg dispatch.")
     print("Ctrl+C to exit.\n")
 
     try:

@@ -1,51 +1,39 @@
-# HMAS-1 architecture (central multi-step plan → robot vote → EXECUTE)
+# HMAS-1 architecture (central plan → robot vote → MCP execute)
 
 Paper mapping (Chen et al., arXiv:2309.15943, Fig. 3b): HMAS-1 is the hybrid
-variant of **DMAS**. A central LLM proposes a **short multi-step plan** (a
-chunk of actions per robot). The robot agents then talk in **fixed turn
-order** with all prior comments concatenated into the next prompt. They
-**follow that plan** (`AGREE`) unless they see an exception, in which case
-they vote **`DISAGREE`** and may send a corrected `EXECUTE`. The chunk runs
-once every robot has agreed; a rules-based verifier checks it before anything
-moves; the resulting state opens the next planning chunk.
+variant of **DMAS**. A central LLM proposes a **short natural-language plan**
+(one leg per robot). The robot agents then talk in **fixed turn order**. They
+**follow that plan** (`AGREE`) unless they see an exception, in which case they
+vote **`DISAGREE`** and may send a corrected `PLAN`. The round runs once every
+robot has agreed; each robot then carries out **its own leg with MCP tools**
+(same as DMAS). The resulting state opens the next round.
 
 ```
-   ┌──────────────────────── planning chunk n ───────────────────────┐
-   │  read world state ─► central planner proposes a multi-step plan │
+   ┌──────────────────────── planning round n ───────────────────────┐
+   │  read world state ─► central planner proposes one leg / robot   │
    │        │                                                        │
    │        ▼   SmallDeliveryRobot_0 → _1 → _2 → …  (turn taking)    │
-   │  AGREE (follow) or DISAGREE / corrected EXECUTE on exceptions   │
-   │  chunk runs when every robot has agreed and the verifier passes │
+   │  AGREE (follow) or DISAGREE / corrected PLAN on exceptions      │
    │        │                                                        │
-   │        ▼  each robot runs ITS next action (in parallel steps)   │
-   │  a failed action stops the rest of the chunk and replans        │
-   └──────────────────────────► planning chunk n+1 ──────────────────┘
+   │        ▼  each robot runs ITS leg via MCP (in parallel)         │
+   └──────────────────────────► planning round n+1 ──────────────────┘
 ```
 
-- **Planner** (`planner_agent.py`): owns the deterministic outer loop
-  (`HMAS1Session`) and the central LLM that proposes one chunk per iteration.
-- **Robots** (`robot_agent.py`): LLM dialogue partners during planning
-  (default: AGREE), deterministic executors afterwards (`EXECUTE_ACTION:
-  <action>` runs MCP primitives without an LLM call).
-- **Protocol** (`../../paper_protocol.py`): world state text, available-action
-  list, EXECUTE parser (several actions joined with `;`), verifier that
-  simulates later steps, primitives, state-action history.
-- **Helpers** (`dialogue.py`): participant resolution and the prompt layout
-  (task description, step history, current state, robot state & capability,
-  agent specialized prompt, communication instruction, syntax feedback).
+- **Planner** (`planner_agent.py`): owns the outer loop (`HMAS1Session`) and
+  the central LLM that proposes one plan per round (map inspection tools only).
+- **Robots** (`robot_agent.py`): discussion LLM during voting (read-only map
+  tools), executor LLM afterwards (`navigate_to_pose` / `pickup_box` / …).
+- **Helpers** (`dialogue.py`): participant resolution, PLAN parser (DMAS-style
+  `Name: <leg>` lines), prompt layout.
 - **Transport**: `architectures/centralized/agent_bus.py` (star broker only).
 
-Actions are symbolic and come from the active world:
-`move_to(<station>)`, `pick(<station>)`, `drop(<station>)`, `wait()`.
-`pick`/`drop` in a later step of the same chunk are legal if an earlier
-`move_to` would put the robot there. Two robots must not target the same
-station in the same step.
+Legs are ordinary language, e.g. `drive through the gap to the east side`.
+Station ids and coordinates must come from the world snapshot or map tools —
+never from a `move_to`/`pick` DSL.
 
-A mission fails when the dialogue finds no agreed chunk within
-`PAPER_MAX_DIALOGUE_ROUNDS` (3), when a speaker fails the syntax check
-`PAPER_MAX_SYNTAX_RETRIES` (3) times too often to finish a vote, or when
-`PAPER_MAX_PLAN_STEPS` (12) chunks are reached. Chunk length is
-`HMAS1_CHUNK_STEPS` (default 4).
+A mission fails when the dialogue finds no agreed plan within
+`PAPER_MAX_DIALOGUE_ROUNDS` (3), or when `PAPER_MAX_PLAN_STEPS` (12) rounds
+are reached.
 
 Contrast with **HMAS-2** (central plan → parallel feedback → re-plan) and plain
 **conflict_based** (event-gated mesh peers, no central primer).
