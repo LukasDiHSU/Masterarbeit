@@ -57,25 +57,31 @@ def load_mcp_tools_safe() -> list[BaseTool]:
         return []
 
 
-# Read-only world/map/station tools for lead agents (master / HMAS-2 planner).
-# No navigate / pickup / drop — robots do physical work.
+# Read-only map tools for lead agents (master / HMAS-2 planner).
+# Remroc: stations/boxes. Q1: no planted map coords (object x/y come from sensing).
 PLANNING_MAP_TOOL_NAMES = frozenset(
     {
         "list_worlds",
         "get_map_info",
         "set_world",
         "list_stations",
+        "get_look_poses",
         "list_available_boxes",
         "get_station",
         "get_held_boxes",
         "get_all_robot_poses",
     }
 )
+# Q1 planners/master: occupancy (walls/free) only — no planted object coords.
+Q1_PLANNING_MAP_TOOL_NAMES = frozenset({"get_occupancy_map"})
 
 
 def load_planning_mcp_tools() -> list[BaseTool]:
     """MCP tools lead agents may use to inspect the map before planning."""
-    return [t for t in load_mcp_tools_safe() if t.name in PLANNING_MAP_TOOL_NAMES]
+    from .config import is_q1_platform
+
+    names = Q1_PLANNING_MAP_TOOL_NAMES if is_q1_platform() else PLANNING_MAP_TOOL_NAMES
+    return [t for t in load_mcp_tools_safe() if t.name in names]
 
 
 def parse_mcp_payload(raw: Any) -> Any:

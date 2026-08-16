@@ -16,9 +16,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import cached_property
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, fleet_prompt_range
-from ...instructions import hmas1_planner
-from ...mcp_client import load_mcp_tools_safe
+from ...config import AGENT_COUNT, PLANNER_NAME, fleet_prompt_range, is_q1_platform
+from ...instructions import hmas1_planner, q1_hmas1_planner
+from ...mcp_client import Q1_PLANNING_MAP_TOOL_NAMES, load_mcp_tools_safe
 from ...paper_protocol import (
     MAX_DIALOGUE_ROUNDS,
     MAX_PLAN_STEPS,
@@ -43,6 +43,7 @@ from .dialogue import (
 _PLANNER_MAP_TOOLS = frozenset(
     {
         "list_stations",
+        "get_look_poses",
         "list_available_boxes",
         "get_station",
         "get_held_boxes",
@@ -60,6 +61,7 @@ class CentralPlannerAgent(BaseAgent):
 
     def __init__(self):
         fleet = fleet_prompt_range()
+        prompt_fn = q1_hmas1_planner if is_q1_platform() else hmas1_planner
         super().__init__(
             AgentSpec(
                 name=PLANNER_NAME,
@@ -67,17 +69,18 @@ class CentralPlannerAgent(BaseAgent):
                     "HMAS-1 central planner: proposes a short natural-language "
                     "plan per round; robots follow it unless they vote DISAGREE."
                 ),
-                system_prompt=hmas1_planner(fleet=fleet, n=AGENT_COUNT),
+                system_prompt=prompt_fn(fleet=fleet, n=AGENT_COUNT),
             ),
             architecture="HMAS-1",
         )
 
     @cached_property
     def _mcp_tools_by_name(self) -> dict:
+        names = Q1_PLANNING_MAP_TOOL_NAMES if is_q1_platform() else _PLANNER_MAP_TOOLS
         return {
             t.name: t
             for t in load_mcp_tools_safe()
-            if t.name in _PLANNER_MAP_TOOLS
+            if t.name in names
         }
 
     def _retrieve_tools(self):

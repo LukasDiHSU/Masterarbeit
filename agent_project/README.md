@@ -1,29 +1,23 @@
-# agentpackage — multi-agent robot fleet architectures
+# agentpackage — multi-agent Q1 specialists
 
-This project controls a fleet of remroc `SmallDeliveryRobot_0`..`_N-1` robots
-(`N` is `AGENT_COUNT` ∈ {2,4,6,8}, default 4) over
-ROS 2 / Nav2, exposed to LLM agents through an MCP tool server
-(`agentpackage/mcpserver.py`). On top of that shared, architecture-agnostic
-tool layer, several multi-agent coordination strategies are implemented so
-they can be compared directly (see `agentpackage/architectures/`):
+This project runs **three specialist agents on one Q1 robot**
+(`navigator`, `lidar`, `camera`) over ROS 2 / ATB
+waypoint nav, exposed through an MCP tool server (`agentpackage/mcpserver.py`).
+The same five coordination architectures are compared on that split:
 
-1. **Centralized** — a single master agent is the only one that may
-   delegate; every message is routed through one central broker (star
-   topology).
-2. **Conflict-based** — peers work alone by default (no master/broker for
-   routine work); mesh negotiation opens only when MCP events such as
-   conflicts involve them, and only toward that event’s participants.
-3. **HMAS-1** — central planner primes a short natural-language plan; robots then
-   vote in fixed turn order (AGREE, or DISAGREE on an exception) until the
-   round is agreed; each robot executes its own leg with MCP tools.
-4. **HMAS-2** — central planner proposes a fleet plan; each robot’s local
-   LLM reviews its assignment (`AGREE` / `DISAGREE`); the planner re-plans
-   until consensus, then sends execute instructions (star broker only).
-5. **AgentNet (DMAS on a mesh)** — no central planner. The robots take turns
-   until they agree on the next few actions, execute that chunk, and meet
-   again with the new state. The mission always enters at
-   `SmallDeliveryRobot_0`, which only chairs the speaking order. It ends when
-   every robot says `FINISHED` in the same discussion round.
+1. **Centralized** — a single master is the only one that may delegate.
+2. **Conflict-based** — specialists work their own sensors/drive alone; mesh
+   negotiation opens only on events (`detection_conflict`, `nav_aborted`).
+3. **HMAS-1** — central planner proposes one natural-language leg per specialist;
+   they AGREE or DISAGREE, then execute.
+4. **HMAS-2** — planner collects AGREE/DISAGREE, then SEND EXECUTE.
+5. **AgentNet (DMAS on a mesh)** — no planner. Specialists take turns until they
+   agree on the next few actions, execute, meet again. The mission enters at
+   `navigator`. It ends when every specialist says `FINISHED` in the same round.
+
+Protocol: **sense → get closer → sense**. Object xyz come only from semantic
+lidar when Q1 is near that object. The camera agent gets the RGB frame as a
+picture. `get_occupancy_map` is walls/free space only.
 
 ## Usage monitor + agent trace
 
@@ -38,11 +32,11 @@ own conversation:
 AGENT                    ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
 --------------------------------------------------------------------------------------
 master                   centralized             4          3       412       128        540
-SmallDeliveryRobot_0     centralized             2          2       201        64        265
-SmallDeliveryRobot_1     centralized             2          2       198        60        258
-...
+navigator                centralized             2          2       201        64        265
+lidar                    centralized             2          2       198        60        258
+camera                   centralized             2          2       188        55        243
 --------------------------------------------------------------------------------------
-TOTAL            5 agent(s)             12          9      1024       340       1364
+TOTAL            4 agent(s)             10          9      1024       340       1364
 ```
 
 It also opens an **"Agent Trace"** terminal (`python -m agentpackage.trace_monitor`)
@@ -76,28 +70,28 @@ Every `launch_*.sh` tees each opened terminal into
 
 ```bash
 cd agent_project
-./save_experiment.sh stations_easy_hmas2_r1 --stop --note "optional note"
+./save_experiment.sh open_easy_hmas2_r1 --stop --note "optional note"
 ```
 
 This copies the session to `tasks/experiments/runs/<run_name>/` (Agent Trace,
-Usage Monitor, robots, planner/master, MCP, …). Use `--stop` to signal the
+Usage Monitor, specialists, planner/master, MCP, …). Use `--stop` to signal the
 recorded terminal shells.
 
 ## Shared building blocks
 
-- `agentpackage/mcpserver.py` — FastMCP server exposing remroc ROS 2 tools
-  over SSE: `list_worlds`, `get_map_info` (reads repo `worlds/`),
-  `list_robots`, `get_robot_pose` / `get_all_robot_poses`,
-  `distance_to_station`, `rank_stations_by_distance`, `get_peer_distances` (after nav failure),
-  `drive_distance` (open-loop cmd_vel), `get_laser_snapshot`, `navigate_to_pose`,
-  plus station/box inventory (`set_world` / `get_map_info` sync landmarks from
-  `worlds/items/{world}.json`) and events.
-- `agentpackage/mcp_client.py` — loads those MCP tools into LangChain agents.
+- `agentpackage/mcpserver.py` — FastMCP server: `get_robot_pose`,
+  `get_occupancy_map` (yaml + walls-only grid), `navigate_to_pose`
+  (ATB waypoints), `rotate_by` / `drive_forward` / `drive_distance` (cmd_vel), `get_lidar_snapshot`,
+  `get_semantic_lidar_objects`, `get_camera_image` (RGB still),
+  `get_semantic_camera_image`, `get_semantic_camera_classes`, plus conflict events.
+- `agentpackage/mcp_client.py` — loads those MCP tools into LangChain agents
+  (Q1 planners get `get_occupancy_map` only — no planted object coords).
 - `agentpackage/BaseAgents.py` — thin wrapper around
   `langchain.agents.create_agent` with a per-agent checkpointer, blocking
   `invoke()`, and a simple REPL (`run_persistent_chat`).
-- `agentpackage/config.py` — model name, `SmallDeliveryRobot_*` fleet ids, and the
-  deterministic peer/port tables used by the conflict-based mesh.
+- `agentpackage/config.py` — model name, specialist ids
+  (`navigator`, `lidar`, `camera`), and mesh ports.
+- `agentpackage/roles.py` — per-specialist MCP allow-list.
 
 ## Setup
 
@@ -118,34 +112,33 @@ MCP server plus every agent process in its own terminal (falls back to
 printing the commands if no graphical terminal is available):
 
 ```bash
-# Centralized: 1 broker + N robot workers + 1 master
-./agentpackage/architectures/centralized/launch_centralized.sh --agents 4
+# Gazebo + Q1 + ATB nav + sensor summarizer
+./launch.sh
 
-# Conflict-based: N solo peers + mission CLI; negotiate only on events
-./agentpackage/architectures/conflict_based/launch_conflict_based.sh --agents 4
+# Centralized: 1 broker + 3 specialists + 1 master
+./agentpackage/architectures/centralized/launch_centralized.sh --agents 3
 
-# HMAS-1: 1 broker + N robots + 1 planner; central natural-language plan,
-# robots AGREE or DISAGREE on exceptions, then each executes its leg via MCP.
-./agentpackage/architectures/hmas1/launch_hmas1.sh --agents 4
+# Conflict-based: 3 specialists + mission CLI; negotiate only on events
+./agentpackage/architectures/conflict_based/launch_conflict_based.sh --agents 3
 
-# HMAS-2: 1 broker + N local reviewers + 1 planner; plan → AGREE/DISAGREE
-# feedback loop → execute (no mesh).
-./agentpackage/architectures/hmas2/launch_hmas2.sh --agents 4
+# HMAS-1: 1 broker + 3 specialists + 1 planner
+./agentpackage/architectures/hmas1/launch_hmas1.sh --agents 3
 
-# DMAS: N robots + mission CLI; CLI chairs discuss → one short leg → meet again
-./agentpackage/architectures/dmas/launch_dmas.sh --agents 4
+# HMAS-2: 1 broker + 3 specialists + 1 planner
+./agentpackage/architectures/hmas2/launch_hmas2.sh --agents 3
 
-# AgentNet: N DMAS nodes + task CLI; mission enters at SmallDeliveryRobot_0
-./agentpackage/architectures/agentnet/launch_agentnet.sh --agents 4
+# AgentNet: 3 DMAS nodes + task CLI; mission enters at navigator
+./agentpackage/architectures/agentnet/launch_agentnet.sh --agents 3
 ```
 
-Fleet size `N` is `AGENT_COUNT` (also `AGENTS=N` or `--agents N`), allowed
-values **2, 4, 6, 8** (default 4). Leaders/planners are extra where used.
+Defaults are `AGENT_PLATFORM=q1` and `AGENT_WORLD=open`. Specialists are always
+the three roles above. Protocol: sense → get closer → sense. Object xyz come
+only from `get_semantic_lidar_objects` when Q1 is close; the camera agent looks
+at `get_camera_image`; `get_occupancy_map` is walls and free space (no object outlines).
 
 Without ROS 2 running, the robot-control MCP tools simply come back empty
 and the agents fall back to their peer/delegation tools only — useful for
-testing the coordination logic in isolation (see each architecture's tests
-below).
+testing the coordination logic in isolation.
 
 ## Testing the coordination logic without an LLM or ROS 2
 
@@ -165,35 +158,10 @@ print(a.ask("b", "ping"))  # -> "echo: ping"
 
 ## ROS 2 bring-up
 
-`launch_tb3_stack.sh` and `commands.txt` bring up the Gazebo/Nav2 world and
-set each robot's initial AMCL pose; they are independent of which agent
-architecture you run afterwards.
-
-Custom arena scenarios (pillars removed, optional box obstacles) live in
-`../maps/scenarios/`. Launch one with:
-
 ```bash
-SCENARIO=open ./launch_tb3_stack.sh      # walls only
-SCENARIO=boxes_a ./launch_tb3_stack.sh   # sparse boxes
-SCENARIO=boxes_b ./launch_tb3_stack.sh   # denser boxes
-SCENARIO=bottleneck ./launch_tb3_stack.sh # thick center divider, one-robot gap
-SCENARIO=stations ./launch_tb3_stack.sh  # visit A→B→C→D around the perimeter
-SCENARIO=cross ./launch_tb3_stack.sh     # four quadrants + center crossing
-SCENARIO=rooms ./launch_tb3_stack.sh     # four corner rooms + central hall
+cd agent_project
+./launch.sh
 ```
 
-Omit `SCENARIO` to use the stock TurtleBot3 world/map. After editing box
-poses in a scenario `world.sdf`, refresh its Nav2 map with:
-
-```bash
-python3 ../maps/tools/stamp_obstacles_on_map.py \
-  --base-pgm ../maps/_base/walls_only.pgm \
-  --world ../maps/scenarios/<name>/world.sdf \
-  --out-dir ../maps/scenarios/<name>
-```
-
-Or regenerate the built-in layouts:
-
-```bash
-python3 ../maps/tools/generate_scenarios.py
-```
+That starts Gazebo (`world:=open`), ATB waypoint navigation, TF, and the
+Q1 sensor summarizer. Then start an architecture `launch_*.sh` as above.

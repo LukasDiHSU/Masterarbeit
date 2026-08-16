@@ -1,8 +1,8 @@
 """Human entry point into the AgentNet DMAS mesh.
 
-A mission is handed to ``SmallDeliveryRobot_0``, which chairs turn-taking until
-the fleet agrees on a short plan, executes it, meets again, and finally every
-robot says FINISHED.
+A mission is handed to ``navigator``, which chairs turn-taking until the
+specialists agree on a short plan, execute it, meet again, and finally every
+specialist says FINISHED.
 """
 
 from __future__ import annotations

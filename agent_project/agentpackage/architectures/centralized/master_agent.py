@@ -7,8 +7,8 @@ from functools import cached_property
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
-from ...instructions import centralized_master
+from ...config import AGENT_COUNT, TB_IDS, fleet_prompt_range, is_q1_platform, resolve_robot_id, robot_peer_name
+from ...instructions import centralized_master, q1_centralized_master
 from ...mcp_client import load_planning_mcp_tools
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -23,16 +23,22 @@ class MasterAgent(BaseAgent):
         fleet = fleet_prompt_range()
         robot_list = ", ".join(TB_IDS)
 
+        prompt_fn = q1_centralized_master if is_q1_platform() else centralized_master
         super().__init__(
             AgentSpec(
                 name="master",
-                description=f"Coordinates {AGENT_COUNT} robot agents and delegates work automatically.",
-                system_prompt=centralized_master(
+                description=(
+                    f"Coordinates {AGENT_COUNT} Q1 specialists and delegates work."
+                    if is_q1_platform()
+                    else f"Coordinates {AGENT_COUNT} robot agents and delegates work automatically."
+                ),
+                system_prompt=prompt_fn(
                     fleet=fleet, n=AGENT_COUNT, robot_list=robot_list
                 ),
             ),
             architecture="centralized",
         )
+        self._require_mission_done = True
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
         self._active_thread_id = thread_id
@@ -67,10 +73,10 @@ class MasterAgent(BaseAgent):
     def _retrieve_tools(self) -> list:
         @tool
         def ask_robot(robot: str, message: str) -> str:
-            """SEND a task or question to exactly one robot and return its reply.
+            """SEND a task or question to exactly one specialist and return its reply.
 
             Args:
-                robot: A remroc id like SmallDeliveryRobot_0, SmallDeliveryRobot_1, …
+                robot: Specialist name, e.g. navigator, lidar, camera.
                 message: Message/task to send.
             """
             rid = resolve_robot_id(robot)
@@ -86,7 +92,7 @@ class MasterAgent(BaseAgent):
 
         @tool
         def ask_all_robots(message: str) -> str:
-            """SEND the same task or question to every fleet robot in parallel and wait for all replies as JSON."""
+            """SEND the same task or question to every specialist in parallel and wait for all replies as JSON."""
             replies: dict[str, str] = {}
             with ThreadPoolExecutor(max_workers=len(TB_IDS)) as pool:
                 future_to_id = {
@@ -108,11 +114,11 @@ class MasterAgent(BaseAgent):
 
         @tool
         def ask_selected_robots_parallel(robots_json: str, message: str) -> str:
-            """SEND the same task or question to selected robots in parallel and wait for all replies as JSON.
+            """SEND the same task or question to selected specialists in parallel and wait for all replies as JSON.
 
             Args:
-                robots_json: JSON array of robot IDs, e.g. ["SmallDeliveryRobot_0","SmallDeliveryRobot_2"].
-                message: Message/task to send to each selected robot.
+                robots_json: JSON array of specialist names, e.g. ["navigator","lidar"].
+                message: Message/task to send to each selected specialist.
             """
             try:
                 raw = json.loads(robots_json)
@@ -122,7 +128,7 @@ class MasterAgent(BaseAgent):
                         "error": "invalid_robots_json",
                         "message": (
                             'robots_json must be a JSON array like '
-                            '["SmallDeliveryRobot_0","SmallDeliveryRobot_2"]'
+                            '["navigator","lidar"]'
                         ),
                         "detail": str(e),
                     }
@@ -133,7 +139,7 @@ class MasterAgent(BaseAgent):
                         "error": "invalid_robots_json",
                         "message": (
                             'robots_json must be a JSON array like '
-                            '["SmallDeliveryRobot_0","SmallDeliveryRobot_2"]'
+                            '["navigator","lidar"]'
                         ),
                     }
                 )
@@ -186,11 +192,25 @@ class MasterAgent(BaseAgent):
 
             return json.dumps(replies, ensure_ascii=False, indent=2)
 
+        @tool
+        def report_mission_done(summary: str) -> str:
+            """Call only after every ordered stop is confirmed. Required before any user-facing final answer.
+
+            Args:
+                summary: Short confirmation of the completed tour (classes visited, in order).
+            """
+            self._mission_done_this_turn = True
+            return json.dumps(
+                {"ok": True, "recorded": True, "summary": summary},
+                ensure_ascii=False,
+            )
+
         return [
             *self._map_tools,
             ask_robot,
             ask_all_robots,
             ask_selected_robots_parallel,
+            report_mission_done,
         ]
 
 

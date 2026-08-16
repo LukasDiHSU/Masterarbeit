@@ -25,10 +25,10 @@ EXPERIMENT_LOG_DIR=""
 EXPERIMENT_PID_FILE=""
 EXPERIMENT_META_FILE=""
 
-# Active map for MCP list_stations / get_map_info (items/{AGENT_WORLD}.json).
+# Active map for MCP (items/{AGENT_WORLD}.json). Q1 semantic tour uses open.
 # Set it in agent_project/.env or before launch, e.g.
-#   AGENT_WORLD=bottleneck_1 ./launch_hmas1.sh --agents 2
-AGENT_WORLD="${AGENT_WORLD:-stations}"
+#   AGENT_WORLD=open ./launch_hmas1.sh --agents 3
+AGENT_WORLD="${AGENT_WORLD:-open}"
 export AGENT_WORLD
 
 # A typo here is invisible later: the MCP server falls back to the built-in
@@ -37,7 +37,7 @@ _AGENT_WORLD_ITEMS="${AGENT_WORLDS_DIR:-$REPO_ROOT/worlds}/items/$AGENT_WORLD.js
 if [ ! -f "$_AGENT_WORLD_ITEMS" ]; then
   echo "WARNING: no landmarks file for AGENT_WORLD='$AGENT_WORLD'" >&2
   echo "         expected $_AGENT_WORLD_ITEMS" >&2
-  echo "         list_stations will fall back to the built-in A-D stations." >&2
+  echo "         get_look_poses / list_stations will fall back to built-in landmarks." >&2
 fi
 
 _slugify() {
@@ -85,6 +85,7 @@ init_experiment_session() {
   "architecture": "$architecture",
   "agent_count": ${AGENT_COUNT:-0},
   "agent_world": "${AGENT_WORLD:-}",
+  "agent_platform": "${AGENT_PLATFORM:-q1}",
   "started_at": "$(date -Iseconds)",
   "project_root": "$PROJECT_ROOT",
   "status": "running",

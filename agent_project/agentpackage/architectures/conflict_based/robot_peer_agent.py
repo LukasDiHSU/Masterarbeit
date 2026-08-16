@@ -17,12 +17,19 @@ from ...config import (
     DEFAULT_MESH_HOST,
     TB_IDS,
     build_peer_table,
+    is_q1_platform,
     nav_id_for_tb,
     peer_name_for_robot_id,
     robot_peer_name,
 )
-from ...instructions import conflict_mission_wrapper, conflict_robot
+from ...instructions import (
+    conflict_mission_wrapper,
+    conflict_robot,
+    q1_conflict_mission_wrapper,
+    q1_conflict_robot,
+)
 from ...mcp_client import load_mcp_tools_safe
+from ...roles import Q1_CONFLICT_MCP_TOOLS, filter_mcp_tools_for_agent
 from .event_gate import format_event_prompt, parse_mcp_json, participants_for_event
 from .mesh_bus import MeshNode
 
@@ -94,11 +101,12 @@ class RobotPeerAgent(BaseAgent):
         name = robot_peer_name(robot_id)
         others = [p for p in peer_names if p != name]
 
+        prompt_fn = q1_conflict_robot if is_q1_platform() else conflict_robot
         super().__init__(
             AgentSpec(
                 name=name,
                 description=f"Event-triggered peer for {name}. Solo by default.",
-                system_prompt=conflict_robot(
+                system_prompt=prompt_fn(
                     name=name,
                     nav_id=self.nav_id,
                     peers=", ".join(others) or "(none)",
@@ -261,7 +269,12 @@ class RobotPeerAgent(BaseAgent):
         return {t.name: t for t in load_mcp_tools_safe()}
 
     def _retrieve_tools(self):
-        local_tools = list(self._mcp_tools_by_name.values())
+        extra = Q1_CONFLICT_MCP_TOOLS if is_q1_platform() else ()
+        local_tools = filter_mcp_tools_for_agent(
+            list(self._mcp_tools_by_name.values()),
+            self.robot_id,
+            extra=extra,
+        )
 
         @tool
         def set_work_status(note: str) -> str:
@@ -590,7 +603,8 @@ def main() -> None:
             line = input(f"{my_name}> ").strip()
             if not line:
                 continue
-            mission = conflict_mission_wrapper(line, nav_id=robot.nav_id)
+            wrap = q1_conflict_mission_wrapper if is_q1_platform() else conflict_mission_wrapper
+            mission = wrap(line, nav_id=robot.nav_id)
             reply = robot.invoke(mission, thread_id=args.thread_id)
             print(f"[{my_name}] {reply}")
     except (KeyboardInterrupt, EOFError):

@@ -11,10 +11,11 @@ from ...config import (
     MESH_CLI_NAME,
     TB_IDS,
     build_peer_table,
+    is_q1_platform,
     nav_id_for_tb,
     robot_peer_name,
 )
-from ...instructions import conflict_mission_wrapper
+from ...instructions import conflict_mission_wrapper, q1_conflict_mission_wrapper
 from ...timing import format_elapsed, record_timing
 from .mesh_bus import MeshNode
 
@@ -44,7 +45,8 @@ def main() -> None:
     def _send_one(peer: str, text: str) -> tuple[str, str, float]:
         rid = peer  # peer name == robot id
         nav = nav_id_for_tb(rid)
-        mission = conflict_mission_wrapper(text, nav_id=nav, parallel=True)
+        wrap = q1_conflict_mission_wrapper if is_q1_platform() else conflict_mission_wrapper
+        mission = wrap(text, nav_id=nav, parallel=True)
         t0 = time.perf_counter()
         try:
             mesh._wait_for_link(peer, timeout=60.0)

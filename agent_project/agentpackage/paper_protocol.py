@@ -23,8 +23,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from .config import ROBOT_IDS, nav_id_for_tb, robot_peer_name
-from .instructions import GROUND_TRUTH
+from .config import ROBOT_IDS, is_q1_platform, nav_id_for_tb, robot_peer_name
+from .instructions import GROUND_TRUTH, Q1_GROUND_TRUTH
 from .mcp_client import call_mcp_tool
 
 
@@ -55,15 +55,21 @@ EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
 TASK_COMPLETE_RE = re.compile(r"^\s*TASK_COMPLETE\b", re.IGNORECASE | re.MULTILINE)
 FINISHED_RE = re.compile(r"^\s*FINISHED\b", re.IGNORECASE | re.MULTILINE)
 
-_ACTION_RE = re.compile(
-    r"\b(?P<verb>move_to|pick|drop|wait)\s*\(\s*(?P<arg>[^)]*?)\s*\)",
-    re.IGNORECASE,
-)
-
-VERBS_WITH_TARGET = ("move_to", "pick", "drop")
-ACTION_SYNTAX = (
-    "move_to(<station_id>) | pick(<station_id>) | drop(<station_id>) | wait()"
-)
+VERBS_WITH_TARGET = ("move_to", "pick", "drop", "navigate")
+if is_q1_platform():
+    ACTION_SYNTAX = "sense() | navigate(<x>,<y>[,<yaw>]) | wait()"
+    _ACTION_RE = re.compile(
+        r"\b(?P<verb>move_to|pick|drop|wait|sense|navigate)\s*\(\s*(?P<arg>[^)]*?)\s*\)",
+        re.IGNORECASE,
+    )
+else:
+    ACTION_SYNTAX = (
+        "move_to(<station_id>) | pick(<station_id>) | drop(<station_id>) | wait()"
+    )
+    _ACTION_RE = re.compile(
+        r"\b(?P<verb>move_to|pick|drop|wait)\s*\(\s*(?P<arg>[^)]*?)\s*\)",
+        re.IGNORECASE,
+    )
 
 
 @dataclass(frozen=True)
@@ -75,7 +81,9 @@ class Action:
     target: str = ""
 
     def text(self) -> str:
-        return "wait()" if self.verb == "wait" else f"{self.verb}({self.target})"
+        if self.verb in {"wait", "sense"}:
+            return f"{self.verb}()"
+        return f"{self.verb}({self.target})"
 
 
 def parse_action(text: str, robot: str) -> Action | None:
@@ -84,8 +92,8 @@ def parse_action(text: str, robot: str) -> Action | None:
         return None
     verb = match.group("verb").lower()
     target = (match.group("arg") or "").strip().strip("'\"")
-    if verb == "wait":
-        return Action(robot=robot, verb="wait")
+    if verb in {"wait", "sense"}:
+        return Action(robot=robot, verb=verb)
     if not target:
         return None
     return Action(robot=robot, verb=verb, target=target)
@@ -135,6 +143,9 @@ class Environment:
         self.last_error: str = ""
 
     def refresh(self) -> None:
+        if is_q1_platform():
+            self._refresh_q1()
+            return
         stations_payload = call_mcp_tool("list_stations")
         poses_payload = call_mcp_tool("get_all_robot_poses")
         held_payload = call_mcp_tool("get_held_boxes")
@@ -161,6 +172,21 @@ class Environment:
             if isinstance(stations_payload, dict):
                 self.world_id = str(stations_payload.get("world_id", "") or self.world_id)
             self.last_error = "" if stations else f"list_stations: {stations_payload}"
+
+    def _refresh_q1(self) -> None:
+        pose_payload = call_mcp_tool("get_robot_pose", {"robot_id": "q1"})
+        poses: dict[str, dict[str, float]] = {}
+        if isinstance(pose_payload, dict) and pose_payload.get("success"):
+            poses["q1"] = {
+                "x": float(pose_payload.get("x", 0.0)),
+                "y": float(pose_payload.get("y", 0.0)),
+                "yaw": float(pose_payload.get("yaw", 0.0)),
+            }
+        with self._lock:
+            self.stations = []
+            self.poses = poses
+            self.held = {}
+            self.last_error = ""
 
     def station(self, station_id: str) -> dict[str, Any] | None:
         wanted = (station_id or "").strip().lower()
@@ -200,17 +226,22 @@ class Environment:
         return None
 
     def state_text(self) -> str:
+        if is_q1_platform():
+            return self._q1_state_text()
         with self._lock:
             stations = list(self.stations)
             poses = dict(self.poses)
             held = dict(self.held)
             world = self.world_id
         lines = [f"World: {world or 'unknown'}"]
-        lines.append("Stations (id, x, y, box):")
+        lines.append("Stations (id, x, y[, yaw], box):")
         for s in stations:
             box = s.get("box_id")
+            yaw_bit = ""
+            if s.get("yaw") is not None:
+                yaw_bit = f", yaw={s.get('yaw')}"
             lines.append(
-                f"  - {s.get('id')} at ({s.get('x')}, {s.get('y')}): "
+                f"  - {s.get('id')} at ({s.get('x')}, {s.get('y')}{yaw_bit}): "
                 + (f"holds {box}" if box else "empty")
             )
         lines.append("Robots (position, carrying):")
@@ -226,12 +257,39 @@ class Environment:
             lines.append(f"  - {robot} at {where}{standing}, carrying {carrying}")
         return "\n".join(lines)
 
+    def _q1_state_text(self) -> str:
+        with self._lock:
+            poses = dict(self.poses)
+            world = self.world_id
+        lines = [
+            f"World: {world or 'open'}",
+            "One Q1 robot. Specialists: navigator, lidar, camera "
+            "(not a multi-robot fleet; no stations or boxes).",
+        ]
+        pose = poses.get("q1")
+        if pose:
+            lines.append(
+                f"Q1 pose: ({round(pose['x'], 2)}, {round(pose['y'], 2)}), "
+                f"yaw={round(float(pose.get('yaw', 0.0)), 3)}"
+            )
+        else:
+            lines.append("Q1 pose: (unknown — assume spawn 0, 0)")
+        lines.append(
+            "Object x/y come only from lidar when close. Occupancy is walls/free "
+            "space, not objects. Do not invent coordinates."
+        )
+        return "\n".join(lines)
+
     def available_actions(self, robot: str) -> list[str]:
         """Every action this robot may be assigned in the current state.
 
         pick/drop appear only for the station the robot already stands at,
         because the MCP primitives refuse to manipulate from a distance.
+        On Q1, specialists sense/wait. Navigator may navigate(x,y[,yaw]) to a
+        *sensed* centroid; that is accepted at verify time (never a guessed pose).
         """
+        if is_q1_platform():
+            return self._q1_available_actions(robot)
         with self._lock:
             stations = list(self.stations)
         carrying = self.holds(robot)
@@ -248,13 +306,26 @@ class Environment:
         actions.append("wait()")
         return actions
 
+    def _q1_available_actions(self, robot: str) -> list[str]:
+        actions = ["wait()", "sense()"]
+        return actions
+
     def action_menu_text(self, participants: list[str] | None = None) -> str:
         names = list(participants or self.participants)
-        lines = [
-            "Available actions this step — use EXACTLY these strings. A robot can "
-            "only pick/drop at the station it already stands at, so send it there "
-            "with move_to first and manipulate in the next step:"
-        ]
+        if is_q1_platform():
+            lines = [
+                "Available actions this step — use EXACTLY these strings. "
+                "Navigator may also navigate(x,y,yaw) to a centroid that "
+                "get_semantic_lidar_objects already returned, or to a free "
+                "cell from get_occupancy_map (to get closer — never a guessed "
+                "object pose):"
+            ]
+        else:
+            lines = [
+                "Available actions this step — use EXACTLY these strings. A robot can "
+                "only pick/drop at the station it already stands at, so send it there "
+                "with move_to first and manipulate in the next step:"
+            ]
         for robot in names:
             lines.append(f"  {robot}: {', '.join(self.available_actions(robot))}")
         return "\n".join(lines)
@@ -309,7 +380,20 @@ class Environment:
 
     def _apply_one(self, action: Action) -> None:
         nav = nav_id_for_tb(action.robot)
-        if action.verb == "wait":
+        if action.verb in {"wait", "sense"}:
+            return
+        if action.verb == "navigate":
+            raw = (action.target or "").replace(",", " ")
+            parts = [p for p in raw.split() if p]
+            if len(parts) < 2:
+                return
+            try:
+                x, y = float(parts[0]), float(parts[1])
+                yaw = float(parts[2]) if len(parts) >= 3 else 0.0
+            except ValueError:
+                return
+            with self._lock:
+                self.poses[nav] = {"x": x, "y": y, "yaw": yaw}
             return
         if action.verb == "move_to":
             station = self.station(action.target)
@@ -344,6 +428,69 @@ def execute_action(action: Action) -> dict[str, Any]:
     nav = nav_id_for_tb(action.robot)
     if action.verb == "wait":
         return {"ok": True, "action": action.text(), "detail": "no motion"}
+
+    if action.verb == "sense":
+        role = action.robot
+        if role == "lidar":
+            snap = call_mcp_tool("get_lidar_snapshot", {"robot_id": nav})
+            objs = call_mcp_tool("get_semantic_lidar_objects", {})
+            ok = not (
+                (isinstance(snap, dict) and snap.get("error"))
+                and (isinstance(objs, dict) and objs.get("error"))
+            )
+            return {
+                "ok": ok,
+                "action": action.text(),
+                "tool": "get_lidar_snapshot+get_semantic_lidar_objects",
+                "result": {"lidar": snap, "semantic": objs},
+                "error": None if ok else _short_error(objs or snap),
+            }
+        tool_name = {
+            "camera": "get_semantic_camera_classes",
+            "navigator": "get_robot_pose",
+        }.get(role, "get_robot_pose")
+        args: dict[str, Any] = {}
+        if tool_name in {"get_lidar_snapshot", "get_robot_pose"}:
+            args["robot_id"] = nav
+        result = call_mcp_tool(tool_name, args)
+        ok = not (isinstance(result, dict) and result.get("error"))
+        return {
+            "ok": ok,
+            "action": action.text(),
+            "tool": tool_name,
+            "result": result,
+            "error": None if ok else _short_error(result),
+        }
+
+    if action.verb == "navigate":
+        raw = (action.target or "").replace(",", " ")
+        parts = [p for p in raw.split() if p]
+        if len(parts) < 2:
+            return {
+                "ok": False,
+                "action": action.text(),
+                "error": "navigate_needs_x_y",
+            }
+        try:
+            x, y = float(parts[0]), float(parts[1])
+            yaw = float(parts[2]) if len(parts) >= 3 else 0.0
+        except ValueError:
+            return {
+                "ok": False,
+                "action": action.text(),
+                "error": "navigate_bad_coords",
+            }
+        result = call_mcp_tool(
+            "navigate_to_pose",
+            {"robot_id": nav, "x": x, "y": y, "yaw": yaw},
+        )
+        ok = bool(isinstance(result, dict) and result.get("success"))
+        return {
+            "ok": ok,
+            "action": action.text(),
+            "goal": {"x": x, "y": y, "yaw": yaw},
+            "error": None if ok else _short_error(result),
+        }
 
     if action.verb == "move_to":
         station = _lookup_station(action.target)
@@ -626,6 +773,13 @@ def verify_assignment(
             errors.append(f"{robot} is not part of this step")
             continue
         allowed = env.available_actions(robot)
+        if is_q1_platform():
+            if not _q1_action_allowed(robot, action, allowed):
+                errors.append(
+                    f"{robot}: {action.text()} is not in its available action list. "
+                    f"Allowed: {', '.join(allowed)}"
+                )
+            continue
         if action.text() not in allowed:
             errors.append(
                 f"{robot}: {action.text()} is not in its available action list. "
@@ -652,6 +806,25 @@ def verify_assignment(
             else:
                 seen[action.target] = robot
     return errors
+
+
+def _q1_action_allowed(robot: str, action: Action, allowed: list[str]) -> bool:
+    if action.text() in allowed:
+        return True
+    if action.verb != "navigate" or (robot or "").strip().lower() != "navigator":
+        return False
+    raw = (action.target or "").replace(",", " ")
+    parts = [p for p in raw.split() if p]
+    if len(parts) < 2:
+        return False
+    try:
+        float(parts[0])
+        float(parts[1])
+        if len(parts) >= 3:
+            float(parts[2])
+    except ValueError:
+        return False
+    return True
 
 
 def assignment_text(assignment: dict[str, Action], participants: list[str]) -> str:
@@ -751,7 +924,7 @@ def build_planning_prompt(
     parts += [
         "",
         "[Ground Truth]",
-        GROUND_TRUTH,
+        Q1_GROUND_TRUTH if is_q1_platform() else GROUND_TRUTH,
     ]
     if initial_plan.strip():
         parts += ["", "[Central Planner Initial Plan]", initial_plan.strip()]

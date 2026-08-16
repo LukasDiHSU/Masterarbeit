@@ -7,8 +7,8 @@ from functools import cached_property
 from langchain.tools import tool
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, resolve_robot_id, robot_peer_name
-from ...instructions import HMAS2_REVIEW_PREFIX, hmas2_planner
+from ...config import AGENT_COUNT, PLANNER_NAME, TB_IDS, fleet_prompt_range, is_q1_platform, peer_id_example, resolve_robot_id, robot_peer_name
+from ...instructions import HMAS2_REVIEW_PREFIX, Q1_HMAS2_REVIEW_PREFIX, hmas2_planner, q1_hmas2_planner
 from ...mcp_client import load_planning_mcp_tools
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
@@ -23,14 +23,15 @@ class PlannerAgent(BaseAgent):
         self._active_thread_id = "default"
         fleet = fleet_prompt_range()
 
+        prompt_fn = q1_hmas2_planner if is_q1_platform() else hmas2_planner
         super().__init__(
             AgentSpec(
                 name=PLANNER_NAME,
                 description=(
-                    "Central HMAS-2 planner: proposes a fleet plan, collects local "
-                    "feedback, re-plans until consensus, then sends execute messages."
+                    "Central HMAS-2 planner: proposes a specialist plan, collects "
+                    "AGREE/DISAGREE, then sends execute messages."
                 ),
-                system_prompt=hmas2_planner(fleet=fleet, n=AGENT_COUNT),
+                system_prompt=prompt_fn(fleet=fleet, n=AGENT_COUNT),
             ),
             architecture="HMAS-2",
         )
@@ -62,8 +63,8 @@ class PlannerAgent(BaseAgent):
             return {
                 "error": "invalid_recipients",
                 "message": (
-                    "Use 'all' or a comma-separated list like "
-                    "SmallDeliveryRobot_0 or SmallDeliveryRobot_0,SmallDeliveryRobot_1."
+                    "Use 'all' or a comma-separated list of specialist names like "
+                    f"{peer_id_example()}."
                 ),
                 "unknown": unknown,
                 "valid": list(TB_IDS),
@@ -131,12 +132,14 @@ class PlannerAgent(BaseAgent):
 
             Args:
                 plan: Full fleet plan with per-robot role assignments in one document.
-                recipients: 'all', or e.g. 'SmallDeliveryRobot_0' / 'SmallDeliveryRobot_0,SmallDeliveryRobot_1'.
+                recipients: 'all', or specialist names e.g. 'navigator' / 'navigator,lidar'.
             """
             resolved = self._resolve_recipients(recipients)
             if isinstance(resolved, dict):
                 return json.dumps(resolved)
-            body = HMAS2_REVIEW_PREFIX + plan.strip()
+            body = (
+                Q1_HMAS2_REVIEW_PREFIX if is_q1_platform() else HMAS2_REVIEW_PREFIX
+            ) + plan.strip()
             replies = self._ask_many(resolved, body)
             summary = self._summarize_feedback(replies)
             summary["recipients"] = resolved
@@ -161,7 +164,7 @@ class PlannerAgent(BaseAgent):
                 return json.dumps(
                     {
                         "error": "ask_robot_expects_one",
-                        "message": "Pass a single robot like tb2.",
+                        "message": "Pass a single specialist like navigator.",
                     }
                 )
             return self._ask_peer(resolved[0], message)
@@ -177,7 +180,7 @@ class PlannerAgent(BaseAgent):
             """SEND the same message to a subset of robots in parallel.
 
             Args:
-                robots: Comma-separated remroc ids, e.g. 'SmallDeliveryRobot_0,SmallDeliveryRobot_2'.
+                robots: Comma-separated specialist names, e.g. 'navigator,lidar,camera'.
                 message: Message to send (typically EXECUTE after consensus).
             """
             resolved = self._resolve_recipients(robots)

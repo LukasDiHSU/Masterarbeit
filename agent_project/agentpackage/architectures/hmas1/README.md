@@ -12,7 +12,7 @@ robot has agreed; each robot then carries out **its own leg with MCP tools**
    ┌──────────────────────── planning round n ───────────────────────┐
    │  read world state ─► central planner proposes one leg / robot   │
    │        │                                                        │
-   │        ▼   SmallDeliveryRobot_0 → _1 → _2 → …  (turn taking)    │
+   │        ▼   navigator → lidar → camera                               │
    │  AGREE (follow) or DISAGREE / corrected PLAN on exceptions      │
    │        │                                                        │
    │        ▼  each robot runs ITS leg via MCP (in parallel)         │

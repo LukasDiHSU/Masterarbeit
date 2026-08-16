@@ -22,11 +22,13 @@ from ...config import (
     DEFAULT_MESH_HOST,
     TB_IDS,
     build_peer_table,
+    is_q1_platform,
     nav_id_for_tb,
     robot_peer_name,
 )
-from ...instructions import dmas_discussion, dmas_executor
+from ...instructions import dmas_discussion, dmas_executor, q1_hmas1_executor, q1_hmas1_robot
 from ...mcp_client import load_mcp_tools_safe
+from ...roles import filter_mcp_tools_for_agent
 from ..conflict_based.mesh_bus import MeshNode
 from .protocol import (
     ARCHITECTURE,
@@ -53,6 +55,7 @@ _EXECUTOR_BLOCKED_TOOLS = frozenset(
 _DISCUSSION_MAP_TOOLS = frozenset(
     {
         "list_stations",
+        "get_look_poses",
         "list_available_boxes",
         "get_station",
         "get_held_boxes",
@@ -72,25 +75,28 @@ class DiscussionAgent(BaseAgent):
     Has no drive or inventory-mutation tools.
     """
 
-    def __init__(self, peer_name: str, nav_id: str):
+    def __init__(self, peer_name: str, nav_id: str, robot_id: str = ""):
+        self.robot_id = robot_id
+        prompt = (
+            q1_hmas1_robot(name=peer_name, n=AGENT_COUNT, nav_id=nav_id)
+            if is_q1_platform()
+            else dmas_discussion(name=peer_name, n=AGENT_COUNT, nav_id=nav_id)
+        )
         super().__init__(
             AgentSpec(
                 name=f"{peer_name}:planner",
                 description=f"DMAS discussion agent of {peer_name}.",
-                system_prompt=dmas_discussion(
-                    name=peer_name, n=AGENT_COUNT, nav_id=nav_id
-                ),
+                system_prompt=prompt,
             ),
             architecture=ARCHITECTURE,
         )
 
     @cached_property
     def _mcp_tools_by_name(self) -> dict:
-        return {
-            t.name: t
-            for t in load_mcp_tools_safe()
-            if t.name in _DISCUSSION_MAP_TOOLS
-        }
+        tools = load_mcp_tools_safe()
+        if is_q1_platform() and self.robot_id:
+            return {t.name: t for t in filter_mcp_tools_for_agent(tools, self.robot_id)}
+        return {t.name: t for t in tools if t.name in _DISCUSSION_MAP_TOOLS}
 
     def _retrieve_tools(self):
         return list(self._mcp_tools_by_name.values())
@@ -99,23 +105,30 @@ class DiscussionAgent(BaseAgent):
 class ExecutorAgent(BaseAgent):
     """Carries out this robot's agreed leg with the MCP tools."""
 
-    def __init__(self, peer_name: str, nav_id: str):
+    def __init__(self, peer_name: str, nav_id: str, robot_id: str = ""):
+        self.robot_id = robot_id
+        prompt = (
+            q1_hmas1_executor(name=peer_name, nav_id=nav_id)
+            if is_q1_platform()
+            else dmas_executor(name=peer_name, nav_id=nav_id)
+        )
         super().__init__(
             AgentSpec(
                 name=peer_name,
                 description=f"DMAS executor of {peer_name}.",
-                system_prompt=dmas_executor(name=peer_name, nav_id=nav_id),
+                system_prompt=prompt,
             ),
             architecture=ARCHITECTURE,
         )
 
     @cached_property
     def _mcp_tools_by_name(self) -> dict:
-        return {
-            t.name: t
-            for t in load_mcp_tools_safe()
-            if t.name not in _EXECUTOR_BLOCKED_TOOLS
-        }
+        tools = [
+            t for t in load_mcp_tools_safe() if t.name not in _EXECUTOR_BLOCKED_TOOLS
+        ]
+        if is_q1_platform() and self.robot_id:
+            return {t.name: t for t in filter_mcp_tools_for_agent(tools, self.robot_id)}
+        return {t.name: t for t in tools}
 
     def _retrieve_tools(self):
         return list(self._mcp_tools_by_name.values())
@@ -128,8 +141,8 @@ class DMASRobot:
         self.robot_id = robot_id
         self.nav_id = nav_id_for_tb(robot_id)
         self.name = robot_peer_name(robot_id)
-        self.discussion = DiscussionAgent(self.name, self.nav_id)
-        self.executor = ExecutorAgent(self.name, self.nav_id)
+        self.discussion = DiscussionAgent(self.name, self.nav_id, self.robot_id)
+        self.executor = ExecutorAgent(self.name, self.nav_id, self.robot_id)
         # A robot can only do one physical thing at a time.
         self._exec_lock = threading.Lock()
 

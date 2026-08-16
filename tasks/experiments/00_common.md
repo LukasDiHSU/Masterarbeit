@@ -1,118 +1,80 @@
-# Common rules (all experiments)
+# Common rules (Q1 semantic tour)
 
-Source: Zwischenpräsentation (architectures, criteria, protocol notes).
+Compare the five coordination architectures on **one Q1** with three
+**specialists** (not a remroc multi-robot fleet).
+
+Specialist names: `navigator`, `lidar`, `camera`.
+Physical nav id: `q1`.
 
 ## Architectures — who gets the prompt
 
-Pptx names → current code:
+| Architecture | Entry point | Agents started | How work is assigned |
+|---|---|---|---|
+| **centralized** | `master` | 1 master + 3 specialists | Master delegates via `ask_robot` / `ask_all_robots` |
+| **conflict_based** | mission CLI | 3 peers, no master | Solo by specialty; mesh negotiation on `detection_conflict` / `nav_aborted` |
+| **HMAS-1** | `planner` | 1 planner + 3 specialists | Planner proposes one leg per specialist; AGREE / DISAGREE; then execute |
+| **HMAS-2** | `planner` | 1 planner + 3 specialists | Planner collects AGREE/DISAGREE, then EXECUTE |
+| **agentnet** | task CLI | 3 mesh nodes; `navigator` chairs | Agree on a short action chunk, execute, meet again; done when every specialist says `FINISHED` |
 
-| Pptx | Code architecture | Entry point | Agents started | How robots get work |
-|---|---|---|---|---|
-| Zentral | **centralized** | `master` | 1 master + N robot workers | Master delegates via `ask_robot` / `ask_all_robots` / `ask_selected_robots` |
-| Dezentral | **conflict_based** | mission CLI / one peer | N peer robots, no master | Solo by default; mesh negotiation only on conflict events |
-| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Per round: planner proposes one natural-language leg per robot, robots AGREE (or DISAGREE on an exception); each robot then executes its leg with MCP tools |
-| (Hybrid variant) | **HMAS-2** | `planner` | 1 planner + N robots | Planner collects AGREE/DISAGREE, then EXECUTE |
-| Dezentral (AgentNet / DMAS) | **agentnet** | task CLI | N mesh nodes, Agent 0 chairs turns | Robots agree on a short action chunk, execute it, meet again; done when every robot says `FINISHED` |
-
-Run every scenario × difficulty on **all five** architectures when possible.
-Minimum fair set for the thesis comparison (pptx slide set): centralized, conflict_based, HMAS-1, agentnet.
+Run every difficulty on **all five** architectures.
 
 ## Shared MCP context
 
-Every robot agent uses the shared MCP server (`agentpackage/mcpserver.py`):
-stations/boxes inventory, `rank_stations_by_distance`, `navigate_to_pose`,
-`drive_distance` (recovery), poses. Conflict-based also uses events.
+Bring-up: `agent_project/launch.sh` (Gazebo open world + ATB waypoint nav +
+sensor summarizer), then an architecture `launch_*.sh` with
+`AGENT_PLATFORM=q1` `AGENT_WORLD=open` (these are the defaults on this branch).
+Q1 launch scripts force `AGENT_COUNT=3`.
 
-**One world source of truth:** set `AGENT_WORLD` to the map you run, either in
-`agent_project/.env` or per run (`AGENT_WORLD=bottleneck_1 ./…/launch_hmas1.sh
---agents 2`). Note that `.env.example` is only a template — nothing reads it.
-Launch scripts load `.env` and pass the world into the MCP process, so
-`list_stations` / `get_map_info("")` match `worlds/items/{AGENT_WORLD}.json`;
-the launcher warns if no such file exists. Calling `get_map_info(world_id=…)` or
-`set_world` also switches inventory (including non-pad landmarks like `gap`,
-caches). Do not assume A–D stations on every map. Restart MCP after changing
-the world.
+Legal coordinates (agents must not invent object x/y):
 
-Do **not** paste full coordinate tables into the user prompt — agents look them up
-with tools (`list_stations`, `get_station`, `rank_stations_by_distance`, …).
+| Source | Tool | Who |
+|---|---|---|
+| Self pose | `get_robot_pose` | navigator (if this fails, assume spawn `(0, 0)`) |
+| Occupancy | `get_occupancy_map` | navigator, master, planners — yaml + ASCII walls/free space; **no object outlines**; `.` cells are explore poses |
+| Sensed object | `get_semantic_lidar_objects` | lidar — **only** source of object x/y, and only when Q1 is **close** |
+| Vision | `get_camera_image` | camera — RGB still for the multimodal model (no xyz) |
 
-**No invented coordinates:** every architecture's prompts carry the shared
-`COORDINATE_RULE` (`agentpackage/config.py`) — an agent may only pass x/y that
-came from a tool result or the user prompt, and may only drive to positions
-that exist on the active map. Treat a run in which a robot navigates to a
-made-up pose as a failure and note it.
+There are **no stations, boxes, look pads, or multi-robot fleet ids**. Planted
+landmark xyz in `worlds/items/open.json` are **scoring-only** (humans / scorer),
+not agent-facing. A run that drives to a guessed corner is a protocol failure.
 
-**Station capacity:** each station holds at most **one** box. Empty pads have
-`box_id=null` and `available=false`. `drop_box` fails on occupied stations
-(`station_occupied`). For opposing swaps (e.g. A↔C), clear destinations (pick
-first / stage) before dropping. Robots also hold at most one box.
-
-**Proximity:** `pickup_box` / `drop_box` only succeed when the robot is within
-`MCP_MANIP_RADIUS_M` (default 1.8 m) of the station. Always
-`navigate_to_pose` (prefer `navigate_xy` from `rank_stations_by_distance`)
-before pick/drop; remote teleports return `too_far_from_station`.
-
-Every prompt starts with the map/world name (e.g. `You are on the stations map
-(world: stations).`). Keep that line when pasting.
+Protocol: **sense → get closer → sense**. Semantic lidar is 360° but only
+returns a class from close range. The camera is forward-facing: it looks at
+the picture and has no xyz. If the next tour class is missing, call
+`get_occupancy_map`, drive to a free cell, and sense again. Stopping after
+one missed scan is a failed run. Do not invent coordinates. The occupancy
+map must not be used as an object map.
 
 For CLIs that treat Enter as “send”, use the **single-line** files under
-[prompts/](prompts/) (one physical line per difficulty) instead of the
-multi-line blocks in the scenario markdown.
+[prompts/](prompts/).
 
-**Timing (all architectures — wall-clock until the system thinks it is done):**
-- **centralized** / **HMAS-1** / **HMAS-2** — master/planner chat prints `elapsed until done` after each user message’s final reply.
-- **conflict_based** — Mission CLI: paste prompt → all peers in parallel; clock stops when every peer has replied.
-- **agentnet** — task CLI: from handing the mission to `SmallDeliveryRobot_0` until the fleet reports back (`agentnet_until_done`).
-- All append to `timings.log` under the active experiment session (`tasks/experiments/runs/_active/…`, kept after `save_experiment.sh`).
-
-**HMAS-1 (hybrid of DMAS, Chen et al. arXiv:2309.15943):**
-The central planner proposes a **short natural-language plan** (one leg per
-robot: at most one drive plus at most one pick or drop). Robots take turns and
-**follow that plan** (`AGREE`) unless they see an exception (`DISAGREE`,
-optionally with a corrected `PLAN`). Then each robot carries out **its own
-leg with MCP tools** (`navigate_to_pose` / `pickup_box` / …), same as DMAS.
-- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 rounds), `PAPER_MAX_DIALOGUE_ROUNDS` (3), `PAPER_MAX_SYNTAX_RETRIES` (3). Hitting a limit ends the mission as a failure.
-
-**AgentNet (DMAS variant, Chen et al. arXiv:2309.15943):** no planner. The
-robots take turns until an `EXECUTE` block with 1–`AGENTNET_CHUNK_STEPS` (2)
-actions per robot passes the verifier; they execute that chunk and meet again.
-The mission ends only when **every** robot says `FINISHED` in the same
-discussion round. Agent 0 chairs the speaking order and does not propose a
-privileged plan.
-
-Robot names in prompts: `SmallDeliveryRobot_0` … `SmallDeliveryRobot_{N-1}`
-(legacy `tb1`/`robot_tb1` still resolve, but prefer remroc ids).
+**Timing:** centralized / HMAS print `elapsed until done` after the final reply.
+conflict_based Mission CLI stops when every specialist has replied. AgentNet
+task CLI: from handing the mission to `navigator` until the mesh reports back.
 
 ## What to give the agent structure (every run)
 
 | Input | Centralized | Conflict-based | HMAS-1 / HMAS-2 | AgentNet |
 |---|---|---|---|---|
-| **User prompt** | → `master` chat | → mission CLI / one peer | → `planner` chat | → task CLI (always enters at `SmallDeliveryRobot_0`) |
-| **Scenario** | remroc world + matching `worlds/items/<name>.json` / MCP stations | same | same | same |
-| **Active robots** | start only the N workers you need; prompt names participants | start only N peers | same N robots | start only N nodes |
-| **Do not** | message workers directly for the scored run | paste the same prompt into every peer | skip consensus / dialogue before execute | hand the mission to any agent but `_0` |
+| **User prompt** | → `master` chat | → mission CLI | → `planner` chat | → task CLI (enters at `navigator`) |
+| **Scenario** | Q1 `open` world | same | same | same |
+| **Agents** | master + 3 specialists | 3 peers | planner + 3 specialists | 3 nodes |
+| **Do not** | message specialists directly for the scored run | paste into every peer separately (CLI does that) | skip consensus before execute | hand the mission to anyone but `navigator` |
 
 ## Metrics (every run)
-
-From pptx “Kriterien” + monitor notes:
 
 1. **TSR** — task success rate (`successful runs / all runs`)
 2. **Token usage** — in / out / total (Usage Monitor)
 3. **End-to-end time** — wall-clock from prompt → success or timeout
 4. **Steps** — LLM calls and/or inter-agent messages until success
 5. **Communication load** — inter-agent message count (Usage Monitor)
-6. **Scalability** — compare the same scenario across Easy / Medium / Hard (2 / 4 / 6 robots)
+6. **Scalability** — Easy / Medium / Hard = tour length (2 / 3 / 4 stops), always 3 specialists
 
 Also keep Agent Trace (UDP `:9901`) for qualitative tool-use / failure analysis.
 
 ## Protocol
 
-- **Repeats:** ≥ 5 runs per cell `(scenario × difficulty × architecture)`
+- **Repeats:** ≥ 5 runs per cell `(difficulty × architecture)`
 - **Constants:** same model, same temperature, fresh agent processes each run
 - **Timeouts:** Easy 10 min · Medium 15 min · Hard 20 min (timeout = failure)
-- **Stack:** ROS 2 + Modern Gazebo (remroc / SmallDeliveryRobot), MCP + architecture launch script
-
-## Fleet size note
-
-`AGENT_COUNT` ∈ {2, 4, 6, 8}. Easy/Medium fit today. Hard (6 robots) needs
-`--agents 6` (or `AGENT_COUNT=6`) on the launch script.
+- **Stack:** ROS 2 + Gazebo Q1 (`./launch.sh`) + MCP + architecture launch script

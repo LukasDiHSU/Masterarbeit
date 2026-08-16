@@ -4,11 +4,12 @@ Copy for each trial.
 
 ```text
 [ ] Architecture: centralized | conflict_based | HMAS-1 | HMAS-2 | agentnet
-[ ] Scenario: stations | bottleneck | cross | boxes_a | boxes_b
+[ ] Scenario: semantic_tour (open / Q1)
 [ ] Difficulty: easy | medium | hard
-[ ] AGENT_COUNT / robots online: ________
+[ ] Specialists online: navigator, lidar, camera
+[ ] AGENT_PLATFORM=q1  AGENT_WORLD=open
 [ ] Prompt variant pasted exactly once at the architecture entry point
-[ ] Fresh processes / reset stations if needed
+[ ] Fresh processes
 [ ] Usage Monitor running (:9900)
 [ ] Agent Trace running (:9901)
 [ ] Start timestamp recorded
@@ -18,31 +19,18 @@ Copy for each trial.
 [ ] LLM calls
 [ ] Inter-agent messages
 [ ] Logs saved with save_experiment.sh <run_name> [--stop]
-[ ] Notes (deadlock, priority break, >2 in crossing, no handoff, over-sensing, …)
+[ ] Notes (empty sensors, sensed centroid, camera/lidar disagreement, …)
 ```
 
 ## Saving a run
 
-While an architecture launch is active, every terminal is tee'd under
-`tasks/experiments/runs/_active/<session>/logs/`.
-
-When the trial ends (success, failure, or timeout):
-
 ```bash
 cd agent_project
-./save_experiment.sh stations_easy_hmas2_r1 --stop --note "P1/P2 delivered; one nav abort"
+./save_experiment.sh open_easy_centralized_r1 --stop --note "optional note"
 ```
-
-That copies the session into `tasks/experiments/runs/<run_name>/` (Agent Trace,
-Usage Monitor, robots, planner/master, MCP, …) and optionally signals the
-terminal shells to stop.
 
 ## Suggested execution order
 
-1. **Boxes_a Easy** (1–2 robots) — sanity-check MCP + Nav2 + each architecture boots
-2. **Stations Easy → Medium** — core allocation comparison
-3. **Bottleneck Easy → Medium** — coordination / priority
-4. **Cross Medium** — allocation + hard constraint
-5. **Boxes_b Medium** — harder nav under same agent stack
-6. **Hard cells** — with `AGENT_COUNT=6`
-7. **Extensions** — see [extensions.md](extensions.md)
+1. **Easy, centralized** — smoke-test
+2. **Easy** on conflict_based, HMAS-1, HMAS-2, agentnet
+3. **Medium**, then **Hard**

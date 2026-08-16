@@ -42,6 +42,10 @@
       filename="gz-sim-imu-system"
       name="gz::sim::systems::Imu">
     </plugin>
+    <plugin
+      filename="gz-sim-label-system"
+      name="gz::sim::systems::Label">
+    </plugin>
 
     <include>
       <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Ground Plane</uri>
@@ -56,6 +60,63 @@
       <include>
         <uri>model://turtlebot3_arena_walls</uri>
       </include>
+    </model>
+
+    <!-- GOOSE-labeled props for Experiment 06 (semantic tour).
+         Q1 spawn is (0, 0). Objects sit in four corners so "nearest X" is unambiguous. -->
+    <include>
+      <uri>file:///opt/atb_hsu/share/iosb_gazebo_ressources/worlds/assets/props/rocks/iosb_rock1/</uri>
+      <name>rock_easy</name>
+      <pose>10.5 -10.5 0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>file:///opt/atb_hsu/share/iosb_gazebo_ressources/worlds/assets/props/barrels/yellow_barrell/</uri>
+      <name>barrel_easy</name>
+      <pose>-10.5 10.5 0 0 0 0</pose>
+    </include>
+
+    <!-- Car mesh is too large for this arena; labeled box with GOOSE class 12. -->
+    <model name="car_proxy">
+      <static>true</static>
+      <pose>10.5 10.5 0.275 0 0 0</pose>
+      <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+        <label>12</label>
+      </plugin>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>1.6 0.8 0.55</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <laser_retro>12</laser_retro>
+          <geometry><box><size>1.6 0.8 0.55</size></box></geometry>
+          <material>
+            <ambient>0.15 0.2 0.55 1</ambient>
+            <diffuse>0.2 0.25 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="container_proxy">
+      <static>true</static>
+      <pose>-10.5 -10.5 0.5 0 0 0</pose>
+      <plugin filename="gz-sim-label-system" name="gz::sim::systems::Label">
+        <label>58</label>
+      </plugin>
+      <link name="link">
+        <collision name="c">
+          <geometry><box><size>1.2 0.9 1.0</size></box></geometry>
+        </collision>
+        <visual name="v">
+          <laser_retro>58</laser_retro>
+          <geometry><box><size>1.2 0.9 1.0</size></box></geometry>
+          <material>
+            <ambient>0.55 0.4 0.15 1</ambient>
+            <diffuse>0.7 0.5 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
     </model>
   </world>
 </sdf>

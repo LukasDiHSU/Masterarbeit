@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -10,7 +11,9 @@ from functools import cached_property
 from typing import Any
 
 from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.messages import HumanMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from .config import DEFAULT_MODEL, build_chat_model
@@ -51,18 +54,200 @@ class TokenUsage:
         )
 
 
+def _is_image_block(block: Any) -> bool:
+    if not isinstance(block, dict):
+        return False
+    kind = block.get("type")
+    if kind in {"image", "image_url"}:
+        return True
+    return "base64" in block and kind != "text"
+
+
+def _to_user_image_block(block: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize a LangChain / MCP image block to OpenAI image_url form."""
+    kind = block.get("type")
+    if kind == "image_url" and isinstance(block.get("image_url"), dict):
+        return block
+    mime = str(
+        block.get("mime_type")
+        or block.get("mimeType")
+        or block.get("media_type")
+        or "image/jpeg"
+    )
+    b64 = block.get("base64") or (
+        block.get("data") if str(mime).startswith("image/") or kind in {"image", "image_url"} else None
+    )
+    if isinstance(b64, str) and b64 and not b64.startswith("http"):
+        if kind in {None, "image", "image_url"} or str(mime).startswith("image/"):
+            return {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime};base64,{b64}"},
+            }
+    if kind == "image" or "base64" in block:
+        if "url" in block:
+            return {"type": "image_url", "image_url": {"url": str(block["url"])}}
+        source = block.get("source")
+        if isinstance(source, dict) and source.get("data"):
+            media = str(source.get("media_type") or mime)
+            return {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{media};base64,{source['data']}"
+                },
+            }
+    return None
+
+
+def _split_tool_content(content: Any) -> tuple[str, list[dict[str, Any]]]:
+    if isinstance(content, str):
+        if content.startswith("data:image"):
+            return "", [
+                {"type": "image_url", "image_url": {"url": content}},
+            ]
+        return content, []
+    if not isinstance(content, list):
+        return str(content), []
+    texts: list[str] = []
+    images: list[dict[str, Any]] = []
+    for block in content:
+        if isinstance(block, str):
+            if block.startswith("data:image"):
+                images.append({"type": "image_url", "image_url": {"url": block}})
+            else:
+                texts.append(block)
+            continue
+        if not isinstance(block, dict):
+            raw = getattr(block, "model_dump", None) or getattr(block, "dict", None)
+            if callable(raw):
+                try:
+                    block = raw()
+                except Exception:
+                    continue
+            else:
+                continue
+        if not isinstance(block, dict):
+            continue
+        image = _to_user_image_block(block) if (
+            _is_image_block(block)
+            or str(block.get("mime_type") or block.get("mimeType") or "").startswith("image/")
+        ) else None
+        if image is not None:
+            images.append(image)
+            continue
+        if block.get("type") == "text" and block.get("text"):
+            texts.append(str(block["text"]))
+    return "\n".join(texts).strip(), images
+
+
+def _hoist_tool_images(messages: list[Any]) -> list[Any]:
+    """Move images out of ToolMessages so OpenAI chat.completions can see them.
+
+    ``role: tool`` is text-only on Chat Completions. After every tool-result
+    group, attach the frames as a user message with ``image_url`` parts.
+    """
+    out: list[Any] = []
+    pending: list[dict[str, Any]] = []
+
+    def _flush() -> None:
+        if pending:
+            out.append(HumanMessage(content=list(pending)))
+            pending.clear()
+
+    for message in messages:
+        if isinstance(message, ToolMessage):
+            text, images = _split_tool_content(getattr(message, "content", None))
+            if images:
+                name = getattr(message, "name", None) or "camera"
+                caption = text or (
+                    f"{name} returned this camera frame. Look at the picture."
+                )
+                try:
+                    out.append(message.model_copy(update={"content": caption}))
+                except Exception:
+                    out.append(
+                        ToolMessage(
+                            content=caption,
+                            tool_call_id=message.tool_call_id,
+                            name=getattr(message, "name", None),
+                        )
+                    )
+                pending.append({"type": "text", "text": caption})
+                pending.extend(images)
+                continue
+            out.append(message)
+            continue
+        _flush()
+        out.append(message)
+    _flush()
+    return out
+
+
+class _HoistToolImagesMiddleware(AgentMiddleware):
+    """Expose MCP camera stills to a multimodal chat model."""
+
+    def wrap_model_call(self, request, handler):
+        return handler(
+            request.override(messages=_hoist_tool_images(list(request.messages)))
+        )
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(
+            request.override(messages=_hoist_tool_images(list(request.messages)))
+        )
+
+
+_UNFINISHED_PROSE_RE = re.compile(
+    r"(?i)("
+    r"I SEND a message\b|"
+    r"\bask_robot\s*\(|"
+    r"\bask_all_robots\s*\(|"
+    r"\bask_selected_robots|"
+    r"\bCalling get_\w+"
+    r")"
+)
+_INVOKE_CONTINUE_LIMIT = 3
+_CONTINUE_NUDGE = (
+    "That was not a tool call. Call the MCP tool now. "
+    "Do not write I SEND or 'Calling get_*' as your answer."
+)
+_CONTINUE_NUDGE_MASTER = (
+    "That was not a finished mission reply. "
+    "Call ask_robot / ask_all_robots (do not write I SEND). "
+    "Call report_mission_done(summary) only after every ordered stop "
+    "is confirmed. Do not answer the user yet."
+)
+
+
+def _looks_like_unfinished_prose(text: str) -> bool:
+    """True when the model narrated a tool/delegation instead of calling it."""
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _UNFINISHED_PROSE_RE.search(t):
+        return True
+    for match in re.finditer(r"(?i)I CALL (get_\w+)", t):
+        after = t[match.end() : match.end() + 80]
+        if not re.search(r"(?i)\bRECEIVE\b|\bsucceeded\b|\breturned\b", after):
+            return True
+    return False
+
+
 def _content_to_text(content: Any) -> str:
     if content is None:
         return ""
     if isinstance(content, str):
+        if content.startswith("data:image"):
+            return "[image]"
         return content
     if isinstance(content, list):
         parts: list[str] = []
         for block in content:
             if isinstance(block, str):
-                parts.append(block)
+                parts.append("[image]" if block.startswith("data:image") else block)
             elif isinstance(block, dict):
-                if block.get("type") == "text" and "text" in block:
+                if _is_image_block(block):
+                    parts.append("[image]")
+                elif block.get("type") == "text" and "text" in block:
                     parts.append(str(block["text"]))
                 else:
                     parts.append(json.dumps(block, default=str))
@@ -184,6 +369,8 @@ class BaseAgent:
             agent=spec.name,
             architecture=architecture,
         )
+        self._require_mission_done = False
+        self._mission_done_this_turn = False
 
     @cached_property
     def agent(self):
@@ -193,17 +380,33 @@ class BaseAgent:
             system_prompt=self.spec.system_prompt,
             name=self.spec.name,
             checkpointer=self._checkpointer,
+            middleware=[_HoistToolImagesMiddleware()],
         )
 
     def _retrieve_tools(self) -> list:
         return []
 
-    def invoke(self, message: str, thread_id: str = "default") -> str:
+    def _should_continue_turn(self, text: str) -> bool:
+        if _looks_like_unfinished_prose(text):
+            return True
+        if self._require_mission_done and not self._mission_done_this_turn:
+            return True
+        return False
+
+    def _continue_nudge(self) -> str:
+        if self._require_mission_done:
+            return _CONTINUE_NUDGE_MASTER
+        return _CONTINUE_NUDGE
+
+    def _invoke_once(self, message: str, thread_id: str) -> str:
         self._token_callback.thread_id = self.thread_key(thread_id)
         config = {
             "configurable": {"thread_id": self.thread_key(thread_id)},
             "callbacks": [self._token_callback],
         }
+        # Build tools/model before asyncio.run so MCP SSE is not nested
+        # inside the turn's event loop.
+        _ = self.agent
 
         async def _run() -> dict[str, Any]:
             return await self.agent.ainvoke(
@@ -211,7 +414,6 @@ class BaseAgent:
                 config,
             )
 
-        before = replace(self.token_usage)
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -219,6 +421,24 @@ class BaseAgent:
         else:
             with ThreadPoolExecutor(max_workers=1) as pool:
                 result = pool.submit(lambda: asyncio.run(_run())).result()
+        return self._extract_text(result)
+
+    def invoke(self, message: str, thread_id: str = "default") -> str:
+        self._mission_done_this_turn = False
+        before = replace(self.token_usage)
+        text = self._invoke_once(message, thread_id)
+        retries = 0
+        while retries < _INVOKE_CONTINUE_LIMIT and self._should_continue_turn(text):
+            retries += 1
+            nudge = self._continue_nudge()
+            report_trace(
+                agent=self.spec.name,
+                architecture=self.architecture,
+                kind="continue",
+                text=nudge,
+                thread_id=self.thread_key(thread_id),
+            )
+            text = self._invoke_once(nudge, thread_id)
 
         self.last_call_usage = TokenUsage(
             input_tokens=self.token_usage.input_tokens - before.input_tokens,
@@ -234,7 +454,6 @@ class BaseAgent:
             total_tokens=self.token_usage.total_tokens,
             llm_calls=self.token_usage.llm_calls,
         )
-        text = self._extract_text(result)
         report_trace(
             agent=self.spec.name,
             architecture=self.architecture,
@@ -291,8 +510,13 @@ class BaseAgent:
             if line.lower() in lowered:
                 break
             t0 = time.perf_counter() if timing_label else None
-            reply = self.invoke(line, thread_id=thread_id)
-            print(reply)
+            print("Calling model…", flush=True)
+            try:
+                reply = self.invoke(line, thread_id=thread_id)
+            except Exception as e:
+                print(f"[error] {type(e).__name__}: {e}", flush=True)
+                continue
+            print(reply, flush=True)
             if timing_label and t0 is not None:
                 elapsed = time.perf_counter() - t0
                 print(

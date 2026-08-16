@@ -22,7 +22,7 @@ parse_agent_count() {
     case "$1" in
       --agents)
         if [[ $# -lt 2 ]]; then
-          echo "error: --agents requires a value (2|4|6|8)" >&2
+          echo "error: --agents requires a value (2|3|4|6|8)" >&2
           return 1
         fi
         requested="$2"
@@ -40,13 +40,34 @@ parse_agent_count() {
   done
 
   case "$requested" in
-    2|4|6|8)
+    2|3|4|6|8)
       AGENT_COUNT="$requested"
       export AGENT_COUNT
       ;;
     *)
-      echo "error: AGENT_COUNT/AGENTS/--agents must be 2, 4, 6, or 8 (got ${requested})" >&2
+      echo "error: AGENT_COUNT/AGENTS/--agents must be 2, 3, 4, 6, or 8 (got ${requested})" >&2
       return 1
       ;;
   esac
+
+  AGENT_PLATFORM="${AGENT_PLATFORM:-q1}"
+  export AGENT_PLATFORM
+  ROBOT_IDS=()
+  if [ "$AGENT_PLATFORM" = "q1" ]; then
+    if [ "$AGENT_COUNT" != "3" ]; then
+      echo "note: AGENT_PLATFORM=q1 uses 3 specialists; forcing AGENT_COUNT=3" >&2
+      AGENT_COUNT=3
+      export AGENT_COUNT
+    fi
+    ROBOT_IDS=(navigator lidar camera)
+  else
+    if [ "$AGENT_COUNT" = "3" ]; then
+      echo "error: remroc AGENT_COUNT must be 2, 4, 6, or 8 (got 3)" >&2
+      return 1
+    fi
+    local i
+    for ((i=0; i<AGENT_COUNT; i++)); do
+      ROBOT_IDS+=("SmallDeliveryRobot_$i")
+    done
+  fi
 }

@@ -5,9 +5,10 @@ import threading
 from functools import cached_property
 
 from ...BaseAgents import AgentSpec, BaseAgent
-from ...config import TB_IDS, nav_id_for_tb, robot_peer_name
-from ...instructions import hmas2_robot
+from ...config import TB_IDS, is_q1_platform, nav_id_for_tb, robot_peer_name
+from ...instructions import hmas2_robot, q1_hmas2_robot
 from ...mcp_client import load_mcp_tools_safe
+from ...roles import filter_mcp_tools_for_agent
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 # Event/sensing tools used by conflict-based (or invite over-sensing). HMAS-2
@@ -37,13 +38,18 @@ class HMAS2RobotAgent(BaseAgent):
         self.nav_id = nav_id_for_tb(robot_id)
         name = robot_peer_name(robot_id)
 
+        prompt = (
+            q1_hmas2_robot(name=name, nav_id=self.nav_id)
+            if is_q1_platform()
+            else hmas2_robot(name=name, nav_id=self.nav_id)
+        )
         super().__init__(
             AgentSpec(
                 name=name,
                 description=(
                     f"HMAS-2 local agent for {name}: reviews central plans, then executes."
                 ),
-                system_prompt=hmas2_robot(name=name, nav_id=self.nav_id),
+                system_prompt=prompt,
             ),
             architecture="HMAS-2",
         )
@@ -57,7 +63,11 @@ class HMAS2RobotAgent(BaseAgent):
         }
 
     def _retrieve_tools(self):
-        return list(self._mcp_tools_by_name.values())
+        return filter_mcp_tools_for_agent(
+            list(self._mcp_tools_by_name.values()),
+            self.robot_id,
+            blocked=_HMAS2_BLOCKED_TOOLS if not is_q1_platform() else (),
+        )
 
 
 def main() -> None:

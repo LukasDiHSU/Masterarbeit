@@ -22,7 +22,7 @@ def participants_for_event(event: dict[str, Any], held_by: dict[str, Any] | None
     etype = str(event.get("type", ""))
     held_by = held_by or {}
 
-    if etype == "conflict":
+    if etype in {"conflict", "detection_conflict"}:
         raw = event.get("participants") or []
         if isinstance(raw, str):
             raw = [p.strip() for p in raw.split(",") if p.strip()]

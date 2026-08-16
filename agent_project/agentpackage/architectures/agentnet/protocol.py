@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import os
 
-from ...instructions import agentnet_closing, agentnet_role
+from ...config import is_q1_platform
+from ...instructions import agentnet_closing, agentnet_role, q1_agentnet_closing, q1_agentnet_role
 from ...paper_protocol import (
     ACTION_SYNTAX,
     Environment,
@@ -60,6 +61,8 @@ def build_turn_prompt(
     syntax_feedback: str = "",
 ) -> str:
     others = [p for p in participants if p != speaker]
+    role_fn = q1_agentnet_role if is_q1_platform() else agentnet_role
+    close_fn = q1_agentnet_closing if is_q1_platform() else agentnet_closing
     return build_planning_prompt(
         task=task,
         env=env,
@@ -67,7 +70,7 @@ def build_turn_prompt(
         participants=participants,
         step_index=meeting,
         speaker=speaker,
-        role_line=agentnet_role(
+        role_line=role_fn(
             speaker=speaker,
             meeting=meeting,
             max_meetings=max_meetings,
@@ -78,7 +81,7 @@ def build_turn_prompt(
         ),
         dialogue=dialogue,
         syntax_feedback=syntax_feedback,
-        closing_instruction=agentnet_closing(
+        closing_instruction=close_fn(
             chunk_steps=CHUNK_STEPS, action_syntax=ACTION_SYNTAX
         ),
     )
@@ -87,5 +90,5 @@ def build_turn_prompt(
 def build_execute_dispatch(action_text: str, *, meeting: int, step: int) -> str:
     return (
         f"{EXECUTE_DISPATCH_PREFIX} {action_text}\n"
-        f"(meeting {meeting}, step {step}; the fleet agreed on this chunk)"
+        f"(meeting {meeting}, step {step}; the specialists agreed on this chunk)"
     )

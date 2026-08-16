@@ -5,9 +5,10 @@ import threading
 from functools import cached_property
 
 from ...BaseAgents import BaseAgent, AgentSpec
-from ...config import TB_IDS, nav_id_for_tb, robot_peer_name
-from ...instructions import centralized_robot
+from ...config import TB_IDS, is_q1_platform, nav_id_for_tb, robot_peer_name
+from ...instructions import centralized_robot, q1_centralized_robot
 from ...mcp_client import load_mcp_tools_safe
+from ...roles import filter_mcp_tools_for_agent
 from .agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 
 
@@ -21,11 +22,16 @@ class RobotAgent(BaseAgent):
         self.robot_id = robot_id
         self.nav_id = nav_id_for_tb(robot_id)
         name = robot_peer_name(robot_id)
+        prompt = (
+            q1_centralized_robot(name=name, nav_id=self.nav_id)
+            if is_q1_platform()
+            else centralized_robot(name=name, nav_id=self.nav_id)
+        )
         super().__init__(
             AgentSpec(
                 name=name,
                 description=f"Worker for {name}; only answers the master.",
-                system_prompt=centralized_robot(name=name, nav_id=self.nav_id),
+                system_prompt=prompt,
             ),
             architecture="centralized",
         )
@@ -35,7 +41,9 @@ class RobotAgent(BaseAgent):
         return {t.name: t for t in load_mcp_tools_safe()}
 
     def _retrieve_tools(self):
-        return list(self._mcp_tools_by_name.values())
+        return filter_mcp_tools_for_agent(
+            list(self._mcp_tools_by_name.values()), self.robot_id
+        )
 
 
 def main() -> None:

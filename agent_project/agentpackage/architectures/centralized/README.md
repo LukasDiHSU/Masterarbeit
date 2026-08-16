@@ -5,12 +5,12 @@
    user ───────► │   master   │
                  └─────┬──────┘
               ask_robot │  (only the master has delegation tools)
-        ┌──────────┬────────┼──────────┐
-        ▼          ▼        ▼          ▼
-   SmallDeliveryRobot_0  SmallDeliveryRobot_1  SmallDeliveryRobot_2  SmallDeliveryRobot_3      (workers only)
-        │          │        │          │
-        └──────────┴───┬────┴──────────┘
-                        ▼
+        ┌──────────┬────────┴──────────┐
+        ▼          ▼                   ▼
+   navigator     lidar              camera      (specialists only)
+        │          │                   │
+        └──────────┴────────┬──────────┘
+                            ▼
                  central broker (agent_bus.py)
 ```
 
@@ -30,4 +30,4 @@ This is the architecture carried over unchanged (module names aside) from
 the Studienarbeit; it is the baseline the `conflict_based` and `hmas1`
 (HMAS-1) architectures build on.
 
-Run: `./launch_centralized.sh` (optional `--agents 2|4|6|8`)
+Run: `./launch_centralized.sh` (Q1: 3 specialists; remroc: `--agents 2|4|6|8`)

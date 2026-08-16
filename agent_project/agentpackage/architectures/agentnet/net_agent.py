@@ -20,12 +20,15 @@ from ...config import (
     DEFAULT_MESH_HOST,
     TB_IDS,
     build_peer_table,
+    is_q1_platform,
     nav_id_for_tb,
     robot_peer_name,
 )
 from ...monitor import report_trace
 from ...paper_protocol import ACTION_SYNTAX, execute_action, parse_action
-from ...instructions import agentnet_robot
+from ...instructions import agentnet_robot, q1_agentnet_robot
+from ...mcp_client import load_mcp_tools_safe
+from ...roles import filter_mcp_tools_for_agent
 from ..conflict_based.mesh_bus import MeshNode
 from .protocol import (
     ARCHITECTURE,
@@ -48,11 +51,12 @@ class NetAgent(BaseAgent):
         self.nav_id = nav_id_for_tb(robot_id)
         self.name = robot_peer_name(robot_id)
 
+        prompt_fn = q1_agentnet_robot if is_q1_platform() else agentnet_robot
         super().__init__(
             AgentSpec(
                 name=self.name,
                 description=f"AgentNet DMAS agent for {self.name}.",
-                system_prompt=agentnet_robot(
+                system_prompt=prompt_fn(
                     name=self.name,
                     n=AGENT_COUNT,
                     action_syntax=ACTION_SYNTAX,
@@ -61,6 +65,11 @@ class NetAgent(BaseAgent):
             ),
             architecture=ARCHITECTURE,
         )
+
+    def _retrieve_tools(self) -> list:
+        if not is_q1_platform():
+            return []
+        return filter_mcp_tools_for_agent(load_mcp_tools_safe(), self.robot_id)
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
         text = (message or "").strip()

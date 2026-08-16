@@ -21,3 +21,7 @@ folder for the design rationale behind that specific variant.
 Fleet size is configurable via `AGENT_COUNT` / `--agents` (**2, 4, 6, or 8**
 working robots; default 4). Architectures that have a master/planner add
 that leader on top of N workers.
+
+Experiment 06 uses `AGENT_PLATFORM=q1` on the `open` arena: one Q1 and four
+sensor specialists instead of a remroc fleet. See
+[`tasks/experiments/06_semantic_tour.md`](tasks/experiments/06_semantic_tour.md).

@@ -8,7 +8,7 @@
         <geometry>
           <mesh>
             <uri>model://turtlebot3_arena_walls/meshes/wall.dae</uri>
-            <scale>0.75 0.75 0.75</scale>
+            <scale>2.25 2.25 0.75</scale>
           </mesh>
         </geometry>
         <max_contacts>10</max_contacts>
@@ -27,7 +27,7 @@
         <geometry>
           <mesh>
             <uri>model://turtlebot3_arena_walls/meshes/wall.dae</uri>
-            <scale>0.75 0.75 0.75</scale>
+            <scale>2.25 2.25 0.75</scale>
           </mesh>
         </geometry>
         <material>

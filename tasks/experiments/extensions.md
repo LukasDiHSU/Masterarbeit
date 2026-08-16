@@ -1,9 +1,8 @@
 # Extensions (later)
 
-From pptx slide “Mögliche Veränderungen”:
+Keep these out of the core Easy/Medium/Hard grid:
 
-1. **Other agent types** — e.g. a validator agent that checks plans / outcomes before execute.
-2. **More agents** — 8, 12, 14… (`AGENT_COUNT` already supports 8; beyond that needs code/launch changes).
-3. **Stress factors** — e.g. robot failure mid-run, delayed peers, forced nav aborts.
-
-Do not mix extensions into the core comparison cells; run them as separate variants after the main grid.
+1. **Tighter lidar cone** — `AGENT_SEM_LIDAR_FOV_DEG` below 360 so spawn does not see every class.
+2. **Forced detection conflict** — camera and semantic lidar disagree on class.
+3. **Nav abort mid-drive** — recovery; sense again, then the next centroid.
+4. **Validator agent** — extra specialist that only checks the tour order.
