@@ -1,9 +1,9 @@
-"""HMAS-1 local robot: votes per STEP of the central plan, or talks as PMAS.
+"""HMAS-1 local robot: votes once on the central plan, or talks as DMAS.
 
-During the original plan, the discussion LLM (no drive tools) votes AGREE on
-the next STEP only. The last STEP is FINISHED: unanimous AGREE ends the
-mission. DISAGREE / a new PLAN drops that plan; later turns use PLAN / AGREE
-/ FINISHED like PMAS. The executor LLM runs each dispatched work STEP.
+During the original plan, the discussion LLM (no drive tools) answers
+AGREE or DISAGREE on the whole plan. Unanimous AGREE executes that plan.
+DISAGREE / a new PLAN drops it; later turns use the DMAS huddle + PLAN /
+AGREE / FINISHED protocol. The executor LLM runs each dispatched work STEP.
 """
 
 from __future__ import annotations
@@ -14,10 +14,10 @@ from functools import cached_property
 
 from ...BaseAgents import AgentSpec, BaseAgent
 from ...config import AGENT_COUNT, TB_IDS, nav_id_for_tb, robot_peer_name
-from ...instructions import hmas1_executor, hmas1_robot
+from ...instructions import fleet_huddle, hmas1_executor, hmas1_robot
 from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-from .dialogue import EXECUTE_DISPATCH_PREFIX, build_execution_prompt
+from .dialogue import EXECUTE_DISPATCH_PREFIX, HUDDLE_TURN_PREFIX, build_execution_prompt
 
 _EXECUTOR_BLOCKED_TOOLS = frozenset(
     {
@@ -43,6 +43,23 @@ _DISCUSSION_MAP_TOOLS = frozenset(
         "distance_to_station",
     }
 )
+
+
+class HuddleAgent(BaseAgent):
+    """PMAS huddle turns: no tools, so the model cannot dump a snapshot."""
+
+    def __init__(self, peer_name: str):
+        super().__init__(
+            AgentSpec(
+                name=f"{peer_name}:huddle",
+                description=f"HMAS-1 huddle speaker of {peer_name}.",
+                system_prompt=fleet_huddle(name=peer_name, n=AGENT_COUNT),
+            ),
+            architecture="HMAS-1",
+        )
+
+    def _retrieve_tools(self):
+        return []
 
 
 class DiscussionAgent(BaseAgent):
@@ -100,6 +117,7 @@ class HMAS1RobotAgent:
         self.bus = bus
         self.name = robot_peer_name(robot_id)
         self.discussion = DiscussionAgent(self.name, self.nav_id)
+        self.huddle = HuddleAgent(self.name)
         self.executor = ExecutorAgent(self.name, self.nav_id)
         self._exec_lock = threading.Lock()
         self._round = 0
@@ -108,6 +126,9 @@ class HMAS1RobotAgent:
         text = (message or "").strip()
         if text.startswith(EXECUTE_DISPATCH_PREFIX):
             return self._run_leg(text)
+        if text.startswith(HUDDLE_TURN_PREFIX):
+            body = text[len(HUDDLE_TURN_PREFIX) :].strip()
+            return self.huddle.invoke(body, thread_id=thread_id)
         return self.discussion.invoke(text, thread_id=thread_id)
 
     def _run_leg(self, message: str) -> str:
@@ -182,7 +203,7 @@ def main() -> None:
 
     bus.on_message(handle_message)
 
-    print(f"{my_name} online (HMAS-1). Waiting for planning dialogue and leg dispatch.")
+    print(f"{my_name} online (HMAS-1). Waiting for plan vote, DMAS huddle, and leg dispatch.")
     print("Ctrl+C to exit.\n")
 
     try:

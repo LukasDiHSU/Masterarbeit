@@ -1,5 +1,5 @@
-Active experiment session: dmas_20260818_235545
-Architecture: dmas
+Active experiment session: centralized_20260818_221420
+Architecture: centralized
 Agents: 2
 
 Terminal output is appended under logs/ while the run is live.

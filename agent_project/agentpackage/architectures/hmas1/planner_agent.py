@@ -1,10 +1,10 @@
 """HMAS-1 central planner (Chen et al., arXiv:2309.15943, Fig. 3b).
 
-The central LLM proposes a full multi-step mission plan once. Robots vote
-on each STEP in order (AGREE = execute that step as written). The last STEP
-is always FINISHED; unanimous AGREE on that STEP ends the mission. DISAGREE
-or a different PLAN discards the original plan; the fleet then continues as
-a peer (PMAS) network on the same star broker.
+The central LLM proposes a full multi-step mission plan once. Each robot
+votes AGREE or DISAGREE once on that whole plan (no debate). Unanimous
+AGREE executes the STEPs in order. DISAGREE or a different PLAN discards
+the original plan; the fleet then continues as a peer (DMAS) network on
+the same star broker.
 """
 
 from __future__ import annotations
@@ -21,7 +21,6 @@ from ...config import AGENT_COUNT, PLANNER_NAME, fleet_prompt_range
 from ...instructions import hmas1_planner
 from ...mcp_client import load_mcp_tools_safe
 from ...paper_protocol import (
-    MAX_DIALOGUE_ROUNDS,
     MAX_PLAN_STEPS,
     MAX_SYNTAX_RETRIES,
     TASK_COMPLETE_RE,
@@ -37,7 +36,10 @@ from ..dmas.protocol import (
     EXECUTE_TIMEOUT,
     INVALID,
     MAX_TURNS_PER_ROUND,
+    MIN_TALK_TURNS,
+    AGREE,
     PLAN,
+    TALK,
     TURN_TIMEOUT,
     Consensus,
     RoundRecord,
@@ -46,12 +48,16 @@ from ..dmas.protocol import (
     looks_idle,
     parse_turn,
     verify_plan,
+    coerce_talk_window,
+    in_talk_window,
+    talk_window_feedback,
 )
 from .dialogue import (
+    HUDDLE_TURN_PREFIX,
     MissionPlan,
     build_central_plan_prompt,
     build_execute_dispatch,
-    build_step_vote_prompt,
+    build_plan_vote_prompt,
     finish_step,
     is_finish_step,
     looks_agree,
@@ -88,8 +94,8 @@ class CentralPlannerAgent(BaseAgent):
                 description=(
                     "HMAS-1 central planner: proposes a full multi-step "
                     "mission plan once, ending with FINISHED. Robots vote "
-                    "per STEP; AGREE on FINISHED ends the mission. A rejected "
-                    "step discards the plan and the fleet continues as PMAS."
+                    "AGREE/DISAGREE once on that whole plan. A rejected "
+                    "plan is discarded and the fleet continues as DMAS."
                 ),
                 system_prompt=hmas1_planner(
                     fleet=fleet, n=AGENT_COUNT, max_steps=MAX_PLAN_STEPS
@@ -111,7 +117,7 @@ class CentralPlannerAgent(BaseAgent):
 
 
 class HMAS1Session:
-    """Central plan once, per-STEP votes, PMAS fallback if the plan is discarded."""
+    """Central plan once, one AGREE/DISAGREE vote, DMAS fallback if rejected."""
 
     def __init__(self, *, bus: BusClient, planner: CentralPlannerAgent):
         self.bus = bus
@@ -188,114 +194,142 @@ class HMAS1Session:
             print(f"[planner] retry {attempt + 1}: {feedback}")
         return None, "invalid"
 
-    def _vote_step(
+    def _classify_plan_vote(
+        self,
+        reply: str,
+        *,
+        speaker: str,
+        participants: list[str],
+        original: MissionPlan,
+    ) -> str:
+        """Return 'agree', 'pmas', or 'retry'."""
+        if looks_disagree(reply):
+            print(
+                f"[planner] {speaker} voted DISAGREE — original plan discarded, "
+                "switching to DMAS",
+                flush=True,
+            )
+            return "pmas"
+        if looks_agree(reply) or TASK_COMPLETE_RE.search(reply or ""):
+            return "agree"
+        replacement, problems = parse_hmas1_plan(
+            reply, participants, max_steps=MAX_PLAN_STEPS
+        )
+        if replacement is not None:
+            if restates_original_step(
+                replacement,
+                current=original[0] if original else {},
+                remaining=original,
+                original=original,
+                participants=participants,
+            ):
+                return "agree"
+            print(
+                f"[planner] {speaker} proposed a different plan — "
+                "original plan discarded, switching to DMAS"
+            )
+            return "pmas"
+        if replacement is None and problems:
+            return "retry"
+        return "retry"
+
+    def _vote_original_plan(
         self,
         *,
         task: str,
         history: StepHistory,
         participants: list[str],
         original: MissionPlan,
-        remaining: MissionPlan,
-        current: dict[str, str],
-        step_index: int,
-        n_steps: int,
     ) -> str:
-        """AGREE all → execute this original step (or end on FINISHED). Else PMAS."""
-        dialogue: list[dict[str, str]] = []
+        """One AGREE/DISAGREE each, in parallel. Unanimous AGREE else DMAS."""
+        print("\n=== vote on original plan (AGREE / DISAGREE) ===", flush=True)
+
+        def _ask(speaker: str) -> tuple[str, str]:
+            prompt = build_plan_vote_prompt(
+                task=task,
+                env=self.env,
+                history=history,
+                participants=participants,
+                speaker=speaker,
+                original=original,
+            )
+            reply = self._ask_robot(
+                speaker,
+                prompt,
+                thread_id=f"vote-original-{speaker}",
+                timeout=TURN_TIMEOUT,
+            )
+            return speaker, reply
+
+        replies: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=max(1, len(participants))) as pool:
+            futures = [pool.submit(_ask, speaker) for speaker in participants]
+            for future in as_completed(futures):
+                speaker, reply = future.result()
+                replies[speaker] = reply
+                print(f"[{speaker}] {reply.strip()[:300]}", flush=True)
+
         agreed: set[str] = set()
-        syntax_feedback = ""
+        retry_speakers: list[str] = []
+        for speaker in participants:
+            verdict = self._classify_plan_vote(
+                replies.get(speaker, ""),
+                speaker=speaker,
+                participants=participants,
+                original=original,
+            )
+            if verdict == "pmas":
+                return "pmas"
+            if verdict == "agree":
+                agreed.add(speaker)
+            else:
+                retry_speakers.append(speaker)
 
-        for round_idx in range(1, MAX_DIALOGUE_ROUNDS + 1):
-            for speaker in participants:
-                retries = 0
-                while True:
-                    prompt = build_step_vote_prompt(
-                        task=task,
-                        env=self.env,
-                        history=history,
-                        participants=participants,
-                        speaker=speaker,
-                        original=original,
-                        current=current,
-                        step_index=step_index,
-                        n_steps=n_steps,
-                        round_idx=round_idx,
-                        max_rounds=MAX_DIALOGUE_ROUNDS,
-                        dialogue=dialogue,
-                        syntax_feedback=syntax_feedback,
-                    )
-                    reply = self._ask_robot(
-                        speaker,
-                        prompt,
-                        thread_id=f"vote-s{step_index}-r{round_idx}-{retries}",
-                    )
-                    dialogue.append({"speaker": speaker, "text": reply})
-                    print(f"[{speaker}] {reply.strip()[:300]}")
-
-                    if TASK_COMPLETE_RE.search(reply):
-                        agreed.add(speaker)
-                        syntax_feedback = ""
-                        if agreed == set(participants):
-                            return "agree"
-                        break
-
-                    replacement, problems = parse_hmas1_plan(
-                        reply, participants, max_steps=MAX_PLAN_STEPS
-                    )
-                    if replacement is not None:
-                        if restates_original_step(
-                            replacement,
-                            current=current,
-                            remaining=remaining,
-                            original=original,
-                            participants=participants,
-                        ):
-                            agreed.add(speaker)
-                            syntax_feedback = ""
-                            if agreed == set(participants):
-                                return "agree"
-                            break
-                        print(
-                            f"[planner] {speaker} proposed a different plan — "
-                            "original mission plan discarded, switching to PMAS"
-                        )
-                        return "pmas"
-
-                    if replacement is None and problems:
-                        retries += 1
-                        if retries >= MAX_SYNTAX_RETRIES:
-                            syntax_feedback = ""
-                            print(
-                                f"[planner] {speaker} sent an unusable PLAN; "
-                                "treating it as a new plan → PMAS"
-                            )
-                            return "pmas"
-                        syntax_feedback = (
-                            "Your PLAN was rejected:\n- "
-                            + "\n- ".join(problems)
-                            + "\nAGREE this STEP, or DISAGREE to drop the original plan."
-                        )
-                        continue
-
-                    if looks_agree(reply):
-                        agreed.add(speaker)
-                        syntax_feedback = ""
-                        if agreed == set(participants):
-                            return "agree"
-                        break
-
-                    if looks_disagree(reply):
-                        print(
-                            f"[planner] {speaker} voted DISAGREE — original "
-                            "mission plan discarded, switching to PMAS",
-                            flush=True,
-                        )
-                        return "pmas"
-
-                    syntax_feedback = ""
+        for speaker in retry_speakers:
+            retries = 0
+            syntax_feedback = (
+                "Reply with only AGREE or DISAGREE. Do not rewrite the plan."
+            )
+            while retries < MAX_SYNTAX_RETRIES:
+                retries += 1
+                prompt = build_plan_vote_prompt(
+                    task=task,
+                    env=self.env,
+                    history=history,
+                    participants=participants,
+                    speaker=speaker,
+                    original=original,
+                    syntax_feedback=syntax_feedback,
+                )
+                reply = self._ask_robot(
+                    speaker,
+                    prompt,
+                    thread_id=f"vote-original-{speaker}-retry{retries}",
+                    timeout=TURN_TIMEOUT,
+                )
+                print(f"[{speaker}] retry {retries}: {reply.strip()[:300]}")
+                verdict = self._classify_plan_vote(
+                    reply,
+                    speaker=speaker,
+                    participants=participants,
+                    original=original,
+                )
+                if verdict == "pmas":
+                    return "pmas"
+                if verdict == "agree":
+                    agreed.add(speaker)
                     break
+            else:
+                print(
+                    f"[planner] {speaker} did not AGREE — switching to DMAS",
+                    flush=True,
+                )
+                return "pmas"
 
-        print("[planner] no unanimous AGREE on this STEP — switching to PMAS")
+        if agreed == set(participants):
+            print("[planner] every robot AGREEd the original plan")
+            return "agree"
+        print("[planner] no unanimous AGREE — switching to DMAS")
         return "pmas"
 
     def _execute(
@@ -378,25 +412,30 @@ class HMAS1Session:
     ) -> Turn:
         feedback = ""
         for attempt in range(MAX_SYNTAX_RETRIES + 1):
-            prompt = (
-                "PEER MODE (PMAS). The original central mission plan is gone. "
-                "There is no central planner. "
-                "If [World State Now] already achieves the mission, answer "
-                "FINISHED — do not propose another drive.\n\n"
-                + build_pmas_turn_prompt(
-                    speaker=speaker,
-                    mission=mission,
-                    participants=participants,
-                    state_text=state_text,
-                    history=history,
-                    dialogue=dialogue,
-                    consensus=consensus,
-                    round_index=round_index,
-                    feedback=feedback,
-                )
+            inner = build_pmas_turn_prompt(
+                speaker=speaker,
+                mission=mission,
+                participants=participants,
+                state_text=state_text,
+                history=history,
+                dialogue=dialogue,
+                consensus=consensus,
+                round_index=round_index,
+                turn_index=turn_index,
+                feedback=feedback,
             )
+            if in_talk_window(turn_index):
+                prompt = f"{HUDDLE_TURN_PREFIX}\n{inner}"
+            else:
+                prompt = (
+                    "PEER MODE (DMAS). The original central mission plan is gone. "
+                    "There is no central planner. "
+                    "If [World State Now] already achieves the mission, answer "
+                    "FINISHED — do not propose another drive.\n\n"
+                    + inner
+                )
             print(
-                f"  asking {speaker} (PMAS r{round_index} t{turn_index}"
+                f"  asking {speaker} (DMAS r{round_index} t{turn_index}"
                 f"{'' if attempt == 0 else f' retry {attempt}'})...",
                 flush=True,
             )
@@ -409,11 +448,16 @@ class HMAS1Session:
             preview = " ".join((reply or "").split())[:160]
             print(f"  [{speaker}] {preview}", flush=True)
             turn = parse_turn(reply, participants)
+            last_attempt = attempt >= MAX_SYNTAX_RETRIES
             if turn.kind == INVALID:
                 feedback = (
-                    "No PLAN / AGREE / FINISHED block was found. "
-                    "Answer with one of those three blocks and nothing else."
+                    "Your reply was empty. Argue in plain language, or end "
+                    "with PLAN / AGREE / FINISHED."
                 )
+            elif in_talk_window(turn_index) and turn.kind in (PLAN, AGREE):
+                feedback = talk_window_feedback(turn_index)
+                if last_attempt:
+                    return coerce_talk_window(turn, turn_index)
             elif turn.kind == PLAN:
                 problems = verify_plan(turn.legs, participants, env=self.env)
                 if not problems:
@@ -421,7 +465,7 @@ class HMAS1Session:
                 feedback = "Rejected because " + "; ".join(problems)
             else:
                 return turn
-            print(f"  [{speaker}] PMAS retry {attempt + 1}: {feedback}")
+            print(f"  [{speaker}] DMAS retry {attempt + 1}: {feedback}")
         return Turn(kind=INVALID, raw="")
 
     def _pmas_run(
@@ -454,13 +498,13 @@ class HMAS1Session:
             )
             for i, item in enumerate(transcript)
         ]
-        print(f"\n=== PMAS fallback ({why}) ===", flush=True)
+        print(f"\n=== DMAS fallback ({why}) ===", flush=True)
 
         while executed < MAX_PLAN_STEPS:
             self.env.refresh()
             state_before = self.env.state_text()
             round_index = executed + 1
-            print(f"\n--- PMAS round {round_index} ---", flush=True)
+            print(f"\n--- DMAS round {round_index} ---", flush=True)
             consensus = Consensus(participants)
             dialogue: list[dict[str, str]] = []
             count = len(participants)
@@ -469,6 +513,8 @@ class HMAS1Session:
             outcome = CONTINUE
 
             for turn_index in range(1, MAX_TURNS_PER_ROUND + 1):
+                if turn_index == MIN_TALK_TURNS + 1:
+                    print("  ----- now planning -----", flush=True)
                 speaker = order[(turn_index - 1) % count]
                 turn = self._pmas_ask_turn(
                     speaker,
@@ -495,7 +541,11 @@ class HMAS1Session:
                     {"speaker": speaker, "kind": turn.kind, "text": turn.raw.strip()}
                 )
                 outcome = consensus.apply(speaker, turn)
-                print(f"  turn {turn_index}: {speaker} {turn.summary()}")
+                if turn.kind == TALK:
+                    preview = " ".join((turn.raw or "").split())[:160]
+                    print(f"  turn {turn_index}: {speaker}: {preview}")
+                else:
+                    print(f"  turn {turn_index}: {speaker} {turn.summary()}")
                 if outcome != CONTINUE:
                     break
             else:
@@ -508,7 +558,7 @@ class HMAS1Session:
                 else:
                     return {
                         "status": "failed_no_consensus",
-                        "reason": f"PMAS produced no plan in round {round_index}",
+                        "reason": f"DMAS produced no plan in round {round_index}",
                         "steps_taken": executed,
                         "transcript": transcript,
                     }
@@ -517,7 +567,7 @@ class HMAS1Session:
                 return {
                     "status": "success",
                     "reason": (
-                        "every robot reported FINISHED in PMAS after "
+                        "every robot reported FINISHED in DMAS after "
                         f"{executed} executed step(s)"
                     ),
                     "steps_taken": executed,
@@ -526,13 +576,13 @@ class HMAS1Session:
             if outcome != EXECUTE or not consensus.proposal:
                 return {
                     "status": "failed_no_consensus",
-                    "reason": f"PMAS produced no plan in round {round_index}",
+                    "reason": f"DMAS produced no plan in round {round_index}",
                     "steps_taken": executed,
                     "transcript": transcript,
                 }
 
             executed += 1
-            print(f"[EXECUTE PMAS step {executed}]")
+            print(f"[EXECUTE DMAS step {executed}]")
             results = self._execute(
                 consensus.proposal, step_index=executed, n_steps=executed
             )
@@ -582,7 +632,7 @@ class HMAS1Session:
             task=task, history=history, participants=participants
         )
         if original is None:
-            print("[planner] no usable original plan — starting as PMAS")
+            print("[planner] no usable original plan — starting as DMAS")
             return self._pmas_run(
                 task=task,
                 participants=participants,
@@ -595,41 +645,34 @@ class HMAS1Session:
         n_steps = len(original)
         print(f"[ORIGINAL PLAN]\n{mission_text(original, participants)}")
 
-        for offset, legs in enumerate(original):
-            remaining = original[offset:]
-            step_index = offset + 1
-            print(f"\n=== vote on original STEP {step_index}/{n_steps} ===")
-            vote = self._vote_step(
+        vote = self._vote_original_plan(
+            task=task,
+            history=history,
+            participants=participants,
+            original=original,
+        )
+        if vote == "pmas":
+            return self._pmas_run(
                 task=task,
-                history=history,
                 participants=participants,
-                original=original,
-                remaining=remaining,
-                current=legs,
-                step_index=step_index,
-                n_steps=n_steps,
+                history=history,
+                transcript=transcript,
+                executed=executed,
+                why="a robot rejected the original mission plan (DISAGREE or a different PLAN).",
             )
-            if vote == "pmas":
-                return self._pmas_run(
-                    task=task,
-                    participants=participants,
-                    history=history,
-                    transcript=transcript,
-                    executed=executed,
-                    why=(
-                        f"a robot rejected original STEP {step_index} "
-                        "(DISAGREE or a different PLAN)."
-                    ),
-                )
+
+        for offset, legs in enumerate(original):
+            step_index = offset + 1
             if is_finish_step(legs):
                 print(
-                    f"[FINISH] robots AGREEd original STEP {step_index} — mission complete",
+                    f"[FINISH] original plan STEP {step_index} is FINISHED — "
+                    "mission complete",
                     flush=True,
                 )
                 return {
                     "status": "success",
                     "reason": (
-                        "robots AGREEd the original plan's FINISH STEP "
+                        "robots AGREEd the original plan; FINISH STEP reached "
                         f"after {executed} executed step(s)"
                     ),
                     "steps_taken": executed,
@@ -671,8 +714,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "HMAS-1 planner: one full mission plan ending with FINISHED, "
-            "per-STEP AGREE votes, PMAS peer fallback if the original plan "
-            "is discarded."
+            "one AGREE/DISAGREE vote on that plan, DMAS peer fallback if "
+            "anyone rejects it."
         )
     )
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -697,9 +740,9 @@ def main() -> None:
     print(f"HMAS-1 planner online. Robots: {', '.join(participants)}")
     print(
         f"Limits: {MAX_PLAN_STEPS} work STEPs plus a final FINISHED STEP, "
-        f"{MAX_DIALOGUE_ROUNDS} vote rounds per STEP, {MAX_SYNTAX_RETRIES} "
-        "syntax retries. AGREE on FINISHED ends the mission. A DISAGREE or "
-        "new PLAN discards the original mission and continues as PMAS."
+        f"{MAX_SYNTAX_RETRIES} syntax retries. One AGREE/DISAGREE vote on "
+        "the original plan; unanimous AGREE executes it. A DISAGREE or "
+        "new PLAN discards it and continues as DMAS."
     )
     print("Type the mission and press Enter. Ctrl+C to exit.\n")
 

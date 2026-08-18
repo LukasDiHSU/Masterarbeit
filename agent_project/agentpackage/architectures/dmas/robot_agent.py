@@ -1,9 +1,9 @@
 """One DMAS robot: it argues its own case and carries out its own leg.
 
 Two LLMs per robot, so the usage monitor separates coordination from work:
-``SmallDeliveryRobot_i:planner`` speaks in the discussion and may inspect the
-map (stations, poses, held boxes) but cannot drive; ``SmallDeliveryRobot_i``
-executes the agreed leg with the MCP robot tools.
+``SmallDeliveryRobot_i:planner`` argues in the discussion (map tools only)
+and votes on a PLAN; ``SmallDeliveryRobot_i`` executes the agreed leg with
+the MCP robot tools.
 
 The robot is a pure request/reply peer on the mesh. It never asks anybody
 anything, which is what makes the protocol deadlock-free.
@@ -25,7 +25,7 @@ from ...config import (
     nav_id_for_tb,
     robot_peer_name,
 )
-from ...instructions import dmas_discussion, dmas_executor
+from ...instructions import dmas_discussion, dmas_executor, fleet_huddle
 from ...mcp_client import load_mcp_tools_safe
 from ..conflict_based.mesh_bus import MeshNode
 from .protocol import (
@@ -33,6 +33,7 @@ from .protocol import (
     EXECUTE_PREFIX,
     TURN_PREFIX,
     build_execution_prompt,
+    in_talk_window,
     parse_message,
 )
 
@@ -63,6 +64,23 @@ _DISCUSSION_MAP_TOOLS = frozenset(
         "distance_to_station",
     }
 )
+
+
+class HuddleAgent(BaseAgent):
+    """Spoken huddle turns: no tools, so the model cannot dump a snapshot."""
+
+    def __init__(self, peer_name: str):
+        super().__init__(
+            AgentSpec(
+                name=f"{peer_name}:huddle",
+                description=f"DMAS huddle speaker of {peer_name}.",
+                system_prompt=fleet_huddle(name=peer_name, n=AGENT_COUNT),
+            ),
+            architecture=ARCHITECTURE,
+        )
+
+    def _retrieve_tools(self):
+        return []
 
 
 class DiscussionAgent(BaseAgent):
@@ -129,6 +147,7 @@ class DMASRobot:
         self.nav_id = nav_id_for_tb(robot_id)
         self.name = robot_peer_name(robot_id)
         self.discussion = DiscussionAgent(self.name, self.nav_id)
+        self.huddle = HuddleAgent(self.name)
         self.executor = ExecutorAgent(self.name, self.nav_id)
         # A robot can only do one physical thing at a time.
         self._exec_lock = threading.Lock()
@@ -149,9 +168,11 @@ class DMASRobot:
         round_index = int(payload.get("round", 0))
         turn_index = int(payload.get("turn", 0))
         prompt = str(payload.get("prompt", ""))
+        talk_only = bool(payload.get("talk_only", in_talk_window(turn_index)))
+        agent = self.huddle if talk_only else self.discussion
         # The prompt carries the whole round, so every turn starts from a clean
         # thread instead of seeing its own earlier turns twice.
-        return self.discussion.invoke(prompt, thread_id=f"r{round_index}-t{turn_index}")
+        return agent.invoke(prompt, thread_id=f"r{round_index}-t{turn_index}")
 
     def run_leg(self, payload: dict) -> str:
         round_index = int(payload.get("round", 0))

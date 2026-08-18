@@ -35,15 +35,21 @@ from .protocol import (
     MAX_ROUNDS,
     MAX_SYNTAX_RETRIES,
     MAX_TURNS_PER_ROUND,
+    MIN_TALK_TURNS,
+    AGREE,
     PLAN,
+    TALK,
     TURN_TIMEOUT,
     Consensus,
     RoundRecord,
     Turn,
     build_turn_prompt,
+    coerce_talk_window,
     execute_message,
+    in_talk_window,
     looks_idle,
     parse_turn,
+    talk_window_feedback,
     turn_message,
     verify_plan,
 )
@@ -81,6 +87,7 @@ class Session:
                 dialogue=dialogue,
                 consensus=consensus,
                 round_index=round_index,
+                turn_index=turn_index,
                 feedback=feedback,
             )
             try:
@@ -97,11 +104,16 @@ class Session:
                 return Turn(kind=INVALID, raw="")
 
             turn = parse_turn(reply, self.participants)
+            last_attempt = attempt >= MAX_SYNTAX_RETRIES
             if turn.kind == INVALID:
                 feedback = (
-                    "No PLAN / AGREE / FINISHED block was found in your answer. "
-                    "Answer with one of the three blocks and nothing else."
+                    "Your reply was empty. Argue in plain language, or end "
+                    "with PLAN / AGREE / FINISHED."
                 )
+            elif in_talk_window(turn_index) and turn.kind in (PLAN, AGREE):
+                feedback = talk_window_feedback(turn_index)
+                if last_attempt:
+                    return coerce_talk_window(turn, turn_index)
             elif turn.kind == PLAN:
                 problems = verify_plan(turn.legs, self.participants, env=self.env)
                 if not problems:
@@ -124,6 +136,8 @@ class Session:
         order = self.participants[offset:] + self.participants[:offset]
 
         for turn_index in range(1, MAX_TURNS_PER_ROUND + 1):
+            if turn_index == MIN_TALK_TURNS + 1:
+                print("  ----- now planning -----", flush=True)
             speaker = order[(turn_index - 1) % count]
             turn = self._ask_turn(
                 speaker,
@@ -171,7 +185,11 @@ class Session:
             )
         elif outcome == CONTINUE and consensus.proposal:
             detail = f" ({len(consensus.agreed)}/{len(self.participants)} back the plan)"
-        print(f"  turn {turn_index}: {speaker} {turn.summary()}{detail}")
+        if turn.kind == TALK:
+            preview = " ".join((turn.raw or "").split())[:160]
+            print(f"  turn {turn_index}: {speaker}: {preview}")
+        else:
+            print(f"  turn {turn_index}: {speaker} {turn.summary()}{detail}")
         return outcome
 
     # --- execution ------------------------------------------------------
@@ -209,7 +227,7 @@ class Session:
         for round_index in range(1, MAX_ROUNDS + 1):
             self.env.refresh()
             state_before = self.env.state_text()
-            print(f"\n--- round {round_index} ---")
+            print(f"\n--- round {round_index} discussion ---")
 
             outcome, consensus = self._discuss(
                 round_index=round_index, mission=mission, state_text=state_before
@@ -228,6 +246,7 @@ class Session:
                     f"  executing last plan from {consensus.proposer} "
                     f"({backing}/{fleet} had agreed)"
                 )
+            print(f"\n--- round {round_index} execution ---")
             legs = dict(consensus.proposal)
             results = self._execute(legs, round_index)
 
@@ -248,8 +267,9 @@ class Session:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Mission console for DMAS. The fleet agrees on a plan, executes one "
-            "short leg each, and meets again until every robot says FINISHED."
+            "Mission console for DMAS. The fleet argues, agrees on a plan, "
+            "executes one short leg each, and meets again until every robot "
+            "says FINISHED."
         )
     )
     parser.add_argument("--host", default=DEFAULT_MESH_HOST)
@@ -267,9 +287,11 @@ def main() -> None:
     print(f"Mission console online as {args.name!r} at {args.host}:{args.cli_port}.")
     print(f"Fleet: {', '.join(participants)}")
     print(
-        f"Protocol: discuss until all agree (or after {MAX_TURNS_PER_ROUND} turns "
-        f"the last plan is executed) -> one short leg each -> discuss again "
-        f"(at most {MAX_ROUNDS} rounds). Mission ends when every robot says FINISHED."
+        f"Protocol: first {MIN_TALK_TURNS} turns of each round are discussion "
+        f"only (no PLAN/AGREE), then PLAN and AGREE "
+        f"(or after {MAX_TURNS_PER_ROUND} turns the last plan is executed) "
+        f"-> one short leg each -> discuss again (at most {MAX_ROUNDS} rounds). "
+        "Mission ends when every robot says FINISHED."
     )
     print("Paste a mission prompt and press Enter. Type quit / exit to leave.\n")
 

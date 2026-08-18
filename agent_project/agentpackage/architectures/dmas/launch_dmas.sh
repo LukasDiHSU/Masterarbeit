@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Launches DMAS: MCP + AGENT_COUNT mesh robots + mission CLI.
 # Fleet size: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
-# The CLI chairs turn-taking; robots discuss, execute one short leg, meet again.
+# The CLI chairs turn-taking; robots argue in natural language, vote AGREE on
+# a PLAN, execute one short leg, and meet again.
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ARCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

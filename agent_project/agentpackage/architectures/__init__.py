@@ -7,10 +7,10 @@
   opens only when MCP events (e.g. ``conflict``, ``box_missing``) involve
   them, and only toward the event's participant subset.
 - ``hmas1`` (HMAS-1): a central planner proposes a full multi-step mission
-  plan once (last STEP is FINISHED); robots vote per STEP (AGREE executes a
-  work step; AGREE on FINISHED ends the mission). DISAGREE or a different
-  PLAN discards the original plan and the fleet continues as PMAS peers.
-  Star broker only.
+  plan once (last STEP is FINISHED); each robot votes AGREE or DISAGREE
+  once on that whole plan. Unanimous AGREE executes the STEPs in order.
+  DISAGREE or a different PLAN discards it and the fleet continues as DMAS
+  peers. Star broker only.
 - ``hmas2`` (HMAS-2): centralized planner proposes a fleet plan; each robot
   has a local LLM that returns AGREE/DISAGREE feedback; the planner re-plans
   until consensus, then sends execute instructions (still over the star broker).

@@ -1,9 +1,9 @@
 """HMAS-1 dialogue helpers.
 
-A central LLM planner proposes a full multi-step mission plan. Robots vote
-per STEP (AGREE = execute this step as written). The last STEP is always
-FINISHED: unanimous AGREE ends the mission. DISAGREE or a different PLAN
-discards the original plan and the fleet continues as a peer (PMAS) network.
+A central LLM planner proposes a full multi-step mission plan. Each robot
+votes AGREE or DISAGREE once on that whole plan (no debate). Unanimous
+AGREE executes the STEPs in order. DISAGREE or a different PLAN discards
+the original plan and the fleet continues as a peer (DMAS) network.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from ...paper_protocol import MAX_PLAN_STEPS, Environment, StepHistory, build_pl
 from ..dmas.protocol import parse_legs, verify_plan
 
 EXECUTE_DISPATCH_PREFIX = "EXECUTE_ACTION:"
+HUDDLE_TURN_PREFIX = "HUDDLE_TURN:"
 _EXECUTE_RE = re.compile(r"^\s*EXECUTE\b[:\s]*", re.IGNORECASE)
 _PLAN_RE = re.compile(r"^\s*PLAN\b[:\s]*", re.IGNORECASE)
 _STEP_RE = re.compile(r"^STEP\s+(\d+)\s*:?\s*(.*)$", re.IGNORECASE)
@@ -247,7 +248,7 @@ def build_central_plan_prompt(
     )
 
 
-def build_step_vote_prompt(
+def build_plan_vote_prompt(
     *,
     task: str,
     env: Environment,
@@ -255,48 +256,23 @@ def build_step_vote_prompt(
     participants: list[str],
     speaker: str,
     original: MissionPlan,
-    current: dict[str, str],
-    step_index: int,
-    n_steps: int,
-    round_idx: int,
-    max_rounds: int,
-    dialogue: list[dict[str, str]],
     syntax_feedback: str = "",
 ) -> str:
     others = [p for p in participants if p != speaker]
-    finish = is_finish_step(current)
-    now_header = (
-        f"[Vote on STEP {step_index} of {n_steps} NOW — FINISH]\n"
-        "The original plan says the mission is done. AGREE ends it."
-        if finish
-        else f"[Vote on STEP {step_index} of {n_steps} NOW]"
-    )
-    highlighted = (
-        "[Original Mission Plan]\n"
-        + mission_text(original, participants)
-        + f"\n\n{now_header}\n"
-        + legs_text(current, participants)
-    )
+    highlighted = "[Original Mission Plan]\n" + mission_text(original, participants)
     return build_planning_prompt(
         task=task,
         env=env,
         history=history,
         participants=participants,
-        step_index=step_index,
+        step_index=1,
         speaker=speaker,
         role_line=hmas1_robot_role(
             speaker=speaker,
-            order=" -> ".join(participants),
-            round_idx=round_idx,
-            max_rounds=max_rounds,
             peers=", ".join(others) or "(none)",
-            current_step=step_index,
-            n_steps=n_steps,
-            finish_step=finish,
         ),
         initial_plan=highlighted,
-        dialogue=dialogue,
-        closing_instruction=hmas1_robot_closing(finish_step=finish),
+        closing_instruction=hmas1_robot_closing(),
         syntax_feedback=syntax_feedback,
         include_action_menu=False,
     )
