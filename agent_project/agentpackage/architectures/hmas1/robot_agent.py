@@ -1,8 +1,9 @@
-"""HMAS-1 local robot: discusses the central plan, then executes its own leg.
+"""HMAS-1 local robot: votes per STEP of the central plan, or talks as PMAS.
 
-During dialogue the discussion LLM (no drive tools) votes AGREE / DISAGREE.
-After consensus the executor LLM carries out the agreed natural-language leg
-with MCP tools — same split as DMAS.
+During the original plan, the discussion LLM (no drive tools) votes AGREE on
+the next STEP only. The last STEP is FINISHED: unanimous AGREE ends the
+mission. DISAGREE / a new PLAN drops that plan; later turns use PLAN / AGREE
+/ FINISHED like PMAS. The executor LLM runs each dispatched work STEP.
 """
 
 from __future__ import annotations
@@ -111,8 +112,8 @@ class HMAS1RobotAgent:
 
     def _run_leg(self, message: str) -> str:
         body = message[len(EXECUTE_DISPATCH_PREFIX) :].strip()
-        # Drop the parenthetical round note the planner appends.
-        leg = body.split("\n(planning round", 1)[0].strip()
+        # Drop the parenthetical step note the planner appends.
+        leg = body.split("\n(", 1)[0].strip()
         self._round += 1
         with self._exec_lock:
             prompt = build_execution_prompt(
@@ -160,14 +161,20 @@ def main() -> None:
                 reply = robot.invoke(text, thread_id=thread_id)
             except Exception as e:
                 reply = f"{my_name} failed to process request: {type(e).__name__}: {e}"
-            print(f"[{my_name}] {reply.strip()[:400]}")
-            bus.send(
-                type="agent_reply",
-                to=src,
-                text=reply,
-                thread_id=thread_id,
-                request_id=request_id,
-            )
+            print(f"[{my_name}] {reply.strip()[:400]}", flush=True)
+            try:
+                bus.send(
+                    type="agent_reply",
+                    to=src,
+                    text=reply,
+                    thread_id=thread_id,
+                    request_id=request_id,
+                )
+            except Exception as e:
+                print(
+                    f"[{my_name}] failed to send reply: {type(e).__name__}: {e}",
+                    flush=True,
+                )
 
         threading.Thread(
             target=_job, daemon=True, name=f"{my_name}-handle-{request_id or 'req'}"

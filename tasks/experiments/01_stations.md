@@ -94,6 +94,6 @@ Look up station coordinates via tools. Report when all deliveries are done.
 
 - Did allocation actually happen (not one robot doing everything)?
 - Were station coords fetched via tools (not hallucinated)?
-- For HMAS-1: did robots AGREE to the planner's natural-language plan (or DISAGREE with a corrected PLAN) before navigation finished?
+- For HMAS-1: did robots AGREE **this STEP** of the original plan before executing it? Did they AGREE the last **FINISHED** STEP to end (not a PMAS wrap-up)? If someone DISAGREEd or wrote a new PLAN, did they switch to PMAS (original plan dropped)?
 - For HMAS-2: did all involved robots AGREE before EXECUTE?
 - For AgentNet: did they execute a short chunk then meet again, and end only when every robot said FINISHED?

@@ -9,6 +9,7 @@ testable with scripted replies.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -61,6 +62,14 @@ _FINISHED_RE = re.compile(r"^FINISH(?:ED)?\b", re.IGNORECASE)
 _IDLE_RE = re.compile(
     r"^(wait|hold|idle|stay|stand|remain|nothing|none|no action|-|—)\b",
     re.IGNORECASE,
+)
+_MANIP_RE = re.compile(r"\b(pick|pickup|drop|place)\b", re.IGNORECASE)
+# Already standing at/near the named station (approach poses included).
+_ALREADY_THERE_M = 2.5
+NOOP_PLAN_MSG = (
+    "this PLAN would not change the world (everyone waits or is already at "
+    "the station they would drive to). If [World State Now] already satisfies "
+    "the Mission goal, answer FINISHED."
 )
 
 
@@ -162,7 +171,50 @@ def _parse_legs(lines: list[str], participants: list[str]) -> dict[str, str]:
     return legs
 
 
-def verify_plan(legs: dict[str, str], participants: list[str]) -> list[str]:
+def looks_idle(leg: str) -> bool:
+    return bool(_IDLE_RE.match((leg or "").strip()))
+
+
+def _station_ids_in_leg(leg: str, env: Any) -> list[str]:
+    text = (leg or "").lower()
+    found: list[str] = []
+    stations = list(getattr(env, "stations", None) or [])
+    for station in stations:
+        sid = str(station.get("id") or "")
+        if sid and sid.lower() in text and sid not in found:
+            found.append(sid)
+    return found
+
+
+def _already_at(robot: str, station_id: str, env: Any) -> bool:
+    at = env.station_at(robot) if hasattr(env, "station_at") else None
+    if at and at.lower() == station_id.lower():
+        return True
+    pose = env.pose(robot) if hasattr(env, "pose") else None
+    station = env.station(station_id) if hasattr(env, "station") else None
+    if pose is None or station is None:
+        return False
+    return math.hypot(
+        float(pose.get("x", 0.0)) - float(station.get("x", 0.0)),
+        float(pose.get("y", 0.0)) - float(station.get("y", 0.0)),
+    ) <= _ALREADY_THERE_M
+
+
+def _leg_is_noop(leg: str, robot: str, env: Any | None) -> bool:
+    if looks_idle(leg):
+        return True
+    if env is None or _MANIP_RE.search(leg or ""):
+        return False
+    dests = _station_ids_in_leg(leg, env)
+    return bool(dests) and all(_already_at(robot, dest, env) for dest in dests)
+
+
+def verify_plan(
+    legs: dict[str, str],
+    participants: list[str],
+    *,
+    env: Any | None = None,
+) -> list[str]:
     """Rules-based check of a proposed plan; empty list means accepted."""
     errors: list[str] = []
     missing = [p for p in participants if p not in legs]
@@ -171,16 +223,9 @@ def verify_plan(legs: dict[str, str], participants: list[str]) -> list[str]:
             "no leg for " + ", ".join(missing) + " — every robot needs exactly one "
             "line '<RobotName>: <leg>'; write 'wait' for a robot that should hold."
         )
-    if legs and all(_IDLE_RE.match(text) for text in legs.values()):
-        errors.append(
-            "every robot would only wait, so the round would change nothing — "
-            "give at least one robot real work."
-        )
+    if legs and all(_leg_is_noop(text, robot, env) for robot, text in legs.items()):
+        errors.append(NOOP_PLAN_MSG)
     return errors
-
-
-def looks_idle(leg: str) -> bool:
-    return bool(_IDLE_RE.match((leg or "").strip()))
 
 
 # --- consensus within one round --------------------------------------------
@@ -206,11 +251,17 @@ class Consensus:
             self.agreed = {speaker}
             self.finished.clear()
         elif turn.kind == AGREE:
-            self.finished.discard(speaker)
-            if self.proposal:
-                self.agreed.add(speaker)
+            if self.finished and not self.proposal:
+                # A FINISHED is already on the table: AGREE means "yes, we are done".
+                self.finished.add(speaker)
+            else:
+                self.finished.discard(speaker)
+                if self.proposal:
+                    self.agreed.add(speaker)
         elif turn.kind == FINISHED:
             self.agreed.discard(speaker)
+            self.proposal = {}
+            self.proposer = ""
             self.finished.add(speaker)
 
         if len(self.finished) == len(self.participants):
@@ -223,6 +274,13 @@ class Consensus:
         return [p for p in self.participants if p not in self.agreed]
 
     def table_text(self) -> str:
+        if self.finished and not self.proposal:
+            names = ", ".join(sorted(self.finished))
+            return (
+                f"{names} said FINISHED (mission complete). "
+                "If [World State Now] meets the goal, answer FINISHED or AGREE. "
+                "Do not put a new PLAN on the table."
+            )
         if not self.proposal:
             return "(no plan on the table yet — somebody has to propose one)"
         lines = [f"Proposed by {self.proposer}:"]
@@ -246,7 +304,7 @@ class RoundRecord:
     state_changed: bool = True
 
 
-def format_history(records: list[RoundRecord], *, keep: int = 3) -> str:
+def format_history(records: list[RoundRecord], *, keep: int = 8) -> str:
     if not records:
         return "(nothing has been executed yet — this is the first round)"
     lines: list[str] = []
@@ -296,6 +354,13 @@ def build_turn_prompt(
         "",
         "[Mission]",
         mission.strip(),
+        "",
+        "[Start vs now]",
+        "The Mission describes the original task and the STARTING layout. "
+        "Poses named there are not current and are not targets by themselves. "
+        "[World State Now] is where every robot stands THIS round. If that "
+        "current state already achieves the goal, answer FINISHED. Do not "
+        "undo completed work.",
         "",
         "[World State Now]",
         state_text.strip(),

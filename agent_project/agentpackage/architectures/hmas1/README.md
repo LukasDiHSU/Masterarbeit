@@ -1,41 +1,42 @@
-# HMAS-1 architecture (central plan → robot vote → MCP execute)
+# HMAS-1 architecture (full central plan → per-STEP vote → FINISH, else PMAS)
 
 Paper mapping (Chen et al., arXiv:2309.15943, Fig. 3b): HMAS-1 is the hybrid
-variant of **DMAS**. A central LLM proposes a **short natural-language plan**
-(one leg per robot). The robot agents then talk in **fixed turn order**. They
-**follow that plan** (`AGREE`) unless they see an exception, in which case they
-vote **`DISAGREE`** and may send a corrected `PLAN`. The round runs once every
-robot has agreed; each robot then carries out **its own leg with MCP tools**
-(same as DMAS). The resulting state opens the next round.
+variant of **DMAS**. A central LLM proposes a **full natural-language mission
+plan** (ordered `STEP` blocks, e.g. pick, then drop). The **last STEP is
+always `FINISHED`**. The robots do **not** ratify that plan as a whole. They
+vote in **fixed turn order on the next STEP only**. `AGREE` from everyone
+(and no rewritten plan) executes a work STEP in parallel via MCP, or **ends
+the mission** if that STEP is `FINISHED`. `DISAGREE` or a **different `PLAN`**
+**discards the original mission plan**; the fleet then continues as a **peer
+(PMAS) network** on the same star broker (the planner no longer proposes).
 
 ```
-   ┌──────────────────────── planning round n ───────────────────────┐
-   │  read world state ─► central planner proposes one leg / robot   │
-   │        │                                                        │
-   │        ▼   SmallDeliveryRobot_0 → _1 → _2 → …  (turn taking)    │
-   │  AGREE (follow) or DISAGREE / corrected PLAN on exceptions      │
-   │        │                                                        │
-   │        ▼  each robot runs ITS leg via MCP (in parallel)         │
-   └──────────────────────────► planning round n+1 ──────────────────┘
+   central planner → full mission (STEP 1 .. k, FINISHED)     [once]
+        │
+        ▼  vote on STEP i only  (_0 → _1 → …)
+   all AGREE, work STEP ────────► execute STEP i ──► vote on STEP i+1
+   all AGREE, FINISHED STEP ────► mission ends
+        │
+        DISAGREE / new PLAN
+        ▼
+   original plan dropped ──► PMAS: peers PLAN/AGREE/FINISHED until done
 ```
 
-- **Planner** (`planner_agent.py`): owns the outer loop (`HMAS1Session`) and
-  the central LLM that proposes one plan per round (map inspection tools only).
-- **Robots** (`robot_agent.py`): discussion LLM during voting (read-only map
-  tools), executor LLM afterwards (`navigate_to_pose` / `pickup_box` / …).
-- **Helpers** (`dialogue.py`): participant resolution, PLAN parser (DMAS-style
-  `Name: <leg>` lines), prompt layout.
+- **Planner** (`planner_agent.py`): proposes the original mission once (map
+  tools only), appending `FINISHED` if the model omitted it. After a rejected
+  STEP it stays silent; `HMAS1Session` chairs PMAS turn-taking.
+- **Robots** (`robot_agent.py`): discussion LLM for votes / PMAS talk
+  (read-only map tools); executor LLM per dispatched work STEP.
+- **Helpers** (`dialogue.py`): multi-step PLAN parser, per-STEP vote prompts.
 - **Transport**: `architectures/centralized/agent_bus.py` (star broker only).
+  PMAS fallback is the DMAS protocol over that star, not a second mesh.
 
-Legs are ordinary language, e.g. `drive through the gap to the east side`.
-Station ids and coordinates must come from the world snapshot or map tools —
-never from a `move_to`/`pick` DSL.
+A work `STEP` leg is ordinary language. Inside one STEP a leg is at most one
+drive plus at most one pick or drop.
 
-A mission fails when the dialogue finds no agreed plan within
-`PAPER_MAX_DIALOGUE_ROUNDS` (3), or when `PAPER_MAX_PLAN_STEPS` (12) rounds
-are reached.
-
-Contrast with **HMAS-2** (central plan → parallel feedback → re-plan) and plain
-**conflict_based** (event-gated mesh peers, no central primer).
+Limits: `PAPER_MAX_DIALOGUE_ROUNDS` (3) vote passes per STEP,
+`PAPER_MAX_PLAN_STEPS` (12) executed work STEPs, `PAPER_MAX_SYNTAX_RETRIES` (3).
+Hitting a limit before FINISH falls through to PMAS. Hitting a PMAS limit
+ends the mission as a failure.
 
 Run: `./launch_hmas1.sh` (optional `--agents 2|4|6|8`)

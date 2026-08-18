@@ -103,7 +103,7 @@ class Session:
                     "Answer with one of the three blocks and nothing else."
                 )
             elif turn.kind == PLAN:
-                problems = verify_plan(turn.legs, self.participants)
+                problems = verify_plan(turn.legs, self.participants, env=self.env)
                 if not problems:
                     return turn
                 feedback = "Rejected because " + "; ".join(problems)

@@ -1,0 +1,12 @@
+{
+  "session_id": "hmas1_20260818_114507",
+  "architecture": "hmas1",
+  "agent_count": 4,
+  "agent_world": "bottleneck",
+  "started_at": "2026-08-18T11:45:07+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5.4-mini",
+  "saved_as": "bottleneck_medium_hmas1_r4_fail",
+  "saved_at": "2026-08-18T11:50:15.411437+02:00"
+}

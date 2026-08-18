@@ -10,7 +10,7 @@ Pptx names → current code:
 |---|---|---|---|---|
 | Zentral | **centralized** | `master` | 1 master + N robot workers | Master delegates via `ask_robot` / `ask_all_robots` / `ask_selected_robots` |
 | Dezentral | **conflict_based** | mission CLI / one peer | N peer robots, no master | Solo by default; mesh negotiation only on conflict events |
-| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Per round: planner proposes one natural-language leg per robot, robots AGREE (or DISAGREE on an exception); each robot then executes its leg with MCP tools |
+| Hybrid | **HMAS-1** | `planner` | 1 planner + N robots | Planner proposes a full mission plan once (last STEP `FINISHED`); robots vote per STEP (`AGREE` = execute work / end on FINISH). `DISAGREE` / new `PLAN` discards the original plan and continues as PMAS peers |
 | (Hybrid variant) | **HMAS-2** | `planner` | 1 planner + N robots | Planner collects AGREE/DISAGREE, then EXECUTE |
 | Dezentral (AgentNet / DMAS) | **agentnet** | task CLI | N mesh nodes, Agent 0 chairs turns | Robots agree on a short action chunk, execute it, meet again; done when every robot says `FINISHED` |
 
@@ -66,12 +66,14 @@ multi-line blocks in the scenario markdown.
 - All append to `timings.log` under the active experiment session (`tasks/experiments/runs/_active/…`, kept after `save_experiment.sh`).
 
 **HMAS-1 (hybrid of DMAS, Chen et al. arXiv:2309.15943):**
-The central planner proposes a **short natural-language plan** (one leg per
-robot: at most one drive plus at most one pick or drop). Robots take turns and
-**follow that plan** (`AGREE`) unless they see an exception (`DISAGREE`,
-optionally with a corrected `PLAN`). Then each robot carries out **its own
-leg with MCP tools** (`navigate_to_pose` / `pickup_box` / …), same as DMAS.
-- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 rounds), `PAPER_MAX_DIALOGUE_ROUNDS` (3), `PAPER_MAX_SYNTAX_RETRIES` (3). Hitting a limit ends the mission as a failure.
+The central planner proposes a **full natural-language mission plan** (ordered
+`STEP` blocks; one leg per robot per work step: at most one drive plus at most
+one pick or drop). The **last STEP is always `FINISHED`**. Robots do **not**
+ratify the whole plan. They vote on **the next STEP only** (`AGREE` = execute
+a work step as written, or **end the mission** on `FINISHED`). `DISAGREE` or a
+**different `PLAN`** **discards the original plan**; the fleet then continues
+as a **peer (PMAS) network** (`PLAN` / `AGREE` / `FINISHED`).
+- Limits (env-tunable): `PAPER_MAX_PLAN_STEPS` (12 executed STEPs), `PAPER_MAX_DIALOGUE_ROUNDS` (3 vote passes per STEP), `PAPER_MAX_SYNTAX_RETRIES` (3). Hitting a limit ends the mission as a failure.
 
 **AgentNet (DMAS variant, Chen et al. arXiv:2309.15943):** no planner. The
 robots take turns until an `EXECUTE` block with 1–`AGENTNET_CHUNK_STEPS` (2)

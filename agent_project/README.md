@@ -13,9 +13,11 @@ they can be compared directly (see `agentpackage/architectures/`):
 2. **Conflict-based** — peers work alone by default (no master/broker for
    routine work); mesh negotiation opens only when MCP events such as
    conflicts involve them, and only toward that event’s participants.
-3. **HMAS-1** — central planner primes a short natural-language plan; robots then
-   vote in fixed turn order (AGREE, or DISAGREE on an exception) until the
-   round is agreed; each robot executes its own leg with MCP tools.
+3. **HMAS-1** — central planner proposes a full multi-step mission plan once
+   (last STEP is `FINISHED`); robots vote on each STEP (`AGREE` executes a
+   work step, `AGREE` on `FINISHED` ends the mission). `DISAGREE` or a
+   different `PLAN` discards the original plan and the fleet continues as a
+   peer (PMAS) network; each robot executes its own work leg with MCP tools.
 4. **HMAS-2** — central planner proposes a fleet plan; each robot’s local
    LLM reviews its assignment (`AGREE` / `DISAGREE`); the planner re-plans
    until consensus, then sends execute instructions (star broker only).
@@ -124,8 +126,8 @@ printing the commands if no graphical terminal is available):
 # Conflict-based: N solo peers + mission CLI; negotiate only on events
 ./agentpackage/architectures/conflict_based/launch_conflict_based.sh --agents 4
 
-# HMAS-1: 1 broker + N robots + 1 planner; central natural-language plan,
-# robots AGREE or DISAGREE on exceptions, then each executes its leg via MCP.
+# HMAS-1: 1 broker + N robots + 1 planner; full mission plan ending FINISHED,
+# per-STEP votes, PMAS peer fallback if the original plan is discarded.
 ./agentpackage/architectures/hmas1/launch_hmas1.sh --agents 4
 
 # HMAS-2: 1 broker + N local reviewers + 1 planner; plan → AGREE/DISAGREE

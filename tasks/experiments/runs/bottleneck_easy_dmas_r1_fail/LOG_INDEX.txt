@@ -1,0 +1,9 @@
+Run: bottleneck_easy_dmas_r1_fail
+Logs (6):
+
+  - logs/00_usage_monitor.log  (618458 bytes)
+  - logs/01_agent_trace.log  (37821 bytes)
+  - logs/02_mcp_server_shared.log  (42604 bytes)
+  - logs/03_dmas_smalldeliveryrobot_1.log  (1827 bytes)
+  - logs/04_dmas_smalldeliveryrobot_0.log  (2173 bytes)
+  - logs/05_mission_cli.log  (3542 bytes)

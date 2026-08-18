@@ -1,0 +1,12 @@
+{
+  "session_id": "dmas_20260818_100743",
+  "architecture": "dmas",
+  "agent_count": 4,
+  "agent_world": "bottleneck",
+  "started_at": "2026-08-18T10:07:43+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5.4-mini",
+  "saved_as": "bottleneck_medium_dmas_r1_fail",
+  "saved_at": "2026-08-18T10:18:12.641364+02:00"
+}

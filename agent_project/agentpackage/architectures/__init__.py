@@ -6,9 +6,11 @@
 - ``conflict_based``: peers work alone by default on a mesh; negotiation
   opens only when MCP events (e.g. ``conflict``, ``box_missing``) involve
   them, and only toward the event's participant subset.
-- ``hmas1`` (HMAS-1): a central planner primes a short natural-language plan,
-  then robots vote in turn order (AGREE, or DISAGREE on an exception) and each
-  executes its own leg with MCP tools. Star broker only.
+- ``hmas1`` (HMAS-1): a central planner proposes a full multi-step mission
+  plan once (last STEP is FINISHED); robots vote per STEP (AGREE executes a
+  work step; AGREE on FINISHED ends the mission). DISAGREE or a different
+  PLAN discards the original plan and the fleet continues as PMAS peers.
+  Star broker only.
 - ``hmas2`` (HMAS-2): centralized planner proposes a fleet plan; each robot
   has a local LLM that returns AGREE/DISAGREE feedback; the planner re-plans
   until consensus, then sends execute instructions (still over the star broker).

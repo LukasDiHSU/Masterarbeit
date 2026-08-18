@@ -3,10 +3,10 @@ Bottleneck (crossing / priority) — single-line prompts for CLI paste
 Copy ONE line below into the CLI (no line breaks inside the prompt).
 
 === EASY — copy the next line only ===
-You are on the bottleneck map (world: bottleneck). The two robots should exchange their positions by crossing the bottleneck. Only one robot can go through the bottleneck at a time. SmallDeliveryRobot_0 is on the west side, while SmallDeliveryRobot_1 is on the east side. Coordinate so you do not deadlock in the gap. Report when both robots have reached their positions.
+You are on the bottleneck map (world: bottleneck). The two robots should exchange their positions by crossing the bottleneck once. Only one robot can go through the bottleneck at a time. SmallDeliveryRobot_0 is on the west side, while SmallDeliveryRobot_1 is on the east side. Coordinate so you do not deadlock in the gap. Report when both robots have reached their positions.
 
 === MEDIUM — copy the next line only ===
-You are on the bottleneck map (world: bottleneck_1). The robots should exchange their positions by crossing the bottleneck. SmallDeliveryRobot_0 and SmallDeliveryRobot_1 are on the west side, while SmallDeliveryRobot_1 and SmallDeliveryRobot_2 are on the east side. Only one robot can go through the bottleneck at a time. Avoid deadlock in the gap. Report when all robots have reached their target sides.
+You are on the bottleneck map (world: bottleneck). The robots one the west side should swap the positions with the robots on the east side by crossing the bottleneck. SmallDeliveryRobot_0 and SmallDeliveryRobot_1 are on the west side, while SmallDeliveryRobot_2 and SmallDeliveryRobot_3 are on the east side. Only one robot can go through the bottleneck at a time. Avoid deadlock in the gap. Report when all robots have reached their target sides.
 
 === HARD — copy the next line only ===
 You are on the bottleneck map (world: bottleneck_2). Six robots must cross the bottleneck to exchange sides. Priorities: SmallDeliveryRobot_0 and SmallDeliveryRobot_2 highest; then _1 and _3; then _4 and _5. Only one robot can go through the bottleneck at a time. Avoid deadlock in the gap. Report when all robots have reached their target sides.

@@ -8,7 +8,8 @@ state is fed back as context for the next meeting.
 Used by AgentNet (a short chunk of symbolic actions, no planner; the fleet
 reconvenes after the chunk and ends only when every robot says FINISHED).
 HMAS-1 uses the world snapshot and StepHistory from this module, but plans
-in natural language like DMAS.
+in natural language as a full multi-step mission. Robots vote per STEP;
+rejecting a step discards that plan and continues as PMAS.
 """
 
 from __future__ import annotations

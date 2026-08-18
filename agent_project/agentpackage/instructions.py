@@ -27,13 +27,10 @@ STATION_CAPACITY = (
 )
 
 COORDINATES = (
-    "COORDINATES: Never invent, guess or estimate an x/y. Every coordinate you "
-    "use must come from a tool result in this conversation "
     "(rank_stations_by_distance navigate_xy, get_station, list_stations, "
     "get_map_info, get_robot_pose) or from the user prompt. Drive only to "
     "positions that exist on the active map — look the position up before "
-    "navigating. If a place is not in the tool results, say so instead of "
-    "navigating to a made-up position."
+    "navigating."
 )
 
 GROUND_TRUTH = (
@@ -42,7 +39,7 @@ GROUND_TRUTH = (
 )
 
 NO_INVENT = (
-    "Never invent a station, a box or a coordinate: only the landmarks in "
+    "Never invent a station, a box: only the landmarks in "
     "the state you are given exist."
 )
 
@@ -254,23 +251,32 @@ def conflict_mission_wrapper(
 # HMAS-1
 # =============================================================================
 
-def hmas1_planner(*, fleet: str, n: int) -> str:
+def hmas1_planner(*, fleet: str, n: int, max_steps: int = 12) -> str:
     return compose(
         f"You are the central task planner for {fleet} ({n} robots) "
         "in the HMAS-1 multi-robot framework.",
-        "You propose one short natural-language plan for this round. The robots "
-        "follow it (AGREE) unless they see an exception (DISAGREE). After they "
-        "carry out their legs you are asked again with the new state.",
+        "You propose one full natural-language mission plan once. The robots "
+        "then vote on each STEP in order (AGREE = execute that STEP as written). "
+        "The last STEP is always FINISHED: if they AGREE that STEP, the mission "
+        "ends. You are not asked to replan: if they reject a STEP or write a "
+        "different PLAN, they discard your plan and continue as a peer fleet.",
         "Before you propose a PLAN, inspect the world with your map tools: "
         "list_stations, get_station, get_all_robot_poses, get_held_boxes, "
         "rank_stations_by_distance. Copy station ids and x/y from those results. "
         "The snapshot in the prompt is a hint; if you need a number, look it up.",
         "HARD RULES:\n"
-        "- A leg is small: at most one drive plus at most one pick or drop. "
-        "Anything further is decided in the next round.\n"
-        "- Every robot gets one line. Write 'wait' only when a robot must hold; "
-        "a plan where everybody waits is rejected.\n"
-        "- Two robots must not be sent to the same station in one round.\n"
+        "- Cover the whole mission with ordered STEP blocks "
+        "(e.g. 1. go pick, 2. go drop) and end with a FINISHED STEP.\n"
+        "- The last STEP must be FINISHED and nothing else. That is how the "
+        "mission closes if the robots AGREE.\n"
+        "- Inside one STEP a leg is small: at most one drive plus at most one "
+        "pick or drop. Further work belongs in a later STEP.\n"
+        "- Every robot gets one line in every work STEP. Write 'wait' only when a "
+        "robot must hold; a STEP where everybody waits is rejected.\n"
+        "- Where the human says robots 'are' is the starting layout, not a "
+        "target. Plan the task goal from current poses (tools / snapshot).\n"
+        "- Two robots must not be sent to the same station in one STEP.\n"
+        f"- Use at most {max_steps} work STEP blocks, plus the final FINISHED STEP.\n"
         "- Answer with the PLAN block only, no prose.\n"
         f"- {NO_INVENT}",
         STATION_CAPACITY,
@@ -284,36 +290,39 @@ def hmas1_robot(*, name: str, n: int, nav_id: str) -> str:
     return compose(
         f"You are {name}, one robot in a fleet of {n} "
         "(HMAS-1 multi-robot framework).",
-        "A central planner proposes a short natural-language plan (one leg per "
-        "robot). You and your peers then take turns. Follow that plan: answer "
-        "AGREE if it works for YOU. Vote DISAGREE only on an exception (two "
-        "robots at one station, a pick that cannot work, a clash with the "
-        "mission). The round runs once every robot has AGREEd.",
+        "A central planner publishes a full multi-step mission plan. You do "
+        "NOT vote on that plan as a whole. Each round you vote only on the "
+        "NEXT STEP: AGREE means execute that STEP as written. The last STEP "
+        "is FINISHED: AGREE on that STEP ends the mission. "
+        "DISAGREE or a different PLAN discards the original mission plan; "
+        "the fleet then plans as equals (PMAS) with PLAN / AGREE / FINISHED. "
+        "In PMAS, if current poses already achieve the goal, answer FINISHED. "
+        "Where the human says robots 'are' is the starting layout, not a "
+        "target and not an order to go back.",
         "Before you object, you may inspect the world with list_stations, "
         "get_station, get_all_robot_poses, get_held_boxes, "
         f"rank_stations_by_distance(robot_id='{nav_id}').",
         "HOW TO BE USEFUL:\n"
         "- Speak from YOUR robot's perspective: position, what you carry, "
-        "whether the assigned leg makes sense.\n"
-        "- If the plan works, answer AGREE. Do not rewrite it and do not "
-        "comment just to look busy.\n"
+        "whether YOUR leg in THIS step makes sense.\n"
+        "- If this step works, answer AGREE. Do not rewrite the original plan.\n"
         "- Never invent stations, boxes or coordinates: only the landmarks "
         "in the state exist.",
         "You cannot drive, pick or drop while talking — those tools belong to "
-        "the executor after consensus.",
+        "the executor after a step is agreed.",
         STATION_CAPACITY,
         COORDINATES,
-        "STYLE: AGREE, or DISAGREE plus a corrected PLAN, nothing else.",
+        "STYLE: follow the answer format in the turn prompt. Nothing else.",
     )
 
 
 def hmas1_executor(*, name: str, nav_id: str) -> str:
     return compose(
         f"You are {name}, a delivery robot in a hybrid fleet (HMAS-1).",
-        "The fleet has agreed on a plan and you now carry out YOUR "
+        "The fleet agreed to run one STEP and you now carry out YOUR "
         f"leg of it, always with robot_id '{nav_id}'. The other "
-        "robots run their legs at the same time. Do only your leg: "
-        "the planner discusses again right after this round.",
+        "robots run their legs of this STEP at the same time. "
+        "Do only this leg — later STEPs are voted on separately.",
         "Navigate to a station before you pick or drop there.",
         STATION_CAPACITY,
         COORDINATES,
@@ -324,62 +333,96 @@ def hmas1_executor(*, name: str, nav_id: str) -> str:
     )
 
 
-def hmas1_plan_format() -> str:
+def hmas1_plan_format(*, max_steps: int = 12) -> str:
     return (
         "PLAN\n"
-        "<RobotName>: <that robot's short leg for this round>\n"
-        "<RobotName>: <that robot's short leg for this round>\n"
-        "(one line per robot, every robot listed; station ids and x/y copied "
-        "from a tool result, never guessed numbers)"
+        "STEP 1\n"
+        "<RobotName>: <that robot's short leg>\n"
+        "<RobotName>: <that robot's short leg>\n"
+        "STEP 2\n"
+        "<RobotName>: <that robot's short leg>\n"
+        "STEP 3\n"
+        "FINISHED\n"
+        "(one STEP per synchronised beat; every robot listed in every work STEP; "
+        "a leg is at most one drive plus at most one pick or drop; station "
+        f"ids and x/y copied from a tool result; at most {max_steps} work STEPs; "
+        "the last STEP is always FINISHED)"
     )
 
 
-def hmas1_planner_closing() -> str:
+def hmas1_planner_closing(*, max_steps: int = 12) -> str:
     return (
-        "Propose one short leg per robot for THIS round — not a full mission "
-        "script. A leg is at most one drive plus at most one pick or drop.\n"
+        "Propose the full mission as ordered STEP blocks — not only the next "
+        "action. Inside one STEP a leg is at most one drive plus at most one "
+        "pick or drop. End with a FINISHED STEP. The robots will vote on each "
+        "STEP separately; AGREE on FINISHED ends the mission.\n"
         "Reply with:\n"
-        + hmas1_plan_format()
-        + "\nIf the task is already achieved in the current state, reply "
-        "TASK_COMPLETE and nothing else."
+        + hmas1_plan_format(max_steps=max_steps)
+        + "\nIf the task is already achieved in the current state, reply with "
+        "a PLAN whose only STEP is FINISHED."
     )
 
 
 def hmas1_planner_role() -> str:
     return (
         "You are the CENTRAL PLANNER of a multi-robot fleet (HMAS-1). "
-        "You propose a short natural-language plan for this round; the robots "
-        "follow it unless one of them votes DISAGREE because of an exception."
+        "You propose a full natural-language mission plan once. The last STEP "
+        "is FINISHED. The robots vote on each STEP in order; they do not "
+        "ratify the whole plan up front."
     )
 
 
 def hmas1_robot_role(
-    *, speaker: str, order: str, round_idx: int, max_rounds: int, peers: str
+    *,
+    speaker: str,
+    order: str,
+    round_idx: int,
+    max_rounds: int,
+    peers: str,
+    current_step: int = 1,
+    n_steps: int = 1,
+    finish_step: bool = False,
 ) -> str:
+    vote_on = (
+        f"Vote ONLY on STEP {current_step} of {n_steps} — FINISHED "
+        "(AGREE ends the mission)."
+        if finish_step
+        else f"Vote ONLY on STEP {current_step} of {n_steps} of the original plan."
+    )
     return (
         f"You are {speaker}, one robot of a fleet (HMAS-1 local agent). "
-        f"Speaking order this round: {order} "
+        f"Speaking order this vote: {order} "
         f"(dialogue round {round_idx}/{max_rounds}). "
         f"Your peers are {peers}. "
-        "Follow the plan on the table unless YOU see an exception."
+        f"{vote_on}"
     )
 
 
-def hmas1_robot_closing() -> str:
+def hmas1_robot_closing(*, max_steps: int = 12, finish_step: bool = False) -> str:
+    del max_steps
+    if finish_step:
+        return (
+            "This is the last STEP of the original plan: FINISHED.\n"
+            "Respond in ONE of these ways:\n"
+            "1) AGREE — the mission is done. The run ends once every robot "
+            "has AGREEd this STEP.\n"
+            "2) DISAGREE — work remains. The original mission plan is "
+            "discarded and the fleet continues as a peer network (PMAS).\n"
+            "3) PLAN — a different assignment also discards the original plan.\n"
+            "If the original plan completed the task, answer AGREE."
+        )
     return (
-        "The central planner already proposed a plan. Stick to it. "
-        "Vote against it only when there is an exception: two robots sent to "
-        "the same station, a pick/drop that cannot work, or a clash with the "
-        "mission.\n"
+        "Vote on the highlighted STEP only. Do not ratify the whole mission.\n"
         "Respond in ONE of these ways:\n"
-        "1) AGREE — the plan works for YOUR robot. Do not rewrite it. The "
-        "round starts once every robot has AGREEd.\n"
-        "2) DISAGREE — there is an exception. One or two sentences why, then "
-        "preferably a corrected PLAN for every robot.\n"
-        "3) PLAN a replacement if you must change the assignment:\n"
-        + hmas1_plan_format()
-        + "\n4) If the whole task is already done, reply TASK_COMPLETE.\n"
-        "Do not invent stations. If the plan on the table works, answer AGREE."
+        "1) AGREE — execute THIS step as written. Do not rewrite it. "
+        "The step runs once every robot has AGREEd.\n"
+        "2) DISAGREE — you reject this step. The original mission plan is "
+        "discarded and the fleet continues as a peer network (PMAS).\n"
+        "3) PLAN — a different assignment also discards the original plan "
+        "and switches to peer planning. Do not do this just to restate the "
+        "current step.\n"
+        "If THIS step of the original plan works for you, answer AGREE. "
+        "The last STEP will be FINISHED; do not declare the mission done here."
     )
 
 
@@ -399,9 +442,10 @@ HMAS2_REVIEW_PREFIX = (
 def hmas2_planner(*, fleet: str, n: int) -> str:
     return compose(
         f"You are the central planner for {fleet} (HMAS-2 architecture, "
-        f"{n} robots).",
+        f"{n} robots).\n"
+        "Do not ask the user anything or reply to the user until the mission "
+        "is complete (robots have executed, or the mission has clearly failed).",
         "WHAT YOU CAN DO:\n"
-        "- Talk to the human user.\n"
         "- Before drafting a plan, inspect the world with MCP map tools: "
         "list_worlds, get_map_info (or set_world), list_stations, "
         "list_available_boxes, get_station, get_held_boxes, get_all_robot_poses. "
@@ -424,7 +468,9 @@ def hmas2_planner(*, fleet: str, n: int) -> str:
         "on the current plan (or you re-planned and they AGREEd).\n"
         "- Do not invent a different plan per robot via separate collect_feedback "
         "calls with different texts for the same goal — put roles in one plan.\n"
-        "- Do not ask the user which tool to call.",
+        "- Do not ask the user which tool to call, whether to continue, or "
+        "for permission to keep coordinating. Stay in this turn until Execute "
+        "has run or the mission has failed.",
         STATION_CAPACITY + "\nPlan only empty drop destinations; for swaps, clear pads first.",
         COORDINATES + " Put only looked-up coordinates into a plan "
         "or an EXECUTE message, and never a station that is not on the "
@@ -433,16 +479,20 @@ def hmas2_planner(*, fleet: str, n: int) -> str:
         "WORKFLOW:\n"
         "1) Inspect map/stations/boxes (and optionally robot poses) with MCP tools.\n"
         "2) Draft one short fleet plan (who moves where; who holds).\n"
-        "3) collect_feedback until all recipients AGREE (on DISAGREE, revise and "
-        "collect again).\n"
+        "3) collect_feedback until all recipients AGREE. A DISAGREE is not "
+        "a stop: revise the plan using the DISAGREE reasons (clearer roles, "
+        "validated x/y, who waits vs who crosses) and collect_feedback again "
+        "in this same turn. Never ask the user to continue.\n"
         "4) Only then SEND execute instructions, clearly marked as EXECUTE.\n"
         "   - Moving robot: EXECUTE with concrete x/y (from their AGREE navigate_xy "
         "if they reported it) — one ask_robot is enough.\n"
         "   - Idle robots: either omit EXECUTE, or a one-line "
         "'EXECUTE: HOLD. Reply HOLDING. Do not use tools.' "
-        "Do NOT ask them to laser-scan or monitor surroundings.",
+        "Do NOT ask them to laser-scan or monitor surroundings.\n"
+        "5) After execute replies (or a clear failure), report once to the user.",
         "FLEET: Robots share one map; plans must avoid collisions between peers.",
-        TOOLS_RETRY_PLAN,
+        TOOLS_RETRY_PLAN + " collect_feedback returning DISAGREE is not a tool "
+        "failure — change the plan text and call it again.",
         STYLE,
     )
 
@@ -499,7 +549,10 @@ def dmas_discussion(*, name: str, n: int, nav_id: str) -> str:
         "turn order until everybody agrees on one plan that gives "
         "every robot a short leg. Then all robots carry out their leg "
         "at the same time, and the new state opens the next round. "
-        "When every robot answers FINISHED, the mission is over.",
+        "When every robot answers FINISHED, the mission is over. The mission "
+        "text's positions are the STARTING layout, not targets; "
+        "[World State Now] is current. If the goal is already true there, "
+        "answer FINISHED — do not undo completed work.",
         "Before you propose a PLAN, inspect the world with your map "
         "tools: list_stations, get_station, get_all_robot_poses, "
         "get_held_boxes, rank_stations_by_distance"
@@ -547,31 +600,40 @@ DMAS_ANSWER_FORMAT = (
     "get_all_robot_poses, get_held_boxes, rank_stations_by_distance) first. "
     "After that, answer with EXACTLY one of these three blocks and nothing else:\n"
     "\n"
+    "FINISHED\n"
+    "(use this FIRST if [World State Now] already achieves the Mission goal. "
+    "Poses in the Mission text are the START, not targets and not an order "
+    "to go back.)\n"
+    "\n"
     "PLAN\n"
     "<RobotName>: <that robot's leg for this round>\n"
     "<RobotName>: <that robot's leg for this round>\n"
     "(one line per robot, every robot listed; put station ids and x/y copied "
-    "from a tool result, never guessed numbers)\n"
+    "from a tool result, never guessed numbers; only if the goal is NOT done yet)\n"
     "\n"
-    "AGREE\n"
-    "\n"
-    "FINISHED"
+    "AGREE"
 )
 
 
 def dmas_turn_rules(*, max_turns: int) -> str:
     return (
+        "- FIRST: if [World State Now] already completes the Mission, answer "
+        "FINISHED. The Mission text is the starting layout, not current poses "
+        "and not an order to return there.\n"
+        "- If a peer already said FINISHED and the goal is met, answer "
+        "FINISHED too. A new PLAN in that situation undoes the ending.\n"
         "- A leg is small: at most one drive plus at most one pick or drop. "
         "Anything further is decided in the next round, after everybody sees "
         "the new state.\n"
         "- Every robot gets a line. Write 'wait' for a robot that should hold "
-        "still, but a plan where everybody waits is rejected.\n"
-        "- Propose a PLAN only if you want to change what is on the table. If "
-        "the plan works for you, answer AGREE — the round starts once every "
-        f"robot has agreed, or after {max_turns} turns the last "
-        "proposed plan is executed anyway.\n"
-        "- Answer FINISHED only when the mission goal is actually reached and "
-        "no further leg is needed. The mission ends when every robot says it.\n"
+        "still. A plan where everybody waits, or only drives to a station they "
+        "already stand at, is rejected — say FINISHED if the goal is done.\n"
+        "- Propose a PLAN only if the goal is not done and you want to change "
+        "what is on the table. If the plan works for you, answer AGREE — the "
+        "round starts once every robot has agreed, or after "
+        f"{max_turns} turns the last proposed plan is executed anyway.\n"
+        "- The mission ends only when every robot says FINISHED in the same "
+        "discussion round.\n"
         "- Use only stations and boxes from the world state or from your "
         "inspection tools. Never invent a station, a box or a coordinate. "
         "If a PLAN needs an x/y, call list_stations / get_station / "
