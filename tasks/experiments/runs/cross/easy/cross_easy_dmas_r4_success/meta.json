@@ -1,0 +1,12 @@
+{
+  "session_id": "dmas_20260821_001507",
+  "architecture": "dmas",
+  "agent_count": 2,
+  "agent_world": "cross",
+  "started_at": "2026-08-21T00:15:07+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5-mini",
+  "saved_as": "cross_easy_dmas_r4_success",
+  "saved_at": "2026-08-21T00:18:04.763292+02:00"
+}

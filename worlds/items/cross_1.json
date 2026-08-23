@@ -1,31 +1,43 @@
 [
   {
-    "id": "station_nw",
-    "name": "NW quadrant",
-    "x": -8.1,
-    "y": 8.1,
-    "z": 0.0
+    "id": "station_A",
+    "name": "Station A",
+    "x": -7.5,
+    "y": -7.5,
+    "z": 0.0,
+    "note": "Never navigate to the pad center. Two robots: one to approach_1, the other to approach_2 (~2.8 m off the pad, ~4 m apart). A third robot waits. Then pickup_box/drop_box station_A.",
+    "approach_1": { "x": -4.7, "y": -7.5 },
+    "approach_2": { "x": -7.5, "y": -4.7 }
   },
   {
-    "id": "station_ne",
-    "name": "NE quadrant",
-    "x": 8.1,
-    "y": 8.1,
-    "z": 0.0
+    "id": "station_B",
+    "name": "Station B",
+    "x": -7.5,
+    "y": 7.5,
+    "z": 0.0,
+    "note": "Never navigate to the pad center. Two robots: one to approach_1, the other to approach_2 (~2.8 m off the pad, ~4 m apart). A third robot waits. Then pickup_box/drop_box station_B.",
+    "approach_1": { "x": -4.7, "y": 7.5 },
+    "approach_2": { "x": -7.5, "y": 4.7 }
   },
   {
-    "id": "station_se",
-    "name": "SE quadrant",
-    "x": 8.1,
-    "y": -8.1,
-    "z": 0.0
+    "id": "station_C",
+    "name": "Station C",
+    "x": 7.5,
+    "y": 7.5,
+    "z": 0.0,
+    "note": "Never navigate to the pad center. Two robots: one to approach_1, the other to approach_2 (~2.8 m off the pad, ~4 m apart). A third robot waits. Then pickup_box/drop_box station_C.",
+    "approach_1": { "x": 4.7, "y": 7.5 },
+    "approach_2": { "x": 7.5, "y": 4.7 }
   },
   {
-    "id": "station_sw",
-    "name": "SW quadrant",
-    "x": -8.1,
-    "y": -8.1,
-    "z": 0.0
+    "id": "station_D",
+    "name": "Station D",
+    "x": 7.5,
+    "y": -7.5,
+    "z": 0.0,
+    "note": "Never navigate to the pad center. Two robots: one to approach_1, the other to approach_2 (~2.8 m off the pad, ~4 m apart). A third robot waits. Then pickup_box/drop_box station_D.",
+    "approach_1": { "x": 4.7, "y": -7.5 },
+    "approach_2": { "x": 7.5, "y": -4.7 }
   },
   {
     "id": "crossing",

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -19,19 +20,29 @@ configure_logging("WARNING")
 mcp = FastMCP("Tools")
 
 ROS_CLI_TIMEOUT_SEC = float(os.environ.get("MCP_ROS_CLI_TIMEOUT_SEC", "5"))
-NAV_TIMEOUT_SEC = float(os.environ.get("MCP_NAV_TIMEOUT_SEC", "180"))
+NAV_TIMEOUT_SEC = float(os.environ.get("MCP_NAV_TIMEOUT_SEC", "90"))
 TOOL_TEXT_MAX_CHARS = int(os.environ.get("MCP_TOOL_TEXT_MAX_CHARS", "1200"))
 # Peer within this distance of self or goal counts as "in the way" after Nav2 fails.
-NAV_BLOCKER_RADIUS_M = float(os.environ.get("MCP_NAV_BLOCKER_RADIUS_M", "2.0"))
+# 4.5 m covers same-station approach spacing (~4 m) plus Nav2 inflation; 2 m
+# missed robots sitting on the other approach or just outside the footprint.
+NAV_BLOCKER_RADIUS_M = float(os.environ.get("MCP_NAV_BLOCKER_RADIUS_M", "4.5"))
 # Max map-frame distance from station center for pickup_box / drop_box.
-# Approach poses from rank_stations_by_distance sit ~1.2 m off the pad.
-MANIP_RADIUS_M = float(os.environ.get("MCP_MANIP_RADIUS_M", "1.8"))
+# Named approach_1 / approach_2 sit this far along each axis toward open floor
+# (about offset * sqrt(2) apart) and must stay inside the pickup radius.
+MANIP_RADIUS_M = float(os.environ.get("MCP_MANIP_RADIUS_M", "4.0"))
+_APPROACH_OFFSET_RAW = float(os.environ.get("MCP_APPROACH_OFFSET_M", "2.8"))
+APPROACH_OFFSET_M = min(_APPROACH_OFFSET_RAW, max(0.5, MANIP_RADIUS_M - 0.8))
 DEFAULT_WORLD_ID = os.environ.get("AGENT_WORLD", "stations").strip() or "stations"
 
 # Protect station/box inventory when concurrent tool calls run in threads.
 _STATE_LOCK = threading.Lock()
+_FLEET_LOCK = threading.Lock()
+_FLEET_CACHE: tuple[float, list[str]] | None = None
+_FLEET_CACHE_TTL_SEC = 15.0
+POSE_ECHO_TIMEOUT_SEC = float(os.environ.get("MCP_POSE_ECHO_TIMEOUT_SEC", "2"))
 
 _ROBOT_STATE_RE = re.compile(r"^/(SmallDeliveryRobot_\d+)/robot_state$")
+_ROBOT_NS_RE = re.compile(r"^/(SmallDeliveryRobot_\d+)(?:/|$)")
 _FLOAT_RE = re.compile(
     r"(?:^|\n)\s*(x|y|z|w|angle_min|angle_increment|range_min|range_max):\s*"
     r"([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\s*(?:\n|$)"
@@ -51,19 +62,22 @@ def _clip(text: str, limit: int = TOOL_TEXT_MAX_CHARS) -> str:
 
 
 # --- Station / box inventory -------------------------------------------------
-# Each station holds at most ONE box.
-#   Occupied/pickable: box_id set, available=True  → pickup OK, drop FAILS
-#   Empty:             box_id null, available=False → drop OK, pickup FAILS
-# Robots also hold at most one box (see pickup_box / drop_box).
+# Pads may hold several boxes (see ``boxes``). ``box_id`` is the first box
+# (legacy convenience); ``available`` is true iff ``boxes`` is non-empty.
+# Drop always appends; pickup takes ``box_id`` when more than one box is present.
+# Robots still hold at most one box.
+# Package Pn in the Cross Hard prompt is ``box_n``.
 
 # Initial box layout (edit per difficulty). Coords here are fallback only —
 # when items/{AGENT_WORLD}.json exists, poses come from that file and these
-# box_id / available / last_box_id fields are merged onto matching station ids.
+# boxes / box_id fields are merged onto matching station ids.
+# Current layout = Cross Hard:
+#   P1 A→C, P2 B→D, P3 C→A, P4 D→B, P5 A→B, P6 C→D
 _DEFAULT_STATIONS = [
-    {"id": "station_A", "name": "Station A", "x": -5.0, "y": -5.0, "box_id": "box_1", "available": True, "last_box_id": "box_1"},
-    {"id": "station_B", "name": "Station B", "x": -5.0, "y": 5.0, "box_id": "box_2", "available": True, "last_box_id": "box_2"},
-    {"id": "station_C", "name": "Station C", "x": 5.0, "y": 5.0, "box_id": "box_3", "available": True, "last_box_id": "box_3"},
-    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "box_id": "box_4", "available": True, "last_box_id": "box_4"},
+    {"id": "station_A", "name": "Station A", "x": -5.0, "y": -5.0, "boxes": ["box_1", "box_5"]},
+    {"id": "station_B", "name": "Station B", "x": -5.0, "y": 5.0, "boxes": ["box_2"]},
+    {"id": "station_C", "name": "Station C", "x": 5.0, "y": 5.0, "boxes": ["box_3", "box_6"]},
+    {"id": "station_D", "name": "Station D", "x": 5.0, "y": -5.0, "boxes": ["box_4"]},
 ]
 
 STATIONS: list[dict] = deepcopy(_DEFAULT_STATIONS)
@@ -252,6 +266,102 @@ def _safe_world_id(world_id: str) -> str | None:
     return wid
 
 
+def _coerce_box_id(raw: Any) -> str | None:
+    """Map P1 / package_1 / box_1 / 1 → canonical ``box_1``."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s.lower() in {"none", "null"}:
+        return None
+    m = re.fullmatch(r"(?:p|package)[_\s-]*(\d+)", s, re.I)
+    if m:
+        return f"box_{int(m.group(1))}"
+    m = re.fullmatch(r"box[_\s-]*(\d+)", s, re.I)
+    if m:
+        return f"box_{int(m.group(1))}"
+    if re.fullmatch(r"\d+", s):
+        return f"box_{int(s)}"
+    return s
+
+
+def _boxes_of(station: dict[str, Any]) -> list[str]:
+    raw = station.get("boxes")
+    out: list[str] = []
+    if isinstance(raw, list):
+        for item in raw:
+            bid = _coerce_box_id(item)
+            if bid and bid not in out:
+                out.append(bid)
+        return out
+    bid = _coerce_box_id(station.get("box_id"))
+    return [bid] if bid else []
+
+
+def _apply_boxes(
+    station: dict[str, Any],
+    boxes: list[Any],
+    *,
+    last: str | None = None,
+) -> None:
+    """Write ``boxes`` plus derived ``box_id`` / ``available`` / ``last_box_id``."""
+    clean: list[str] = []
+    for item in boxes:
+        bid = _coerce_box_id(item)
+        if bid and bid not in clean:
+            clean.append(bid)
+    station["boxes"] = clean
+    station["box_id"] = clean[0] if clean else None
+    station["available"] = bool(clean)
+    if last:
+        station["last_box_id"] = last
+    elif clean:
+        station["last_box_id"] = station.get("last_box_id") or clean[-1]
+    else:
+        station["last_box_id"] = station.get("last_box_id")
+
+
+def _inventory_from_source(src: dict[str, Any]) -> list[str] | None:
+    """Explicit inventory from items.json / defaults, or None if omitted."""
+    if "boxes" in src:
+        raw = src.get("boxes")
+        if not isinstance(raw, list):
+            return []
+        out: list[str] = []
+        for item in raw:
+            bid = _coerce_box_id(item)
+            if bid and bid not in out:
+                out.append(bid)
+        return out
+    if "box_id" in src:
+        bid = _coerce_box_id(src.get("box_id"))
+        return [bid] if bid else []
+    return None
+
+
+def _is_box_pad(station: dict[str, Any]) -> bool:
+    sid = str(station.get("id") or "")
+    return bool(re.fullmatch(r"station_[A-D]", sid, re.I))
+
+
+def _attach_pad_approaches(station: dict[str, Any]) -> None:
+    """Two named goals, offset along + toward origin, far enough that two robots do not stack."""
+    if not _is_box_pad(station):
+        return
+    sx = float(station["x"])
+    sy = float(station["y"])
+    off = APPROACH_OFFSET_M
+    ax = -math.copysign(1.0, sx) if abs(sx) >= 1e-6 else 1.0
+    ay = -math.copysign(1.0, sy) if abs(sy) >= 1e-6 else 1.0
+    station["approach_1"] = {"x": round(sx + ax * off, 3), "y": round(sy, 3)}
+    station["approach_2"] = {"x": round(sx, 3), "y": round(sy + ay * off, 3)}
+    station["approach_offset_m"] = off
+    station["approach_hint"] = (
+        "Never send two robots to the same approach. "
+        "Robot 1 → approach_1, robot 2 → approach_2; a third robot waits. "
+        "Do not navigate to pad center (x/y)."
+    )
+
+
 def _stations_from_world_items(world_id: str) -> list[dict] | None:
     """Build STATIONS inventory from *all* landmarks in items/{world_id}.json."""
     wid = _safe_world_id(world_id)
@@ -285,17 +395,22 @@ def _stations_from_world_items(world_id: str) -> list[dict] | None:
             "name": name.title() if name.lower().startswith("station") else name,
             "x": x,
             "y": y,
+            "boxes": [],
             "box_id": None,
             "available": False,
             "last_box_id": None,
         }
-        # Optional box fields in items.json override defaults.
-        if "box_id" in item:
-            entry["box_id"] = item.get("box_id")
-            entry["available"] = bool(item.get("available", entry["box_id"] is not None))
-            entry["last_box_id"] = item.get("last_box_id", entry["box_id"])
+        from_item = _inventory_from_source(item)
+        if from_item is not None:
+            _apply_boxes(entry, from_item, last=_coerce_box_id(item.get("last_box_id")))
+            entry["_inventory_from_items"] = True
         if item.get("note"):
             entry["note"] = str(item["note"])
+        for key in ("approach_1", "approach_2"):
+            pose = item.get(key)
+            if isinstance(pose, dict) and "x" in pose and "y" in pose:
+                entry[key] = {"x": float(pose["x"]), "y": float(pose["y"])}
+        _attach_pad_approaches(entry)
         stations.append(entry)
 
     if not stations:
@@ -304,21 +419,30 @@ def _stations_from_world_items(world_id: str) -> list[dict] | None:
     # For classic A–D pads, merge built-in box layout when items omit box fields.
     defaults_by_id = {s["id"]: s for s in _DEFAULT_STATIONS}
     for station in stations:
-        if station.get("box_id") is not None or station.get("available"):
+        from_items = bool(station.pop("_inventory_from_items", False))
+        if from_items:
+            _apply_boxes(station, _boxes_of(station), last=station.get("last_box_id"))
             continue
         default = defaults_by_id.get(station["id"])
         if default is None:
+            _apply_boxes(station, [])
             continue
-        station["box_id"] = default.get("box_id")
-        station["available"] = bool(default.get("available"))
-        station["last_box_id"] = default.get("last_box_id")
+        inv = _inventory_from_source(default)
+        _apply_boxes(station, inv if inv is not None else _boxes_of(default))
     return stations
 
 
 def _load_stations_for_world(world_id: str | None = None) -> list[dict]:
     wid = (world_id or "").strip() or DEFAULT_WORLD_ID
     loaded = _stations_from_world_items(wid)
-    return loaded if loaded else deepcopy(_DEFAULT_STATIONS)
+    if loaded:
+        return loaded
+    stations = deepcopy(_DEFAULT_STATIONS)
+    for station in stations:
+        inv = _inventory_from_source(station)
+        _apply_boxes(station, inv if inv is not None else _boxes_of(station))
+        _attach_pad_approaches(station)
+    return stations
 
 
 def _apply_stations_for_world(world_id: str | None = None) -> str:
@@ -617,7 +741,19 @@ def _ros2_available() -> bool:
 
 def _normalize_robot_id(robot_id: str) -> str | None:
     robot = (robot_id or "").strip().lstrip("/")
-    return robot or None
+    if not robot:
+        return None
+    try:
+        from .config import resolve_robot_id
+
+        mapped = resolve_robot_id(robot)
+        if mapped:
+            return mapped
+    except Exception:
+        pass
+    if re.fullmatch(r"SmallDeliveryRobot_\d+", robot):
+        return robot
+    return robot
 
 
 def _run_ros2(
@@ -793,7 +929,7 @@ def _discover_robot_ids() -> dict[str, Any]:
         }
     found: list[str] = []
     for line in result["stdout"].splitlines():
-        m = _ROBOT_STATE_RE.match(line.strip())
+        m = _ROBOT_NS_RE.match(line.strip()) or _ROBOT_STATE_RE.match(line.strip())
         if m:
             rid = m.group(1)
             if rid not in found:
@@ -809,9 +945,10 @@ def _discover_robot_ids() -> dict[str, Any]:
     return {"robots": fallback, "source": "config_fallback", "note": "no_robot_state_topics"}
 
 
-def _fetch_robot_pose(robot: str) -> dict[str, Any]:
+def _fetch_robot_pose(robot: str, *, timeout: float | None = None) -> dict[str, Any]:
     """Map-frame pose from robot_state, with amcl_pose fallback."""
-    primary = _echo_topic_once(f"/{robot}/robot_state")
+    echo_timeout = ROS_CLI_TIMEOUT_SEC if timeout is None else timeout
+    primary = _echo_topic_once(f"/{robot}/robot_state", timeout=echo_timeout)
     if primary.get("ok"):
         pose = _parse_odometry_message(primary["stdout"], primary.get("parsed"))
         if pose is not None:
@@ -821,7 +958,7 @@ def _fetch_robot_pose(robot: str) -> dict[str, Any]:
                 "source": "robot_state",
                 **pose,
             }
-    amcl = _echo_topic_once(f"/{robot}/amcl_pose")
+    amcl = _echo_topic_once(f"/{robot}/amcl_pose", timeout=echo_timeout)
     if amcl.get("ok"):
         pose = _parse_amcl_message(amcl["stdout"], amcl.get("parsed"))
         if pose is not None:
@@ -1014,10 +1151,10 @@ def list_stations() -> str:
     """List landmarks/stations for the active world (see set_world / get_map_info).
 
     Source: worlds/items/{active_world_id}.json (same as get_map_info items).
-    Capacity: each pad holds at most ONE box when box tools are used.
-    - Occupied / pickable: box_id set and available=true → pickup_box OK, drop_box FAILS.
-    - Empty: box_id is null and available=false → drop_box OK, pickup_box FAILS.
-    Use this (or get_station) before dropping so you never target an occupied pad.
+    Capacity: a pad may hold several boxes. ``boxes`` is the full list;
+    ``box_id`` is the first box (or null if empty); ``available`` is true
+    when at least one box is present. drop_box appends; pickup_box with
+    more than one box needs box_id (box_1 or P1).
     Non-pad landmarks (gap, caches, …) appear here for navigation coordinates.
     """
     return json.dumps(
@@ -1032,34 +1169,33 @@ def list_stations() -> str:
 
 @mcp.tool()
 def list_available_boxes() -> str:
-    """List stations that currently have a pickable box (available=true and box_id set).
+    """List every pickable box (one row per box, not per station).
 
-    These stations are OCCUPIED — you cannot drop another box there until the
-    existing box is picked up. Empty destinations are NOT listed here; use
-    list_stations / get_station (box_id null, available=false) for drop targets.
+    A station may appear more than once when it holds several boxes.
+    Empty pads are not listed; use list_stations / get_station for drop
+    targets. drop_box is allowed even when a pad already has boxes.
     """
-    available = [
-        {
-            "station_id": s["id"],
-            "station_name": s["name"],
-            "box_id": s["box_id"],
-            "x": s["x"],
-            "y": s["y"],
-        }
-        for s in STATIONS
-        if s.get("available") and s.get("box_id")
-    ]
+    available = []
+    for s in STATIONS:
+        for box_id in _boxes_of(s):
+            available.append(
+                {
+                    "station_id": s["id"],
+                    "station_name": s["name"],
+                    "box_id": box_id,
+                    "x": s["x"],
+                    "y": s["y"],
+                }
+            )
     return json.dumps(available, indent=2)
 
 
 @mcp.tool()
 def get_station(station_id: str) -> str:
-    """Get one station by id, including occupancy (box_id / available).
+    """Get one station by id, including occupancy (boxes / box_id / available).
 
-    Capacity: one box per station.
-    - Occupied: box_id set, available=true → can pickup, cannot drop.
-    - Empty: box_id null, available=false → can drop, cannot pickup.
-    Call this before drop_box if unsure whether the destination is free.
+    Capacity: several boxes per pad. boxes=[] means empty (drop still OK).
+    If boxes has more than one id, pickup_box needs box_id (box_1 or P1).
     Accepts station_A / A / 'Station A'. Unknown ids emit station_not_found.
     """
     station = _find_station(station_id)
@@ -1131,13 +1267,14 @@ def _ensure_near_station(
             f"(need ≤ {MANIP_RADIUS_M} m). Navigate closer before {tool}."
         ),
         hint=(
-            "Call rank_stations_by_distance or get_station, then navigate_to_pose "
-            "to the station's navigate_xy / pad, then retry pickup_box/drop_box."
+            "Call get_station, then navigate_to_pose to approach_1 or "
+            "approach_2 (not the pad center, not a peer's approach), "
+            "then retry pickup_box/drop_box."
         ),
     )
 
 
-def _pickup_box_sync(robot_id: str, station_id: str) -> str:
+def _pickup_box_sync(robot_id: str, station_id: str, box_id: str = "") -> str:
     robot = _normalize_robot_id(robot_id) or (robot_id or "").strip()
     station = _find_station(station_id)
     if station is None:
@@ -1178,45 +1315,81 @@ def _pickup_box_sync(robot_id: str, station_id: str) -> str:
                 box_id=HELD_BY[robot],
             )
 
-        box_id = station.get("box_id")
-        if not station.get("available") or not box_id:
+        boxes = _boxes_of(station)
+        wanted = _coerce_box_id(box_id)
+        if not boxes:
             return _tool_error(
                 "box_missing",
                 error="box_missing",
                 tool="pickup_box",
                 station_id=station_id,
                 robot_id=robot,
-                expected_box=box_id or station.get("last_box_id"),
+                expected_box=wanted or station.get("last_box_id"),
+                boxes=[],
                 message=f"No box available at {station_id} for {robot}",
             )
+        if wanted:
+            if wanted not in boxes:
+                return _tool_error(
+                    "box_missing",
+                    error="box_missing",
+                    tool="pickup_box",
+                    station_id=station_id,
+                    robot_id=robot,
+                    expected_box=wanted,
+                    boxes=boxes,
+                    message=(
+                        f"{wanted} is not at {station['id']}; "
+                        f"boxes here: {', '.join(boxes)}"
+                    ),
+                    hint="Pass a box_id from get_station / list_available_boxes (box_1 or P1).",
+                )
+            chosen = wanted
+        elif len(boxes) == 1:
+            chosen = boxes[0]
+        else:
+            return _tool_error(
+                "box_ambiguous",
+                error="box_ambiguous",
+                tool="pickup_box",
+                station_id=station_id,
+                robot_id=robot,
+                boxes=boxes,
+                message=(
+                    f"{station['id']} has several boxes ({', '.join(boxes)}); "
+                    "pass box_id to pickup_box."
+                ),
+                hint="pickup_box(robot_id, station_id, box_id='box_1') — P1 also works.",
+            )
 
-        station["last_box_id"] = box_id
-        station["available"] = False
-        station["box_id"] = None
-        HELD_BY[robot] = box_id
+        remaining = [b for b in boxes if b != chosen]
+        _apply_boxes(station, remaining, last=chosen)
+        HELD_BY[robot] = chosen
         return json.dumps(
             {
                 "success": True,
                 "robot_id": robot,
                 "station_id": station["id"],
-                "box_id": box_id,
+                "box_id": chosen,
+                "boxes_left": remaining,
                 "distance_m_ok": True,
                 "max_distance_m": MANIP_RADIUS_M,
-                "message": f"{robot} picked up {box_id} from {station['id']}",
+                "message": f"{robot} picked up {chosen} from {station['id']}",
             }
         )
 
 
 @mcp.tool()
-async def pickup_box(robot_id: str, station_id: str) -> str:
-    """Pick up the box at a station for this robot.
+async def pickup_box(robot_id: str, station_id: str, box_id: str = "") -> str:
+    """Pick up a box at a station for this robot.
 
-    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame). Navigate
-    to the pad / navigate_xy first; remote teleports fail with too_far_from_station.
-    On failure (too far, missing box, already holding), emits an MCP event so
-    conflict-based peers can open negotiation.
+    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame).
+    If the pad has exactly one box, box_id is optional. If it has several,
+    pass box_id (box_1 or P1). Robots hold at most one box.
+    On failure (too far, missing box, already holding, ambiguous), emits an
+    MCP event so conflict-based peers can open negotiation.
     """
-    return await asyncio.to_thread(_pickup_box_sync, robot_id, station_id)
+    return await asyncio.to_thread(_pickup_box_sync, robot_id, station_id, box_id)
 
 
 def _drop_box_sync(robot_id: str, station_id: str) -> str:
@@ -1260,30 +1433,20 @@ def _drop_box_sync(robot_id: str, station_id: str) -> str:
                 station_id=station_id,
             )
 
-        occupying = station.get("box_id")
-        if occupying or station.get("available"):
-            sid = station.get("id") or station_id
+        boxes = _boxes_of(station)
+        if box_id in boxes:
             return _tool_error(
-                "station_occupied",
-                error="station_occupied",
+                "box_already_at_station",
+                error="box_already_at_station",
                 tool="drop_box",
                 robot_id=robot,
                 station_id=station_id,
-                box_id=occupying,
-                message=(
-                    f"Station {sid} already has {occupying or 'a box'}; cannot drop. "
-                    "Each station holds only ONE box. Free the pad with pickup_box "
-                    "or drop on an empty station (box_id=null, available=false)."
-                ),
-                hint=(
-                    "Call get_station / list_stations. Drop only on empty pads. "
-                    "For swaps, pick up from destinations first so they are empty."
-                ),
+                box_id=box_id,
+                boxes=boxes,
+                message=f"{box_id} is already at {station['id']}.",
             )
 
-        station["box_id"] = box_id
-        station["last_box_id"] = box_id
-        station["available"] = True
+        _apply_boxes(station, boxes + [box_id], last=box_id)
         HELD_BY[robot] = None
         return json.dumps(
             {
@@ -1291,6 +1454,7 @@ def _drop_box_sync(robot_id: str, station_id: str) -> str:
                 "robot_id": robot,
                 "station_id": station["id"],
                 "box_id": box_id,
+                "boxes": _boxes_of(station),
                 "distance_m_ok": True,
                 "max_distance_m": MANIP_RADIUS_M,
                 "message": f"{robot} dropped {box_id} at {station['id']}",
@@ -1300,16 +1464,11 @@ def _drop_box_sync(robot_id: str, station_id: str) -> str:
 
 @mcp.tool()
 async def drop_box(robot_id: str, station_id: str) -> str:
-    """Drop the box this robot is holding onto a station. Station MUST be empty.
+    """Drop the box this robot is holding onto a station.
 
-    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame). Navigate
-    first; remote teleports fail with too_far_from_station.
-    Capacity: each station holds at most ONE box. Drop only when box_id is null
-    and available=false (verify with get_station / list_stations first).
-    If the pad already has a box, this fails with station_occupied — free it
-    with pickup_box or choose another empty station. For swaps (A↔C), pick both
-    sources before dropping so destinations are clear.
-    On failure emits an MCP event.
+    Robot must be within MCP_MANIP_RADIUS_M of the station (map frame).
+    Pads may already hold other boxes — drop appends to the list.
+    Robots hold at most one box. On failure emits an MCP event.
     """
     return await asyncio.to_thread(_drop_box_sync, robot_id, station_id)
 
@@ -1467,8 +1626,13 @@ async def distance_to_station(robot_id: str, station_id: str) -> str:
     return await asyncio.to_thread(_distance_to_station_sync, robot_id, station_id)
 
 
-def _approach_pose(station: dict, robot_x: float, robot_y: float, offset_m: float = 1.2) -> dict[str, float]:
-    """Point off the station pad toward the robot (pads visual-only; keep clear for r≈0.6)."""
+def _approach_pose(
+    station: dict,
+    robot_x: float,
+    robot_y: float,
+    offset_m: float = APPROACH_OFFSET_M,
+) -> dict[str, float]:
+    """Point off the station pad toward the robot (keep the pad clear)."""
     sx = float(station["x"])
     sy = float(station["y"])
     dx = float(robot_x) - sx
@@ -1506,7 +1670,10 @@ def _rank_stations_by_distance_sync(robot_id: str) -> str:
                 "distance_m": round(dist, 3),
                 "station_xy": {"x": station["x"], "y": station["y"]},
                 "navigate_xy": approach,
+                "approach_1": station.get("approach_1"),
+                "approach_2": station.get("approach_2"),
                 "box_id": station.get("box_id"),
+                "boxes": list(_boxes_of(station)),
                 "available": station.get("available"),
             }
         )
@@ -1522,9 +1689,11 @@ def _rank_stations_by_distance_sync(robot_id: str) -> str:
             "nearest": nearest,
             "stations_farthest_first": ranked,
             "next_step": (
-                "Call navigate_to_pose with farthest.navigate_xy (or your chosen "
-                "station's navigate_xy). Do not call get_peer_distances unless "
-                "navigation fails. Do not re-rank unless navigation fails."
+                "Navigate to approach_1 or approach_2 from get_station / this "
+                "result — never the pad center. Two robots at one station MUST "
+                "use different approaches (one approach_1, the other approach_2). "
+                "Do not both use navigate_xy. Do not call get_peer_distances "
+                "unless navigation fails. Do not re-rank unless navigation fails."
             ),
         },
         indent=2,
@@ -1536,18 +1705,28 @@ async def rank_stations_by_distance(robot_id: str) -> str:
     """One-shot: read pose, rank all stations by distance, suggest nav goals.
 
     Prefer this over calling get_robot_pose + list_stations + distance_to_station
-    repeatedly. Returns farthest/nearest and approach poses slightly off each pad.
-    Then call navigate_to_pose to the chosen approach x/y. Only if navigation fails,
-    use get_peer_distances and/or drive_distance to clear other robots.
+    repeatedly. Returns farthest/nearest plus approach_1 / approach_2 per pad.
+    Navigate to a named approach, not pad center; two robots at one station
+    must pick different approaches. Only if navigation fails, use
+    get_peer_distances and/or drive_distance to clear other robots.
     """
     return await asyncio.to_thread(_rank_stations_by_distance_sync, robot_id)
 
 
 def _fleet_robot_ids(include: str | None = None) -> list[str]:
+    global _FLEET_CACHE
+    now = time.time()
+    with _FLEET_LOCK:
+        cached = _FLEET_CACHE
+    if cached and (now - cached[0]) < _FLEET_CACHE_TTL_SEC:
+        discovered = list(cached[1])
+    else:
+        discovered = list(_discover_robot_ids().get("robots") or [])
+        with _FLEET_LOCK:
+            _FLEET_CACHE = (now, discovered)
     configured = _configured_robot_ids()
-    discovered = _discover_robot_ids().get("robots") or []
     fleet: list[str] = []
-    for rid in list(configured) + list(discovered):
+    for rid in list(configured) + discovered:
         if rid not in fleet:
             fleet.append(rid)
     if include and include not in fleet:
@@ -1560,16 +1739,34 @@ def _compute_peer_distances(robot: str) -> dict[str, Any]:
     if not _ros2_available():
         return {"error": "ros2_not_found", "robot_id": robot}
 
-    self_pose = _fetch_robot_pose(robot)
+    self_pose = _fetch_robot_pose(robot, timeout=POSE_ECHO_TIMEOUT_SEC)
     if not self_pose.get("success"):
         return self_pose
 
     sx, sy = float(self_pose["x"]), float(self_pose["y"])
+    peer_ids = [rid for rid in _fleet_robot_ids(include=robot) if rid != robot]
+    fetched: dict[str, dict[str, Any]] = {}
+    if peer_ids:
+        workers = max(1, min(8, len(peer_ids)))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = {
+                pool.submit(_fetch_robot_pose, rid, timeout=POSE_ECHO_TIMEOUT_SEC): rid
+                for rid in peer_ids
+            }
+            for fut in as_completed(futs):
+                rid = futs[fut]
+                try:
+                    fetched[rid] = fut.result()
+                except Exception as e:
+                    fetched[rid] = {
+                        "success": False,
+                        "error": str(e),
+                        "robot_id": rid,
+                    }
+
     peers: list[dict[str, Any]] = []
-    for rid in _fleet_robot_ids(include=robot):
-        if rid == robot:
-            continue
-        other = _fetch_robot_pose(rid)
+    for rid in peer_ids:
+        other = fetched.get(rid) or {"success": False, "error": "pose_unavailable", "robot_id": rid}
         if not other.get("success"):
             peers.append({"robot_id": rid, "error": other.get("error")})
             continue
@@ -1592,6 +1789,7 @@ def _compute_peer_distances(robot: str) -> dict[str, Any]:
         "peers_closest_first": peers,
         "closest_peer": closest,
         "peer_count": len(peers),
+        "peer_pose_errors": [p for p in peers if "error" in p],
     }
 
 
@@ -1608,16 +1806,37 @@ def _nav_blocker_diagnosis(
     if not peers_info.get("success"):
         return {
             "blocker_check": "unavailable",
+            "blocking_robot": None,
             "blocker_error": peers_info.get("error") or peers_info,
             "message": (
                 f"Navigation failed for {robot}, but peer positions could not be checked."
             ),
         }
 
+    raw_peers = list(peers_info.get("peers_closest_first") or [])
+    pose_errors = [p for p in raw_peers if "distance_m" not in p]
+    located = [p for p in raw_peers if "distance_m" in p]
+    if not located:
+        return {
+            "blocker_check": "unavailable",
+            "blocking_robot": None,
+            "blocker_radius_m": radius,
+            "blocker_error": "peer_poses_unavailable",
+            "peer_pose_errors": pose_errors,
+            "nearby_robots": [],
+            "closest_peer": None,
+            "message": (
+                f"Navigation failed for {robot}, but no peer pose could be read, "
+                "so a blocking robot could not be named."
+            ),
+            "recovery": (
+                "Retry get_peer_distances, then drive_distance if a peer is close, "
+                "or switch to the other station approach and retry navigate_to_pose."
+            ),
+        }
+
     nearby: list[dict[str, Any]] = []
-    for peer in peers_info.get("peers_closest_first") or []:
-        if "distance_m" not in peer:
-            continue
+    for peer in located:
         dist_self = float(peer["distance_m"])
         dist_goal = math.hypot(
             float(peer["x"]) - float(goal_x), float(peer["y"]) - float(goal_y)
@@ -1643,8 +1862,29 @@ def _nav_blocker_diagnosis(
             }
         )
 
-    nearby.sort(key=lambda p: (p["distance_to_self_m"], p["distance_to_goal_m"]))
+    nearby.sort(key=lambda p: (p["distance_to_goal_m"], p["distance_to_self_m"]))
     closest = peers_info.get("closest_peer")
+
+    # Nav2 often aborts from inflation before the peer is inside the hard radius.
+    if not nearby and closest and "distance_m" in closest:
+        dist_self = float(closest["distance_m"])
+        dist_goal = math.hypot(
+            float(closest["x"]) - float(goal_x), float(closest["y"]) - float(goal_y)
+        )
+        soft = max(radius * 2.0, 8.0)
+        if min(dist_self, dist_goal) <= soft:
+            nearby.append(
+                {
+                    "robot_id": closest["robot_id"],
+                    "distance_to_self_m": round(dist_self, 3),
+                    "distance_to_goal_m": round(dist_goal, 3),
+                    "where": "closest_peer",
+                    "x": closest["x"],
+                    "y": closest["y"],
+                    "yaw": closest["yaw"],
+                }
+            )
+
     if not nearby:
         msg = (
             f"Navigation failed for {robot}. No other robot within {radius} m of "
@@ -1663,6 +1903,7 @@ def _nav_blocker_diagnosis(
             "blocking_robot": None,
             "nearby_robots": [],
             "closest_peer": closest,
+            "peer_pose_errors": pose_errors,
             "message": msg,
             "recovery": (
                 "Retry navigate_to_pose, or call drive_distance then retry. "
@@ -1684,6 +1925,12 @@ def _nav_blocker_diagnosis(
             f"({blocker['distance_to_self_m']} m from {robot}, "
             f"{blocker['distance_to_goal_m']} m from goal)."
         )
+    elif blocker["where"] == "closest_peer":
+        cause = (
+            f"Navigation failed; closest robot is {bid} "
+            f"({blocker['distance_to_self_m']} m from {robot}, "
+            f"{blocker['distance_to_goal_m']} m from goal) — treat as blocking."
+        )
     else:
         cause = (
             f"Navigation failed because {bid} is in the way "
@@ -1697,11 +1944,13 @@ def _nav_blocker_diagnosis(
         "blocking_robot_detail": blocker,
         "nearby_robots": nearby,
         "closest_peer": closest,
+        "peer_pose_errors": pose_errors,
         "message": cause,
         "recovery": (
             f"Call drive_distance to move aside of {bid} "
             f"(e.g. 1.0 m at 90 or -90 deg), then retry navigate_to_pose. "
-            f"Or wait for {bid} to move."
+            f"Or wait for {bid} to move. If you share a station, switch to the "
+            f"other approach (approach_1 vs approach_2)."
         ),
     }
 
@@ -2133,7 +2382,7 @@ async def get_laser_snapshot(robot_id: str) -> str:
 
 def _navigate_to_pose_sync(robot_id: str, x: float, y: float, yaw: float = 0.0) -> str:
     """Blocking Nav2 NavigateToPose (runs in a worker thread via navigate_to_pose)."""
-    robot = robot_id.strip()
+    robot = _normalize_robot_id(robot_id) or (robot_id or "").strip()
     if not robot:
         return json.dumps({"error": "missing_robot_id"})
 
@@ -2253,8 +2502,9 @@ async def navigate_to_pose(robot_id: str, x: float, y: float, yaw: float = 0.0) 
       with map pose (x, y) and orientation from yaw (radians; default 0 => w=1).
 
     On abort/cancel/failure, checks for nearby peers and, if one is within
-    MCP_NAV_BLOCKER_RADIUS_M of this robot or the goal, reports that specific
-    robot as being in the way. Then use drive_distance and retry.
+    MCP_NAV_BLOCKER_RADIUS_M (default 4.5 m) of this robot or the goal, reports
+    that specific robot as blocking_robot. Then use drive_distance or the
+    other station approach and retry.
 
     Implemented as async so concurrent robots can navigate in parallel (the
     official MCP FastMCP runs sync tools on the event loop otherwise).

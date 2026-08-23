@@ -42,15 +42,15 @@ MAX_PLAN_STEPS = _env_int("PAPER_MAX_PLAN_STEPS", 12)
 MAX_DIALOGUE_ROUNDS = _env_int("PAPER_MAX_DIALOGUE_ROUNDS", 3)
 MAX_SYNTAX_RETRIES = _env_int("PAPER_MAX_SYNTAX_RETRIES", 3)
 
-# Stop short of the pad: pickup/drop need <1.8 m, Nav2 needs the pad clear.
-APPROACH_OFFSET_M = 1.2
+# Stop short of the pad: pickup/drop use MCP_MANIP_RADIUS_M; Nav2 needs the pad clear.
+APPROACH_OFFSET_M = float(os.getenv("MCP_APPROACH_OFFSET_M", "2.8"))
 
 # Mirrors MCP_MANIP_RADIUS_M so the action list never offers a pick/drop the
 # server would reject with too_far_from_station.
 try:
-    NEAR_RADIUS_M = float(os.getenv("MCP_MANIP_RADIUS_M", "1.8"))
+    NEAR_RADIUS_M = float(os.getenv("MCP_MANIP_RADIUS_M", "4.0"))
 except ValueError:
-    NEAR_RADIUS_M = 1.8
+    NEAR_RADIUS_M = 4.0
 
 EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
 TASK_COMPLETE_RE = re.compile(r"^\s*TASK_COMPLETE\b", re.IGNORECASE | re.MULTILINE)
@@ -63,7 +63,8 @@ _ACTION_RE = re.compile(
 
 VERBS_WITH_TARGET = ("move_to", "pick", "drop")
 ACTION_SYNTAX = (
-    "move_to(<station_id>) | pick(<station_id>) | drop(<station_id>) | wait()"
+    "move_to(<station_id>) | pick(<station_id>) | pick(<station_id>, <box_id>) | "
+    "drop(<station_id>) | wait()"
 )
 
 
@@ -74,9 +75,44 @@ class Action:
     robot: str
     verb: str
     target: str = ""
+    box_id: str = ""
 
     def text(self) -> str:
-        return "wait()" if self.verb == "wait" else f"{self.verb}({self.target})"
+        if self.verb == "wait":
+            return "wait()"
+        if self.box_id:
+            return f"{self.verb}({self.target}, {self.box_id})"
+        return f"{self.verb}({self.target})"
+
+
+def _split_action_arg(arg: str) -> tuple[str, str]:
+    parts = [p.strip().strip("'\"") for p in (arg or "").split(",") if p.strip()]
+    if not parts:
+        return "", ""
+    return parts[0], (parts[1] if len(parts) > 1 else "")
+
+
+def _canonical_box_id(raw: str) -> str:
+    s = (raw or "").strip()
+    match = re.fullmatch(r"(?:p|package|box)[_\s-]*(\d+)", s, re.I)
+    if match:
+        return f"box_{int(match.group(1))}"
+    if re.fullmatch(r"\d+", s):
+        return f"box_{int(s)}"
+    return s
+
+
+def _make_action(robot: str, verb: str, arg: str) -> Action | None:
+    if verb == "wait":
+        return Action(robot=robot, verb="wait")
+    target, box_id = _split_action_arg(arg)
+    if not target:
+        return None
+    if verb != "pick":
+        box_id = ""
+    elif box_id:
+        box_id = _canonical_box_id(box_id)
+    return Action(robot=robot, verb=verb, target=target, box_id=box_id)
 
 
 def parse_action(text: str, robot: str) -> Action | None:
@@ -84,12 +120,21 @@ def parse_action(text: str, robot: str) -> Action | None:
     if match is None:
         return None
     verb = match.group("verb").lower()
-    target = (match.group("arg") or "").strip().strip("'\"")
-    if verb == "wait":
-        return Action(robot=robot, verb="wait")
-    if not target:
-        return None
-    return Action(robot=robot, verb=verb, target=target)
+    arg = (match.group("arg") or "").strip()
+    return _make_action(robot, verb, arg)
+
+
+def _station_boxes(station: dict[str, Any]) -> list[str]:
+    raw = station.get("boxes")
+    if isinstance(raw, list):
+        out: list[str] = []
+        for item in raw:
+            s = str(item).strip()
+            if s and s not in out:
+                out.append(s)
+        return out
+    bid = station.get("box_id")
+    return [str(bid)] if bid else []
 
 
 def _as_list(payload: Any, key: str) -> list[dict[str, Any]]:
@@ -207,12 +252,12 @@ class Environment:
             held = dict(self.held)
             world = self.world_id
         lines = [f"World: {world or 'unknown'}"]
-        lines.append("Stations (id, x, y, box):")
+        lines.append("Stations (id, x, y, boxes):")
         for s in stations:
-            box = s.get("box_id")
+            boxes = _station_boxes(s)
             lines.append(
                 f"  - {s.get('id')} at ({s.get('x')}, {s.get('y')}): "
-                + (f"holds {box}" if box else "empty")
+                + (f"holds {', '.join(boxes)}" if boxes else "empty")
             )
         lines.append("Robots (position, carrying):")
         for robot in self.participants:
@@ -242,10 +287,16 @@ class Environment:
             station_id = str(station.get("id"))
             if here is None or station_id != here:
                 continue
-            if carrying and not station.get("box_id"):
+            if carrying:
                 actions.append(f"drop({station_id})")
-            elif not carrying and station.get("box_id"):
-                actions.append(f"pick({station_id})")
+            else:
+                boxes = _station_boxes(station)
+                if len(boxes) == 1:
+                    actions.append(f"pick({station_id})")
+                    actions.append(f"pick({station_id}, {boxes[0]})")
+                else:
+                    for box_id in boxes:
+                        actions.append(f"pick({station_id}, {box_id})")
         actions.append("wait()")
         return actions
 
@@ -328,14 +379,21 @@ class Environment:
             return
         with self._lock:
             if action.verb == "pick":
-                box = station.get("box_id")
-                station["box_id"] = None
-                station["available"] = False
-                self.held[nav] = box
+                boxes = _station_boxes(station)
+                chosen = action.box_id or (boxes[0] if boxes else None)
+                if chosen and chosen in boxes:
+                    station["boxes"] = [b for b in boxes if b != chosen]
+                    station["box_id"] = station["boxes"][0] if station["boxes"] else None
+                    station["available"] = bool(station["boxes"])
+                    self.held[nav] = chosen
             elif action.verb == "drop":
                 box = self.held.get(nav) or self.held.get(action.robot)
-                station["box_id"] = box
-                station["available"] = bool(box)
+                boxes = _station_boxes(station)
+                if box and box not in boxes:
+                    boxes.append(str(box))
+                station["boxes"] = boxes
+                station["box_id"] = boxes[0] if boxes else None
+                station["available"] = bool(boxes)
                 self.held[nav] = None
                 self.held[action.robot] = None
 
@@ -373,7 +431,10 @@ def execute_action(action: Action) -> dict[str, Any]:
         }
 
     tool = "pickup_box" if action.verb == "pick" else "drop_box"
-    result = call_mcp_tool(tool, {"robot_id": nav, "station_id": action.target})
+    args: dict[str, Any] = {"robot_id": nav, "station_id": action.target}
+    if action.verb == "pick" and action.box_id:
+        args["box_id"] = action.box_id
+    result = call_mcp_tool(tool, args)
     ok = bool(isinstance(result, dict) and result.get("success"))
     return {
         "ok": ok,
@@ -452,8 +513,10 @@ def parse_action_sequence(text: str, robot: str) -> list[Action]:
         target = (match.group("arg") or "").strip().strip("'\"")
         if verb == "wait":
             actions.append(Action(robot=robot, verb="wait"))
-        elif target:
-            actions.append(Action(robot=robot, verb=verb, target=target))
+        else:
+            action = _make_action(robot, verb, target)
+            if action is not None:
+                actions.append(action)
     return actions
 
 
@@ -639,19 +702,22 @@ def verify_assignment(
             "so assign a real action to at least one robot."
         )
 
-    for verb in VERBS_WITH_TARGET:
-        seen: dict[str, str] = {}
-        for robot, action in assignment.items():
-            if action.verb != verb:
+    picks = [(robot, action) for robot, action in assignment.items() if action.verb == "pick"]
+    for i, (r1, a1) in enumerate(picks):
+        for r2, a2 in picks[i + 1 :]:
+            if a1.target.lower() != a2.target.lower():
                 continue
-            other = seen.get(action.target)
-            if other:
+            same_box = (
+                not a1.box_id
+                or not a2.box_id
+                or a1.box_id.lower() == a2.box_id.lower()
+            )
+            if same_box:
                 errors.append(
-                    f"{other} and {robot} both got {verb}({action.target}) — "
-                    "two robots cannot share one station in the same step."
+                    f"{r1} and {r2} both pick at {a1.target}"
+                    + (f" ({a1.box_id or a2.box_id})" if (a1.box_id or a2.box_id) else "")
+                    + " — two robots cannot take the same box in one step."
                 )
-            else:
-                seen[action.target] = robot
     return errors
 
 

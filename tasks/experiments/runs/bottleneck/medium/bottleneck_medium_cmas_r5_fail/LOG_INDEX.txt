@@ -1,0 +1,12 @@
+Run: bottleneck_medium_cmas_r5_fail
+Logs (9):
+
+  - logs/00_usage_monitor.log  (841212 bytes)
+  - logs/01_agent_trace.log  (25623 bytes)
+  - logs/02_mcp_server_shared.log  (11420 bytes)
+  - logs/03_agent_broker.log  (311 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (2062 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1185 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (2198 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (1493 bytes)
+  - logs/08_master_agent.log  (2016 bytes)

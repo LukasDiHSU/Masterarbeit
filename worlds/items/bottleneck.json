@@ -1,16 +1,74 @@
 [
   {
+    "id": "gap",
+    "name": "bottleneck gap",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "Narrow center crossing. Only one robot in the gap at a time. Do not wait at 0,0."
+  },
+  {
     "id": "station_west",
     "name": "west station",
     "x": -5.4,
     "y": 0.0,
-    "z": 0.0
+    "z": 0.0,
+    "note": "West aisle landmark, not a parking goal. West spawns are at x=-5, y=-3/-1/1/3 — do not send crossed robots onto those poses."
   },
   {
     "id": "station_east",
     "name": "east station",
     "x": 5.4,
     "y": 0.0,
-    "z": 0.0
+    "z": 0.0,
+    "note": "East aisle landmark, not a parking goal. East spawns are at x=5, y=-3/-1/1/3 — do not send crossed robots onto those poses."
+  },
+  {
+    "id": "park_west_s",
+    "name": "west parking south",
+    "x": -2.0,
+    "y": -6.0,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. Behind west spawns (x=-5). One robot only. Approach along y≈-5.5, not along the spawn column."
+  },
+  {
+    "id": "park_west_c",
+    "name": "west parking center",
+    "x": -2.0,
+    "y": 3.5,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. Back wall, behind station_west. One robot only. Do not stop on west spawn poses."
+  },
+  {
+    "id": "park_west_n",
+    "name": "west parking north",
+    "x": -2.0,
+    "y": 6.0,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. Behind west spawns (x=-5). One robot only. Approach along y≈5.5, not along the spawn column."
+  },
+  {
+    "id": "park_east_s",
+    "name": "east parking south",
+    "x": 2.0,
+    "y": -6.0,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. Behind east spawns (x=5). One robot only. Approach along y≈-5.5, not along the spawn column."
+  },
+  {
+    "id": "park_east_c",
+    "name": "east parking center",
+    "x": 2.0,
+    "y": -3.5,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. Back wall, behind station_east. One robot only. Do not stop on east spawn poses."
+  },
+  {
+    "id": "park_east_n",
+    "name": "east parking north",
+    "x": 2.0,
+    "y": 6.0,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. Behind east spawns (x=5). One robot only. Approach along y≈5.5, not along the spawn column."
   }
 ]

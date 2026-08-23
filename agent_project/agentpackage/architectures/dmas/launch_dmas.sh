@@ -3,6 +3,7 @@ set -euo pipefail
 
 # Launches DMAS: MCP + AGENT_COUNT mesh robots + mission CLI.
 # Fleet size: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
+# Optional: --timeout 15m  (stop the run 15 min after you send the mission).
 # The CLI chairs turn-taking; robots argue in natural language, vote AGREE on
 # a PLAN, execute one short leg, and meet again.
 

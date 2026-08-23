@@ -1,9 +1,10 @@
 """HMAS-1 local robot: votes once on the central plan, or talks as DMAS.
 
-During the original plan, the discussion LLM (no drive tools) answers
-AGREE or DISAGREE on the whole plan. Unanimous AGREE executes that plan.
-DISAGREE / a new PLAN drops it; later turns use the DMAS huddle + PLAN /
-AGREE / FINISHED protocol. The executor LLM runs each dispatched work STEP.
+During the original plan, the discussion LLM answers AGREE or DISAGREE on
+the whole plan. Unanimous AGREE executes that plan. After each original
+work STEP the executor reports STEP_OK or STEP_FAILED; STEP_FAILED drops
+the plan. DISAGREE / a new PLAN at vote time also drops it; later turns
+use the DMAS huddle + PLAN / AGREE / FINISHED protocol.
 """
 
 from __future__ import annotations
@@ -17,7 +18,12 @@ from ...config import AGENT_COUNT, TB_IDS, nav_id_for_tb, robot_peer_name
 from ...instructions import fleet_huddle, hmas1_executor, hmas1_robot
 from ...mcp_client import load_mcp_tools_safe
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
-from .dialogue import EXECUTE_DISPATCH_PREFIX, HUDDLE_TURN_PREFIX, build_execution_prompt
+from .dialogue import (
+    EXECUTE_DISPATCH_PREFIX,
+    HUDDLE_TURN_PREFIX,
+    STEP_CHECK_PREFIX,
+    build_execution_prompt,
+)
 
 _EXECUTOR_BLOCKED_TOOLS = frozenset(
     {
@@ -126,10 +132,33 @@ class HMAS1RobotAgent:
         text = (message or "").strip()
         if text.startswith(EXECUTE_DISPATCH_PREFIX):
             return self._run_leg(text)
+        if text.startswith(STEP_CHECK_PREFIX):
+            return self._run_step_check(text)
         if text.startswith(HUDDLE_TURN_PREFIX):
             body = text[len(HUDDLE_TURN_PREFIX) :].strip()
             return self.huddle.invoke(body, thread_id=thread_id)
         return self.discussion.invoke(text, thread_id=thread_id)
+
+    def _run_leg(self, message: str) -> str:
+        body = message[len(EXECUTE_DISPATCH_PREFIX) :].strip()
+        # Drop the parenthetical step note the planner appends.
+        leg = body.split("\n(", 1)[0].strip()
+        self._round += 1
+        with self._exec_lock:
+            prompt = build_execution_prompt(
+                speaker=self.name,
+                nav_id=self.nav_id,
+                leg=leg,
+                round_index=self._round,
+            )
+            return self.executor.invoke(prompt, thread_id=f"exec-r{self._round}")
+
+    def _run_step_check(self, message: str) -> str:
+        body = message[len(STEP_CHECK_PREFIX) :].strip()
+        with self._exec_lock:
+            return self.executor.invoke(
+                body, thread_id=f"step-check-r{self._round}"
+            )
 
     def _run_leg(self, message: str) -> str:
         body = message[len(EXECUTE_DISPATCH_PREFIX) :].strip()
@@ -174,7 +203,13 @@ def main() -> None:
         text = str(msg.get("text", ""))
         thread_id = str(msg.get("thread_id", src))
         request_id = msg.get("request_id")
-        kind = "execute" if text.strip().startswith(EXECUTE_DISPATCH_PREFIX) else "dialogue"
+        kind = (
+            "execute"
+            if text.strip().startswith(EXECUTE_DISPATCH_PREFIX)
+            else "step-check"
+            if text.strip().startswith(STEP_CHECK_PREFIX)
+            else "dialogue"
+        )
         print(f"\n[{src} -> {my_name}] {kind} request")
 
         def _job() -> None:

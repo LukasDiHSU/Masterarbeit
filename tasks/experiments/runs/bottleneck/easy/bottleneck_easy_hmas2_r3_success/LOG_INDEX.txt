@@ -1,0 +1,10 @@
+Run: bottleneck_easy_hmas2_r3_success
+Logs (7):
+
+  - logs/00_usage_monitor.log  (146421 bytes)
+  - logs/01_agent_trace.log  (9286 bytes)
+  - logs/02_mcp_server_shared.log  (4101 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (1778 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1917 bytes)
+  - logs/06_planner_hmas_2.log  (1249 bytes)

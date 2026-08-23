@@ -2,8 +2,9 @@
 
 A central LLM planner proposes a full multi-step mission plan. Each robot
 votes AGREE or DISAGREE once on that whole plan (no debate). Unanimous
-AGREE executes the STEPs in order. DISAGREE or a different PLAN discards
-the original plan and the fleet continues as a peer (DMAS) network.
+AGREE executes the STEPs in order. After each original work STEP, executors
+report STEP_OK or STEP_FAILED; any STEP_FAILED discards the original plan.
+DISAGREE or a different PLAN at vote time also switches to DMAS.
 """
 
 from __future__ import annotations
@@ -24,11 +25,14 @@ from ..dmas.protocol import parse_legs, verify_plan
 
 EXECUTE_DISPATCH_PREFIX = "EXECUTE_ACTION:"
 HUDDLE_TURN_PREFIX = "HUDDLE_TURN:"
+STEP_CHECK_PREFIX = "STEP_CHECK:"
 _EXECUTE_RE = re.compile(r"^\s*EXECUTE\b[:\s]*", re.IGNORECASE)
 _PLAN_RE = re.compile(r"^\s*PLAN\b[:\s]*", re.IGNORECASE)
 _STEP_RE = re.compile(r"^STEP\s+(\d+)\s*:?\s*(.*)$", re.IGNORECASE)
 AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE)
 DISAGREE_RE = re.compile(r"^\s*DISAGREE\b", re.IGNORECASE)
+STEP_FAILED_RE = re.compile(r"\bSTEP_FAILED\b", re.IGNORECASE)
+STEP_OK_RE = re.compile(r"\bSTEP_OK\b", re.IGNORECASE)
 _FINISH_LINE_RE = re.compile(r"^(finish(?:ed)?|done)\b", re.IGNORECASE)
 _FINISH_LEG_RE = re.compile(
     r"^(finish(?:ed)?|done|task[_\s-]?complete)\b", re.IGNORECASE
@@ -309,3 +313,40 @@ def build_execution_prompt(*, speaker: str, nav_id: str, leg: str, round_index: 
         "[Report]\n"
         f"{DMAS_EXECUTION_REPORT}"
     )
+
+
+def build_step_check_dispatch(
+    *,
+    leg: str,
+    report: str,
+    step_index: int,
+    n_steps: int | None = None,
+) -> str:
+    total = f"/{n_steps}" if n_steps else ""
+    return (
+        f"{STEP_CHECK_PREFIX}\n"
+        f"(original plan STEP {step_index}{total})\n"
+        "[Assigned leg]\n"
+        f"{leg.strip()}\n"
+        "\n"
+        "[Your execution report]\n"
+        f"{(report or '').strip()[:1200]}\n"
+        "\n"
+        "[Check]\n"
+        "Did YOU accomplish that assigned leg? Judge from the tools, not hope. "
+        "STEP_OK only if the assigned pickup/drop/arrive actually happened, "
+        "or if your assigned leg was wait/hold and you waited. "
+        "STEP_FAILED if navigation aborted, pickup/drop failed, you stopped "
+        "short, or the assigned work is not done.\n"
+        "Reply with exactly one line: STEP_OK or STEP_FAILED."
+    )
+
+
+def parse_step_check(reply: str) -> str:
+    """Return 'ok' or 'failed'. Ambiguous replies count as failed."""
+    text = reply or ""
+    if STEP_FAILED_RE.search(text):
+        return "failed"
+    if STEP_OK_RE.search(text):
+        return "ok"
+    return "failed"

@@ -80,13 +80,13 @@
 
     <model name="arm_n">
       <static>true</static>
-      <pose>0.0000 4.3500 0.5250 0 0 0.0000</pose>
+      <pose>0.0000 4.9500 0.5250 0 0 0.0000</pose>
       <link name="link">
         <collision name="c">
-          <geometry><box><size>1.3500 5.1000 1.0500</size></box></geometry>
+          <geometry><box><size>1.3500 5.7000 1.0500</size></box></geometry>
         </collision>
         <visual name="v">
-          <geometry><box><size>1.3500 5.1000 1.0500</size></box></geometry>
+          <geometry><box><size>1.3500 5.7000 1.0500</size></box></geometry>
           <material>
             <ambient>0.200 0.550 0.750 1</ambient>
             <diffuse>0.200 0.550 0.750 1</diffuse>
@@ -98,13 +98,13 @@
 
     <model name="arm_s">
       <static>true</static>
-      <pose>0.0000 -4.3500 0.5250 0 0 0.0000</pose>
+      <pose>0.0000 -4.9500 0.5250 0 0 0.0000</pose>
       <link name="link">
         <collision name="c">
-          <geometry><box><size>1.3500 5.1000 1.0500</size></box></geometry>
+          <geometry><box><size>1.3500 5.7000 1.0500</size></box></geometry>
         </collision>
         <visual name="v">
-          <geometry><box><size>1.3500 5.1000 1.0500</size></box></geometry>
+          <geometry><box><size>1.3500 5.7000 1.0500</size></box></geometry>
           <material>
             <ambient>0.200 0.550 0.750 1</ambient>
             <diffuse>0.200 0.550 0.750 1</diffuse>
@@ -116,13 +116,13 @@
 
     <model name="arm_e">
       <static>true</static>
-      <pose>4.3500 0.0000 0.5250 0 0 0.0000</pose>
+      <pose>5.3000 0.0000 0.5250 0 0 0.0000</pose>
       <link name="link">
         <collision name="c">
-          <geometry><box><size>5.1000 1.3500 1.0500</size></box></geometry>
+          <geometry><box><size>6.4000 1.3500 1.0500</size></box></geometry>
         </collision>
         <visual name="v">
-          <geometry><box><size>5.1000 1.3500 1.0500</size></box></geometry>
+          <geometry><box><size>6.4000 1.3500 1.0500</size></box></geometry>
           <material>
             <ambient>0.200 0.550 0.750 1</ambient>
             <diffuse>0.200 0.550 0.750 1</diffuse>
@@ -134,13 +134,13 @@
 
     <model name="arm_w">
       <static>true</static>
-      <pose>-4.3500 0.0000 0.5250 0 0 0.0000</pose>
+      <pose>-5.3000 0.0000 0.5250 0 0 0.0000</pose>
       <link name="link">
         <collision name="c">
-          <geometry><box><size>5.1000 1.3500 1.0500</size></box></geometry>
+          <geometry><box><size>6.4000 1.3500 1.0500</size></box></geometry>
         </collision>
         <visual name="v">
-          <geometry><box><size>5.1000 1.3500 1.0500</size></box></geometry>
+          <geometry><box><size>6.4000 1.3500 1.0500</size></box></geometry>
           <material>
             <ambient>0.200 0.550 0.750 1</ambient>
             <diffuse>0.200 0.550 0.750 1</diffuse>
@@ -150,76 +150,6 @@
       </link>
     </model>
 
-    <model name="station_nw">
-      <static>true</static>
-      <pose>-5.4000 5.4000 0.0450 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="c">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-        </collision>
-        <visual name="v">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-          <material>
-            <ambient>0.100 0.750 0.200 1</ambient>
-            <diffuse>0.100 0.750 0.200 1</diffuse>
-            <specular>0.2 0.2 0.2 1</specular>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="station_ne">
-      <static>true</static>
-      <pose>5.4000 5.4000 0.0450 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="c">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-        </collision>
-        <visual name="v">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-          <material>
-            <ambient>0.150 0.450 0.900 1</ambient>
-            <diffuse>0.150 0.450 0.900 1</diffuse>
-            <specular>0.2 0.2 0.2 1</specular>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="station_se">
-      <static>true</static>
-      <pose>5.4000 -5.4000 0.0450 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="c">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-        </collision>
-        <visual name="v">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-          <material>
-            <ambient>0.950 0.800 0.100 1</ambient>
-            <diffuse>0.950 0.800 0.100 1</diffuse>
-            <specular>0.2 0.2 0.2 1</specular>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <model name="station_sw">
-      <static>true</static>
-      <pose>-5.4000 -5.4000 0.0450 0 0 0.0000</pose>
-      <link name="link">
-        <collision name="c">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-        </collision>
-        <visual name="v">
-          <geometry><box><size>1.5000 1.5000 0.0900</size></box></geometry>
-          <material>
-            <ambient>0.850 0.200 0.550 1</ambient>
-            <diffuse>0.850 0.200 0.550 1</diffuse>
-            <specular>0.2 0.2 0.2 1</specular>
-          </material>
-        </visual>
-      </link>
-    </model>
+    <!-- Station landmarks are logical only (items.json); no pad meshes. -->
   </world>
 </sdf>

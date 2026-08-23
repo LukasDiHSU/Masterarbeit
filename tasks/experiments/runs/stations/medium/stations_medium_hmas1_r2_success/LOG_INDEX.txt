@@ -1,0 +1,12 @@
+Run: stations_medium_hmas1_r2_success
+Logs (9):
+
+  - logs/00_usage_monitor.log  (700564 bytes)
+  - logs/01_agent_trace.log  (24677 bytes)
+  - logs/02_mcp_server_shared.log  (25449 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (1045 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1063 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (1031 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (1066 bytes)
+  - logs/08_planner_hmas_1.log  (5066 bytes)

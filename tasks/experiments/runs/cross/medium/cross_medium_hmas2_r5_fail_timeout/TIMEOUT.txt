@@ -1,0 +1,1 @@
+Stopped after 15m 0.0s from the mission prompt (hmas2_until_done).

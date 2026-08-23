@@ -1,0 +1,11 @@
+Run: stations_medium_dmas_r3_success
+Logs (8):
+
+  - logs/00_usage_monitor.log  (836858 bytes)
+  - logs/01_agent_trace.log  (27098 bytes)
+  - logs/02_mcp_server_shared.log  (27572 bytes)
+  - logs/03_dmas_smalldeliveryrobot_3.log  (1721 bytes)
+  - logs/04_dmas_smalldeliveryrobot_2.log  (1799 bytes)
+  - logs/05_dmas_smalldeliveryrobot_1.log  (1968 bytes)
+  - logs/06_dmas_smalldeliveryrobot_0.log  (2044 bytes)
+  - logs/07_mission_cli.log  (5346 bytes)

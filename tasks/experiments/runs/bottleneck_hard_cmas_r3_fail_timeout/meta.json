@@ -1,0 +1,13 @@
+{
+  "session_id": "centralized_20260822_143256",
+  "architecture": "centralized",
+  "agent_count": 6,
+  "agent_world": "cross_1",
+  "started_at": "2026-08-22T14:32:56+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5-mini",
+  "timeout_sec": 1200,
+  "saved_as": "bottleneck_hard_cmas_r3_fail_timeout",
+  "saved_at": "2026-08-22T14:55:19.120820+02:00"
+}

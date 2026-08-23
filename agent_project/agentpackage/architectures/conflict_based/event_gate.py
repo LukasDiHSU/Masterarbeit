@@ -28,7 +28,7 @@ def participants_for_event(event: dict[str, Any], held_by: dict[str, Any] | None
             raw = [p.strip() for p in raw.split(",") if p.strip()]
         return peer_names_from_robot_ids([str(x) for x in raw])
 
-    if etype == "box_missing":
+    if etype in {"box_missing", "box_ambiguous", "box_already_at_station"}:
         ids = [str(event.get("robot_id", ""))]
         expected = event.get("expected_box")
         if expected:

@@ -1,0 +1,12 @@
+{
+  "session_id": "hmas1_20260820_200514",
+  "architecture": "hmas1",
+  "agent_count": 4,
+  "agent_world": "stations_1",
+  "started_at": "2026-08-20T20:05:14+02:00",
+  "project_root": "/home/lukas/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5-mini",
+  "saved_as": "stations_medium_hmas1_r3_success",
+  "saved_at": "2026-08-20T20:08:40.260250+02:00"
+}

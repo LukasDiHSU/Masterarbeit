@@ -42,15 +42,17 @@ came from a tool result or the user prompt, and may only drive to positions
 that exist on the active map. Treat a run in which a robot navigates to a
 made-up pose as a failure and note it.
 
-**Station capacity:** each station holds at most **one** box. Empty pads have
-`box_id=null` and `available=false`. `drop_box` fails on occupied stations
-(`station_occupied`). For opposing swaps (e.g. A↔C), clear destinations (pick
-first / stage) before dropping. Robots also hold at most one box.
+**Station capacity:** a pad may hold **several** boxes (`boxes` on
+`get_station` / `list_stations`; `box_id` is the first box or null if empty).
+`drop_box` appends and does not require an empty pad. If a pad lists more
+than one box, `pickup_box` needs `box_id` (`box_1` or `P1`). Package `Pn` is
+`box_n`. Robots hold at most one box.
 
 **Proximity:** `pickup_box` / `drop_box` only succeed when the robot is within
-`MCP_MANIP_RADIUS_M` (default 1.8 m) of the station. Always
-`navigate_to_pose` (prefer `navigate_xy` from `rank_stations_by_distance`)
-before pick/drop; remote teleports return `too_far_from_station`.
+`MCP_MANIP_RADIUS_M` (default 4.0 m) of the station. Always
+`navigate_to_pose` to `approach_1` or `approach_2` from `get_station`
+(about 2.8 m off the pad, ~4 m apart) — never the pad center and never the
+same approach as another robot. Remote teleports return `too_far_from_station`.
 
 Every prompt starts with the map/world name (e.g. `You are on the stations map
 (world: stations).`). Keep that line when pasting.

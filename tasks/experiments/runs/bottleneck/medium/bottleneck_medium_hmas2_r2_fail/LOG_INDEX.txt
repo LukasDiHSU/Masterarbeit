@@ -1,0 +1,12 @@
+Run: bottleneck_medium_hmas2_r2_fail
+Logs (9):
+
+  - logs/00_usage_monitor.log  (1010866 bytes)
+  - logs/01_agent_trace.log  (19012 bytes)
+  - logs/02_mcp_server_shared.log  (8293 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (3836 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (3379 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (3522 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (7532 bytes)
+  - logs/08_planner_hmas_2.log  (608 bytes)

@@ -88,7 +88,8 @@ init_experiment_session() {
   "started_at": "$(date -Iseconds)",
   "project_root": "$PROJECT_ROOT",
   "status": "running",
-  "model": "${AGENT_MODEL:-}"
+  "model": "${AGENT_MODEL:-}",
+  "timeout_sec": ${EXPERIMENT_TIMEOUT_SEC:-null}
 }
 EOF
 
@@ -106,9 +107,12 @@ When you want to stop and keep this trial:
   ./agentpackage/architectures/save_experiment.sh <your_run_name> --stop
 EOF
 
-  export EXPERIMENT_SESSION_DIR EXPERIMENT_LOG_DIR EXPERIMENT_SESSION_ID
+  export EXPERIMENT_SESSION_DIR EXPERIMENT_LOG_DIR EXPERIMENT_SESSION_ID EXPERIMENT_TIMEOUT_SEC
   echo "Experiment logging → $EXPERIMENT_SESSION_DIR"
   echo "  Save later: ./agentpackage/architectures/save_experiment.sh <run_name> [--stop]"
+  if [[ -n "${EXPERIMENT_TIMEOUT_SEC:-}" ]]; then
+    echo "  Mission timeout: ${EXPERIMENT_TIMEOUT_SEC}s (starts when you send the prompt, not at launch)"
+  fi
 }
 
 launch_window() {
@@ -137,7 +141,7 @@ launch_window() {
   } >"$logfile"
 
   # Record shell PID, stream stdout/stderr through tee, then keep the tab open.
-  wrapped="cd \"$PROJECT_ROOT\" && [ -f .venv/bin/activate ] && source .venv/bin/activate; export PYTHONUNBUFFERED=1; export EXPERIMENT_SESSION_DIR=\"$EXPERIMENT_SESSION_DIR\"; export EXPERIMENT_LOG_DIR=\"$EXPERIMENT_LOG_DIR\"; echo \$\$ >> \"$EXPERIMENT_PID_FILE\"; echo \"[shell_pid=\$\$] $title\" >> \"$logfile\"; set +e; { $cmd; } 2>&1 | tee -a \"$logfile\"; echo; echo \"[exit] \$(date -Iseconds)\" | tee -a \"$logfile\"; exec bash"
+  wrapped="cd \"$PROJECT_ROOT\" && [ -f .venv/bin/activate ] && source .venv/bin/activate; export PYTHONUNBUFFERED=1; export EXPERIMENT_SESSION_DIR=\"$EXPERIMENT_SESSION_DIR\"; export EXPERIMENT_LOG_DIR=\"$EXPERIMENT_LOG_DIR\"; export EXPERIMENT_TIMEOUT_SEC=\"${EXPERIMENT_TIMEOUT_SEC:-}\"; echo \$\$ >> \"$EXPERIMENT_PID_FILE\"; echo \"[shell_pid=\$\$] $title\" >> \"$logfile\"; set +e; { $cmd; } 2>&1 | tee -a \"$logfile\"; echo; echo \"[exit] \$(date -Iseconds)\" | tee -a \"$logfile\"; exec bash"
 
   if [[ "$USE_TABS" -eq 1 ]]; then
     case "$TERMINAL" in
@@ -179,13 +183,16 @@ launch_window() {
 }
 
 wait_for_tcp() {
+  # MCP (Uvicorn + ROS tool init) often needs >10s; the old 30×0.25s (~7.5s)
+  # default made launch_*.sh exit via set -e before opening robot windows.
   local host="$1"
   local port="$2"
   local name="$3"
-  local tries="${4:-30}"
-  local delay="${5:-0.25}"
+  local tries="${4:-120}"
+  local delay="${5:-0.5}"
   local i
 
+  echo "Waiting for $name at $host:$port ..."
   for ((i=1; i<=tries; i++)); do
     if python - "$host" "$port" <<'WAITPY' >/dev/null 2>&1
 import socket, sys
@@ -202,12 +209,17 @@ finally:
     s.close()
 WAITPY
     then
+      echo "$name is up."
       return 0
+    fi
+    if (( i % 10 == 0 )); then
+      echo "  still waiting for $name (attempt $i/$tries) ..."
     fi
     sleep "$delay"
   done
 
   echo "Timed out waiting for $name at $host:$port" >&2
+  echo "  Check the $name tab (bind error / ROS hang). Agents will not start." >&2
   return 1
 }
 

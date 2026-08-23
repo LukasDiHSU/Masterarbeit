@@ -1,0 +1,12 @@
+Run: cross_medium_cmas_r3_fail_deadlock
+Logs (9):
+
+  - logs/00_usage_monitor.log  (1989671 bytes)
+  - logs/01_agent_trace.log  (65476 bytes)
+  - logs/02_mcp_server_shared.log  (34447 bytes)
+  - logs/03_agent_broker.log  (315 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (3685 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1441 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (8401 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (1609 bytes)
+  - logs/08_master_agent.log  (604 bytes)

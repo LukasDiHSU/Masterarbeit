@@ -86,7 +86,7 @@ _IDLE_RE = re.compile(
 )
 _MANIP_RE = re.compile(r"\b(pick|pickup|drop|place)\b", re.IGNORECASE)
 # Already standing at/near the named station (approach poses included).
-_ALREADY_THERE_M = 2.5
+_ALREADY_THERE_M = float(os.getenv("MCP_MANIP_RADIUS_M", "4.0"))
 NOOP_PLAN_MSG = (
     "this PLAN would not change the world (everyone waits or is already at "
     "the station they would drive to). If [World State Now] already satisfies "
@@ -456,10 +456,12 @@ def build_turn_prompt(
         "The Mission is the original task and the STARTING layout. "
         "Poses named there are not current. [World State Now] and "
         "[What Happened In Earlier Rounds] say who already moved. "
-        "Do not send a robot back through the bottleneck (or to a pad) "
-        "if they already completed that crossing. Send someone who still "
-        "needs to go. If the current state already achieves the goal, "
-        "answer FINISHED.",
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "Do not send a robot back through the bottleneck (or to a pad) "
+        # "if they already completed that crossing. "
+        "Send whoever still has work this round — several at once if "
+        "jobs do not conflict. If the current state already achieves "
+        "the goal, answer FINISHED.",
         "",
         "[World State Now]",
         state_text.strip(),

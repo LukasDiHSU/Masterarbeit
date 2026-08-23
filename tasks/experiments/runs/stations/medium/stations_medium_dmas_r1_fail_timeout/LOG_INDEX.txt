@@ -1,0 +1,11 @@
+Run: stations_medium_dmas_r1_fail_timeout
+Logs (8):
+
+  - logs/00_usage_monitor.log  (3353568 bytes)
+  - logs/01_agent_trace.log  (42958 bytes)
+  - logs/02_mcp_server_shared.log  (42555 bytes)
+  - logs/03_dmas_smalldeliveryrobot_3.log  (2805 bytes)
+  - logs/04_dmas_smalldeliveryrobot_2.log  (6679 bytes)
+  - logs/05_dmas_smalldeliveryrobot_1.log  (3385 bytes)
+  - logs/06_dmas_smalldeliveryrobot_0.log  (2981 bytes)
+  - logs/07_mission_cli.log  (10031 bytes)

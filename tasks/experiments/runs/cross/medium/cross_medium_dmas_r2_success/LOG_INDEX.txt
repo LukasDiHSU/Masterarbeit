@@ -1,0 +1,11 @@
+Run: cross_medium_dmas_r2_success
+Logs (8):
+
+  - logs/00_usage_monitor.log  (3206916 bytes)
+  - logs/01_agent_trace.log  (41461 bytes)
+  - logs/02_mcp_server_shared.log  (34608 bytes)
+  - logs/03_dmas_smalldeliveryrobot_3.log  (2317 bytes)
+  - logs/04_dmas_smalldeliveryrobot_2.log  (2435 bytes)
+  - logs/05_dmas_smalldeliveryrobot_1.log  (2501 bytes)
+  - logs/06_dmas_smalldeliveryrobot_0.log  (2379 bytes)
+  - logs/07_mission_cli.log  (7325 bytes)

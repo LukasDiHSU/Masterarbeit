@@ -1,0 +1,12 @@
+Run: bottleneck_medium_cmas_r1_success
+Logs (9):
+
+  - logs/00_usage_monitor.log  (611026 bytes)
+  - logs/01_agent_trace.log  (13982 bytes)
+  - logs/02_mcp_server_shared.log  (6393 bytes)
+  - logs/03_agent_broker.log  (314 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (1121 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1280 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (1017 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (852 bytes)
+  - logs/08_master_agent.log  (1773 bytes)

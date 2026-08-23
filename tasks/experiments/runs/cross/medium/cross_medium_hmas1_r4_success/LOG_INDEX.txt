@@ -1,0 +1,12 @@
+Run: cross_medium_hmas1_r4_success
+Logs (9):
+
+  - logs/00_usage_monitor.log  (1853369 bytes)
+  - logs/01_agent_trace.log  (44861 bytes)
+  - logs/02_mcp_server_shared.log  (41036 bytes)
+  - logs/03_agent_broker.log  (310 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (2059 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (2182 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (2150 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (2088 bytes)
+  - logs/08_planner_hmas_1.log  (12226 bytes)

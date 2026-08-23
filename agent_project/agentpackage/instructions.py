@@ -10,30 +10,81 @@ architecture modules — only the instruction text lives here.
 
 from __future__ import annotations
 
+import os
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, str(default)).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+# Keep in sync with mcpserver.MANIP_RADIUS_M / APPROACH_OFFSET_M defaults.
+_MANIP_RADIUS_M = _env_float("MCP_MANIP_RADIUS_M", 4.0)
+_APPROACH_OFFSET_M = min(
+    _env_float("MCP_APPROACH_OFFSET_M", 2.8),
+    max(0.5, _MANIP_RADIUS_M - 0.8),
+)
+_APPROACH_APART_M = round(_APPROACH_OFFSET_M * (2 ** 0.5), 1)
+
 # =============================================================================
 # COMMON — shared by (almost) every role
 # =============================================================================
 
+STATION_RADIUS = (
+    f"STATION RADIUS: pickup_box and drop_box succeed only if you are at most "
+    f"{_MANIP_RADIUS_M:g} m from the station center (the station's x/y in "
+    f"get_station / list_stations). approach_1 and approach_2 sit "
+    f"{_APPROACH_OFFSET_M:g} m off that center (~{_APPROACH_APART_M:g} m "
+    f"apart), so both are inside the radius — stay there and pick/drop; do "
+    f"not drive onto the pad. Farther than {_MANIP_RADIUS_M:g} m fails with "
+    f"too_far_from_station."
+)
+
 STATION_CAPACITY = (
-    "STATION CAPACITY: Each station holds at most ONE box. "
-    "Empty = box_id is null and available=false. "
-    "Never drop_box on an occupied station (box_id set or available=true); "
-    "check get_station / list_stations first. "
-    "For opposing swaps (e.g. A↔C), pick up from both ends (or stage) so "
-    "destinations are empty before dropping. "
-    "Robots also hold at most ONE box; drop before picking another. "
-    "PROXIMITY: pickup_box/drop_box fail unless you are near the station "
-    "(~1.8 m); always navigate_to_pose to the pad or its navigate_xy first."
+    f"{STATION_RADIUS} "
+    "STATION CAPACITY: A station may hold several boxes (see ``boxes`` on "
+    "get_station / list_stations). ``box_id`` is the first box, or null if "
+    "empty. drop_box is allowed on a pad that already has boxes. "
+    "If a pad has more than one box, pickup_box needs box_id (box_1 or P1). "
+    "Package Pn in the mission is box_n. "
+    "Robots hold at most ONE box; drop before picking another. "
+    "Stay on approach_1 or approach_2 from get_station / list_stations — "
+    "never drive onto the pad center."
+)
+
+STATION_APPROACHES = (
+    "STATION APPROACHES — HARD RULE, no exceptions: "
+    "Each pad has exactly two parking spots, approach_1 and approach_2 "
+    f"({_APPROACH_OFFSET_M:g} m off the center, ~{_APPROACH_APART_M:g} m apart). "
+    "Copy those xy from get_station; "
+    "do not invent a third spot and do not use the pad center. "
+    "NEVER send two robots to the same approach of the same station — "
+    "not in one STEP, not by both copying approach_1, not by both using "
+    "rank_stations navigate_xy. If two robots work the same station: "
+    "first robot → approach_1 xy, second robot → approach_2 xy, named "
+    "explicitly in the plan/EXECUTE/SEND. A third robot WAITS; there is "
+    "no approach_3. "
+    "If navigate_to_pose aborts because a peer sits on the goal, you "
+    "chose the SAME approach as that peer — switch to the OTHER named "
+    "approach of that station and copy its xy; never retry the failed xy. "
+    f"pickup/drop still work from either approach (radius {_MANIP_RADIUS_M:g} m)."
 )
 
 COORDINATES = (
-    "(rank_stations_by_distance navigate_xy, get_station, list_stations, "
-    "get_map_info, get_robot_pose) or from the user prompt. Drive only to "
-    "positions that exist on the active map — look the position up before "
-    "navigating."
-    "Dont invent coordinates if you have provided ones."
-    "If you navigate robots to the same position, use a safety distance of 4 meters"
-    "Dont move to 0.0 , 0.0 on the bottleneck map"
+    "COORDINATES: Look up x/y with rank_stations_by_distance, get_station, "
+    "list_stations, get_map_info, or get_robot_pose (or copy from the user "
+    "prompt). Drive only to positions that exist on the active map. "
+    "Do not invent coordinates when looked-up ones are available. "
+    "For meeting or idle poses that are not station approaches, keep 4 m "
+    "between robots sent to the same place and 2 m from another robot's "
+    "current pose. Station approaches are already ~4 m apart from each "
+    "other; still never assign two robots the same approach_1 or the same "
+    "approach_2. "
+    + STATION_APPROACHES
+    # BOTTLENECK-only — re-enable for bottleneck worlds:
+    # " Don't move to 0.0, 0.0 on the bottleneck map."
 )
 
 GROUND_TRUTH = (
@@ -73,8 +124,10 @@ FLEET_COLLISIONS = (
     "remind robots to check nearby peers before moving."
 )
 FLEET_NAV_FAILURE = (
-    "FLEET: Other robots share this map. Navigate first; on failure use "
-    "get_peer_distances / drive_distance to clear peers, then retry."
+    "FLEET: Other robots share this map. Navigate first to a named "
+    "approach_1 or approach_2. On abort, you hit a peer on the SAME "
+    "approach — copy the OTHER approach xy of that station; do not retry "
+    "the failed xy. Only then get_peer_distances / drive_distance."
 )
 
 # Names used historically in config.py and architecture modules.
@@ -128,15 +181,14 @@ def centralized_master(*, fleet: str, n: int, robot_list: str) -> str:
         "get_map_info(world_id) loads that world's landmarks into list_stations — "
         "use those x/y (not invented coords). "
         "Build a concrete plan from the active world's landmarks.\n"
-        f"- ask_robot(robot, message): SEND a message to one robot "
-        f"({robot_list}) and wait for its reply.\n"
-        "- ask_all_robots: SEND the same message to every robot and wait for all replies.\n"
-        "- ask_selected_robots_parallel: SEND the same message to a subset of robots.",
+        f"- ask_robot(robot, message): SEND a message to one robot and allows only one robot to work at a time"
+        "- ask_all_robots: SEND the same message to every robot and wait for all replies and allows all robots to work at the same time.\n"
+        "- ask_selected_robots_parallel: SEND the same message to a subset of robots and allows the selected robots to work at the same time.",
         "WHAT YOU CANNOT DO:\n"
         "- Robots cannot send messages to each other; only you can delegate.\n"
         "- You have no navigate/pickup/drop tools — robots do the physical work.\n"
         "- Do not ask the user which tool to call when the request already implies it.",
-        STATION_CAPACITY + "\nPlan only empty drop destinations; for swaps, clear pads first.",
+        STATION_CAPACITY,
         COORDINATES + " Pass robots only coordinates you looked up yourself, "
         "and never a station that is not on the active map.",
         WORDING_SEND,
@@ -156,9 +208,14 @@ def centralized_robot(*, name: str, nav_id: str) -> str:
         f"distance_to_station, get_laser_snapshot, get_peer_distances, "
         f"drive_distance(robot_id='{nav_id}', distance_m, direction_deg), "
         f"navigate_to_pose(robot_id='{nav_id}', x, y), "
-        "pickup_box/drop_box with that robot_id.\n"
+        "pickup_box/drop_box with that robot_id "
+        "(pickup_box: pass box_id when the pad has several boxes).\n"
         "- Station ids are station_A..station_D (short A/B/C/D also work). "
-        "Prefer navigate_xy from rank_stations_by_distance (slightly off the pad).\n"
+        "Drive to approach_1 or approach_2 from get_station, never the pad "
+        "center and never rank_stations navigate_xy if a named approach exists. "
+        "If the master (or a peer) already took approach_1 of your station, "
+        "you MUST use approach_2. Never navigate to a goal another robot is "
+        "already using.\n"
         f"- {STATION_CAPACITY} If unsure before drop_box, call get_station.\n"
         f"- {COORDINATES}",
         "WHAT YOU CANNOT DO:\n"
@@ -167,11 +224,15 @@ def centralized_robot(*, name: str, nav_id: str) -> str:
         "ACTION (keep tool use minimal):\n"
         "- Do not call get_all_robot_poses / list_stations / get_robot_pose repeatedly "
         "for the same task. One gather → act → report.\n"
-        "- Only if navigate_to_pose fails: call get_peer_distances and/or "
-        "drive_distance (e.g. 1 m at ±90 deg) to clear a peer, then retry navigate.",
+        "- Only if navigate_to_pose fails: you likely aimed at a peer's "
+        "approach — switch to the OTHER named approach of that station "
+        "(copy its xy). Do not retry the same xy. If that also fails, "
+        "call get_peer_distances and/or drive_distance (e.g. 1 m at ±90 deg), "
+        "then retry navigate.",
         WORDING_SEND_OR_RECEIVE,
         "FLEET: Other robots share this map. Do not probe peers before navigating; "
-        "nav failure is usually another robot — then use get_peer_distances / drive_distance.",
+        "nav failure is usually another robot on your goal — switch to the other "
+        "station approach, then get_peer_distances / drive_distance if still blocked.",
         TOOLS_RETRY,
         STYLE,
     )
@@ -190,7 +251,8 @@ def conflict_robot(*, name: str, nav_id: str, peers: str) -> str:
         "distance_to_station, get_laser_snapshot, get_peer_distances, "
         f"drive_distance(robot_id='{nav_id}', distance_m, direction_deg), "
         f"navigate_to_pose(robot_id='{nav_id}', x, y), "
-        "pickup_box/drop_box with that robot_id, get_events.\n"
+        "pickup_box/drop_box with that robot_id "
+        "(pickup_box: pass box_id when the pad has several boxes), get_events.\n"
         f"- {STATION_CAPACITY}\n"
         f"- {COORDINATES}\n"
         "- Tool failures emit MCP events; negotiation opens when you (and any "
@@ -277,7 +339,11 @@ def hmas1_planner(*, fleet: str, n: int, max_steps: int = 12) -> str:
         "robot must hold; a STEP where everybody waits is rejected.\n"
         "- Where the human says robots 'are' is the starting layout, not a "
         "target. Plan the task goal from current poses (tools / snapshot).\n"
-        "- Two robots must not be sent to the same station in one STEP.\n"
+        "- Two robots must NEVER share the same approach point. "
+        "Same station in one STEP is allowed only as: robot X → approach_1, "
+        "robot Y → approach_2, with both xy copied from get_station. "
+        "If a third robot needs that pad, it waits. "
+        "Do not write the same approach_1 (or the same xy) on two legs.\n"
         f"- Use at most {max_steps} work STEP blocks, plus the final FINISHED STEP.\n"
         "- Answer with the PLAN block only, no prose.\n"
         f"- {NO_INVENT}",
@@ -294,7 +360,9 @@ def hmas1_robot(*, name: str, n: int, nav_id: str) -> str:
         "(HMAS-1 multi-robot framework).",
         "A central planner publishes a full multi-step mission plan. You "
         "vote once on that whole plan: AGREE or DISAGREE. Do not debate "
-        "and do not rewrite it. AGREE means execute every STEP as written. "
+        "and do not rewrite it. AGREE means execute STEPs as written; after "
+        "each original STEP the executor reports STEP_OK or STEP_FAILED, "
+        "and STEP_FAILED switches the fleet to DMAS. "
         "DISAGREE discards the original plan; the fleet then plans as "
         "equals (DMAS): huddle in natural language, put a PLAN on the "
         "table, then AGREE to vote for it. If a DMAS PLAN is already on "
@@ -325,6 +393,12 @@ def hmas1_executor(*, name: str, nav_id: str) -> str:
         f"robot_id '{nav_id}'. The other robots run their legs of this "
         "STEP at the same time. Do only this leg — later STEPs are "
         "dispatched separately.",
+        "After an original-plan STEP you may be asked STEP_CHECK: answer "
+        "exactly STEP_OK or STEP_FAILED for YOUR assigned leg. "
+        "STEP_OK only if the tools confirmed the assigned pickup, drop or "
+        "arrival (or your leg was wait and you waited). "
+        "STEP_FAILED if nav aborted, pickup/drop failed, you stopped short, "
+        "or the assigned work is not done. Do not claim success you did not get.",
         "Navigate to a station before you pick or drop there.",
         STATION_CAPACITY,
         COORDINATES,
@@ -412,7 +486,7 @@ def hmas2_planner(*, fleet: str, n: int) -> str:
         f"You are the central planner for {fleet} (HMAS-2 architecture, "
         f"{n} robots).\n"
         "Do not ask the user anything or reply to the user until the mission "
-        "is complete (robots have executed, or the mission has clearly failed).",
+        "is completed.",
         "WHAT YOU CAN DO:\n"
         "- Before drafting a plan, inspect the world with MCP map tools: "
         "list_worlds, get_map_info (or set_world), list_stations, "
@@ -439,7 +513,7 @@ def hmas2_planner(*, fleet: str, n: int) -> str:
         "- Do not ask the user which tool to call, whether to continue, or "
         "for permission to keep coordinating. Stay in this turn until Execute "
         "has run or the mission has failed.",
-        STATION_CAPACITY + "\nPlan only empty drop destinations; for swaps, clear pads first.",
+        STATION_CAPACITY,
         COORDINATES + " Put only looked-up coordinates into a plan "
         "or an EXECUTE message, and never a station that is not on the "
         "active map.",
@@ -476,16 +550,22 @@ def hmas2_robot(*, name: str, nav_id: str) -> str:
         "  DISAGREE: <what is wrong / safer alternative>\n"
         "  Prefer ZERO tools. If your role is 'go to farthest/nearest station' "
         f"you may call rank_stations_by_distance(robot_id='{nav_id}') ONCE, "
-        "then AGREE with the station + navigate_xy. Do NOT execute during review.\n"
+        "then AGREE with the station + approach_1 or approach_2 (not the "
+        "same approach another robot already claimed). Do NOT execute during review.\n"
         "- EXECUTE navigate (coords given): call navigate_to_pose immediately "
         f"with robot_id='{nav_id}' and those x/y. No pre-sensing.\n"
-        "- EXECUTE farthest/nearest without coords: rank_stations_by_distance ONCE, "
-        "then navigate_to_pose to navigate_xy.\n"
+        "- EXECUTE farthest/nearest without coords: get_station once and drive to "
+        "approach_1 or approach_2 (not pad center, not a peer's approach). If "
+        "the station has no approaches, rank_stations_by_distance ONCE then "
+        "use approach_1/approach_2 from that result.\n"
         "- EXECUTE HOLD / idle / wait: reply HOLDING in one short line. Call NO tools.\n"
-        "- Only if navigate_to_pose fails: use the tool's blocking_robot message, "
+        "- Only if navigate_to_pose fails: switch to the OTHER named approach of that "
+        "station (copy its xy). Do not retry the same xy. If still blocked, use "
+        "the tool's blocking_robot message, "
         f"optionally drive_distance(robot_id='{nav_id}', ...), then retry navigate. "
         "Call get_peer_distances only if the nav failure did not name a blocker.\n"
-        "- pickup_box / drop_box only when EXECUTE says so.\n"
+        "- pickup_box / drop_box only when EXECUTE says so. "
+        "If the pad has several boxes, pass box_id.\n"
         f"- {STATION_CAPACITY} If unsure before drop_box, call get_station.\n"
         f"- {COORDINATES} If an EXECUTE gives you no coordinates, "
         "look them up instead of assuming a position.",
@@ -514,11 +594,16 @@ def fleet_huddle(*, name: str, n: int) -> str:
         f"You are {name}, one of {n} delivery robots standing in a huddle "
         "with your teammates. Talk like a person, not like a log.",
         "Answer with 1-3 short spoken sentences in the first person. "
-        "React to the last speaker. Argue who should move or wait, and why. "
+        "Assign THIS ROUND: who does which job, who waits, and why. "
+        "Several robots may work at once when their jobs do not share a pad "
+        "or a one-at-a-time constraint. One-at-a-time / deadlock / named "
+        "priorities apply only if the Mission says so — do not invent a "
+        "rule that only one robot may move. "
         "Who still needs to move comes from [World State Now] and "
         "[What Happened In Earlier Rounds], not from starting poses in the "
-        "Mission. Constraints (one-at-a-time, deadlock, named priorities) "
-        "come from the Mission. Do not send a robot that already crossed. "
+        "Mission. "
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "Do not send a robot that already crossed. "
         "Do not pick whoever is nearest unless the Mission says so. "
         "You may say R0 / R1 meaning SmallDeliveryRobot_0 / _1.",
         "Do not recap [World State Now]. Do not write 'discussion notes', "
@@ -526,13 +611,29 @@ def fleet_huddle(*, name: str, n: int) -> str:
         "the same world state.",
         "Do not output PLAN or AGREE. That comes after the huddle. "
         "If the goal is already done, answer FINISHED (that word on its own line).",
-        "Good: \"I think we should send R1 first and the rest wait.\"\n"
-        "Good: \"Only one of us fits in the gap, so R0 crosses and the rest wait.\"\n"
-        "Good: \"R1 already went last round and is on the target side — we are done.\"\n"
-        "FINISHED\n"
+        "If nobody has spoken, propose a split of work, not a single mover. "
+        "If someone named only one robot, improve it: add who else should "
+        "act this round. Do not only say 'I agree, the rest wait.'\n"
+        #"Good: \"R0 picks box_1 at A and R2 picks box_5 at A — approach_1 vs "
+        #"approach_2; R1 picks box_2 at B.\"\n"
+        #"Good: \"R0 drops at C while R3 drops at A — different pads, both go; "
+        #"R1 and R2 wait.\"\n"
+        #"Good: \"R0 and R2 both go to A: R0 takes approach_1, R2 takes "
+        #"approach_2 — never the same approach.\"\n"
+        #"Bad: \"R0 and R2 both go to A approach_1.\" "
+        #"Bad: two robots given the same xy or both told to use navigate_xy.\n"
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "Good: \"I think we should send R1 first and the rest wait.\"\n"
+        # "Good: \"Only one of us fits in the gap, so R0 crosses and the rest wait.\"\n"
+        # "Good: \"R1 already went last round and is on the target side — we are done.\"\n"
+        # "FINISHED\n"
         "Bad: world recaps, tool dumps, headings, numbered notes. "
         "Bad: sending the same robot again because the Mission named them first. "
-        "Bad: \"R0 already crossed, send R1 next\" after R1 already went.",
+        "Bad: \"I agree, R3 should go first and everyone else wait\" when "
+        "other robots have independent jobs."
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "Bad: \"R0 already crossed, send R1 next\" after R1 already went."
+        ,
     )
 
 
@@ -551,8 +652,9 @@ def dmas_discussion(*, name: str, n: int, nav_id: str) -> str:
         "list_stations, get_station, get_all_robot_poses, get_held_boxes, "
         f"or rank_stations_by_distance(robot_id='{nav_id}') and copy the "
         "ids and x/y from the result. Use those tools only for numbers, "
-        "not to decide who moves first — that comes from the Mission "
-        "(priorities, one-at-a-time, deadlock). Do not dump results in chat.",
+        "not to decide the split of work — that comes from the Mission "
+        "(who can move together, crossing limits, priorities, deadlock). "
+        "Do not dump results in chat.",
         "If [Plan On The Table] already has a proposal and you accept those "
         "assignments (same who-goes / who-waits, even if you would word the "
         "legs differently) output ONLY the word AGREE. Do not write PLAN. "
@@ -587,23 +689,29 @@ def dmas_executor(*, name: str, nav_id: str) -> str:
 
 
 DMAS_TALK_FORMAT = (
-    "Speak now. Output ONLY the words you would say out loud.\n"
     "1-3 short sentences. First person. No PLAN, no AGREE, no tools, "
     "no recap of [World State Now], no notes, no bullets.\n"
-    "If nobody has spoken, open with a proposal (who goes, who waits). "
-    "If someone has spoken, react: agree, disagree, or improve it.\n"
-    "You may say R0 meaning SmallDeliveryRobot_0, and so on.\n"
-    "Who still needs to go is in [World State Now] and "
-    "[What Happened In Earlier Rounds], not the Mission starting poses. "
-    "Do not send a robot that already crossed. Mission constraints "
-    "(deadlock, priorities, one-at-a-time) still apply. Do not pick "
-    "whoever is nearest unless the Mission says so.\n"
-    "Example: I think we should send R1 first and the rest wait.\n"
-    "Example: Only one of us fits in the gap, so R0 crosses and the rest wait.\n"
-    "Example (goal already met — FINISHED on its own line):\n"
-    "R1 already went last round and is on the target side — we are done.\n"
-    "FINISHED\n"
-    "Do not say \"R0 already crossed, send R1 next\" if R1 already went.\n"
+    "If nobody has spoken, propose who does which job THIS round "
+    "(several may move if jobs do not conflict). Do not default to "
+    "one robot and the rest wait unless the Mission forces that.\n"
+    "If someone has spoken, do not only agree: improve the split — "
+    "name the other robots' jobs or who waits this round.\n"
+    "The current world state is in [World State Now] and "
+    "[What Happened In Earlier Rounds], not the Mission starting poses.\n"
+    "Example: R0 picks box_1 at A and R1 picks box_2 at B; R2 and R3 wait.\n"
+    "Example: R0 and R2 both go to A — R0 approach_1, R2 approach_2; never the same approach.\n"
+    # BOTTLENECK-only — re-enable for bottleneck worlds:
+    # "Do not send a robot that already crossed. "
+    #"Mission constraints "
+    #"(deadlock, priorities, one-at-a-time) still apply. Do not pick "
+    #"whoever is nearest unless the Mission says so.\n"
+    #"Example: I think we should send R1 first and the rest wait.\n"
+    # BOTTLENECK-only — re-enable for bottleneck worlds:
+    # "Example: Only one of us fits in the gap, so R0 crosses and the rest wait.\n"
+    # "Example (goal already met — FINISHED on its own line):\n"
+    # "R1 already went last round and is on the target side — we are done.\n"
+    # "FINISHED\n"
+    # "Do not say \"R0 already crossed, send R1 next\" if R1 already went.\n"
 )
 
 
@@ -634,7 +742,9 @@ DMAS_ANSWER_FORMAT = (
     "Bad (same legs as the table — this resets the vote):\n"
     "PLAN\n"
     "<RobotName>: wait\n"
-    "<RobotName>: cross the gap\n"
+    # BOTTLENECK-only — re-enable for bottleneck worlds:
+    # "<RobotName>: cross the gap\n"
+    "<RobotName>: pick up the box\n"
     "\n"
     "PLAN\n"
     "<RobotName>: <one natural-language sentence for that robot this round>\n"
@@ -651,9 +761,14 @@ def dmas_talk_rules(*, min_talk_turns: int = 4) -> str:
         f"- This is one of the first {min_talk_turns} huddle turns.\n"
         "- Speak 1-3 short sentences to the other robots, like a person.\n"
         "- No PLAN, no AGREE, no tools, no bullet notes, no coordinate dump.\n"
-        "- React to the last speaker. Say who should go or wait, and why "
-        "(who still needs to cross per history/world state; Mission "
-        "constraints — not whoever is nearest, not who went last round).\n"
+        "- React to the last speaker by improving the work split: who does "
+        "which job this round, who waits, and why "
+        "(who still needs to act per history/world state). Several robots "
+        "may move unless the Mission says one-at-a-time. Two robots at one "
+        "pad: approach_1 vs approach_2, never the same approach; a third waits.\n"
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "(who still needs to cross per history/world state; Mission "
+        # "constraints — not whoever is nearest, not who went last round).\n"
         "- FINISHED only if [World State Now] already completes the mission."
     )
 
@@ -667,7 +782,7 @@ def dmas_turn_rules(*, max_turns: int, min_talk_turns: int = 4) -> str:
         "FINISHED too. A new PLAN in that situation undoes the ending.\n"
         f"- The first {min_talk_turns} turns of this round are a huddle: "
         "spoken sentences only, no PLAN, no AGREE, no tools, no world recap. "
-        "Talk like teammates (\"I think R1 should go first, the rest wait\").\n"
+        "Talk like teammates (\"R0 takes A, R1 takes B; R2 and R3 wait\").\n"
         "- After that window, someone must put a PLAN on the table so the "
         "others can vote. Talking does not move robots.\n"
         "- If [Plan On The Table] already lists assignments you accept, "
@@ -690,7 +805,6 @@ def dmas_turn_rules(*, max_turns: int, min_talk_turns: int = 4) -> str:
         "inspection tools. Never invent a station, a box or a coordinate. "
         "If a PLAN needs an x/y, call list_stations / get_station / "
         "rank_stations_by_distance and copy the numbers from the result.\n"
-        "- Two robots must not be sent to the same station in one round."
     )
 
 
@@ -731,8 +845,10 @@ def agentnet_robot(*, name: str, n: int, action_syntax: str, chunk_steps: int) -
         "HOW TO BE USEFUL:\n"
         "- Speak from YOUR robot's perspective: position, what you carry, "
         "whether the action assigned to you makes sense.\n"
-        "- Watch for conflicts: two robots at one station, a drop onto an "
-        "occupied pad, a pick while still far away.\n"
+        "- Watch for conflicts: two robots sent to the same approach_1 (or "
+        "the same approach_2, or the same xy) of one station — split them; "
+        "a third robot waits. Also two robots picking the same "
+        "box, a pick while still far away.\n"
         f"- Action syntax: {action_syntax}. Several actions for one robot "
         f"go on one line, joined with ';' (at most {chunk_steps} per meeting).\n"
         "- Never invent stations, boxes or coordinates. Only landmarks in "
@@ -779,7 +895,9 @@ def agentnet_closing(*, chunk_steps: int, action_syntax: str) -> str:
         "<RobotName>: <action>; <action>\n"
         "...one line for EVERY robot...\n"
         f"Actions must be copied from the available list ({action_syntax}). "
-        "Two robots must never target the same station in the same step. "
+        "Two robots must never be given the same station approach in the same "
+        "step: one uses approach_1, the other approach_2; a third waits. "
+        "Do not copy the same xy onto two robots. "
         "At least one robot must do something other than wait() in the first step.\n"
         "3) If the WHOLE task is already achieved, reply with FINISHED and nothing "
         "else. The mission ends only when EVERY robot says FINISHED in the same "

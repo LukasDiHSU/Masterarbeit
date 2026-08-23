@@ -1,0 +1,14 @@
+Run: cross_hard_cmas_r3_fail_timeout
+Logs (11):
+
+  - logs/00_usage_monitor.log  (1994034 bytes)
+  - logs/01_agent_trace.log  (93882 bytes)
+  - logs/02_mcp_server_shared.log  (46797 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (2522 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (3428 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (9930 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (6197 bytes)
+  - logs/08_robot_smalldeliveryrobot_4.log  (1423 bytes)
+  - logs/09_robot_smalldeliveryrobot_5.log  (3434 bytes)
+  - logs/10_master_agent.log  (847 bytes)

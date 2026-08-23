@@ -23,7 +23,7 @@ from ...config import (
     robot_peer_name,
 )
 from ...paper_protocol import Environment
-from ...timing import format_elapsed, record_timing
+from ...timing import format_elapsed, mission_timeout_guard, record_timing
 from ..conflict_based.mesh_bus import MeshNode
 from .protocol import (
     ARCHITECTURE,
@@ -308,7 +308,8 @@ def main() -> None:
 
             print("... fleet discussion started (timer running) ...", flush=True)
             t0 = time.perf_counter()
-            success, detail = Session(mesh, participants).run(line)
+            with mission_timeout_guard("dmas_until_done"):
+                success, detail = Session(mesh, participants).run(line)
             elapsed = time.perf_counter() - t0
 
             print(f"\n*** {'MISSION DONE' if success else 'MISSION FAILED'}: {detail} ***")

@@ -1,5 +1,13 @@
 [
   {
+    "id": "gap",
+    "name": "bottleneck gap",
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "Narrow center crossing. Only one robot in the gap at a time. Do not wait at 0,0."
+  },
+  {
     "id": "station_west",
     "name": "west station",
     "x": -1.8,
@@ -14,10 +22,51 @@
     "z": 0.0
   },
   {
-    "id": "gap",
-    "name": "bottleneck gap",
-    "x": 0.0,
+    "id": "park_west_s",
+    "name": "west parking south",
+    "x": -2.3,
+    "y": -1.8,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. One robot only."
+  },
+  {
+    "id": "park_west_c",
+    "name": "west parking center",
+    "x": -2.3,
     "y": 0.0,
-    "z": 0.0
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. One robot only."
+  },
+  {
+    "id": "park_west_n",
+    "name": "west parking north",
+    "x": -2.3,
+    "y": 1.8,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the EAST. One robot only."
+  },
+  {
+    "id": "park_east_s",
+    "name": "east parking south",
+    "x": 2.3,
+    "y": -1.8,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. One robot only."
+  },
+  {
+    "id": "park_east_c",
+    "name": "east parking center",
+    "x": 2.3,
+    "y": 0.0,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. One robot only."
+  },
+  {
+    "id": "park_east_n",
+    "name": "east parking north",
+    "x": 2.3,
+    "y": 1.8,
+    "z": 0.0,
+    "note": "Goal for a robot that started on the WEST. One robot only."
   }
 ]

@@ -1,0 +1,10 @@
+Run: cross_easy_cmas_r1_success
+Logs (7):
+
+  - logs/00_usage_monitor.log  (768263 bytes)
+  - logs/01_agent_trace.log  (25776 bytes)
+  - logs/02_mcp_server_shared.log  (16669 bytes)
+  - logs/03_agent_broker.log  (308 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (2466 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (4486 bytes)
+  - logs/06_master_agent.log  (1603 bytes)

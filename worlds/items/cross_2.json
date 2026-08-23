@@ -1,29 +1,29 @@
 [
   {
-    "id": "station_nw",
-    "name": "NW quadrant",
+    "id": "station_A",
+    "name": "Station A",
     "x": -10.8,
-    "y": 10.8,
-    "z": 0.0
-  },
-  {
-    "id": "station_ne",
-    "name": "NE quadrant",
-    "x": 10.8,
-    "y": 10.8,
-    "z": 0.0
-  },
-  {
-    "id": "station_se",
-    "name": "SE quadrant",
-    "x": 10.8,
     "y": -10.8,
     "z": 0.0
   },
   {
-    "id": "station_sw",
-    "name": "SW quadrant",
+    "id": "station_B",
+    "name": "Station B",
     "x": -10.8,
+    "y": 10.8,
+    "z": 0.0
+  },
+  {
+    "id": "station_C",
+    "name": "Station C",
+    "x": 10.8,
+    "y": 10.8,
+    "z": 0.0
+  },
+  {
+    "id": "station_D",
+    "name": "Station D",
+    "x": 10.8,
     "y": -10.8,
     "z": 0.0
   },

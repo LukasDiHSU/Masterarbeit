@@ -1,0 +1,9 @@
+Run: cross_easy_dmas_r3_success
+Logs (6):
+
+  - logs/00_usage_monitor.log  (414367 bytes)
+  - logs/01_agent_trace.log  (15716 bytes)
+  - logs/02_mcp_server_shared.log  (19461 bytes)
+  - logs/03_dmas_smalldeliveryrobot_1.log  (1852 bytes)
+  - logs/04_dmas_smalldeliveryrobot_0.log  (1884 bytes)
+  - logs/05_mission_cli.log  (3321 bytes)

@@ -1,0 +1,12 @@
+Run: cross_medium_cmas_r1_success
+Logs (9):
+
+  - logs/00_usage_monitor.log  (659335 bytes)
+  - logs/01_agent_trace.log  (37914 bytes)
+  - logs/02_mcp_server_shared.log  (20469 bytes)
+  - logs/03_agent_broker.log  (309 bytes)
+  - logs/04_robot_smalldeliveryrobot_0.log  (2130 bytes)
+  - logs/05_robot_smalldeliveryrobot_1.log  (1883 bytes)
+  - logs/06_robot_smalldeliveryrobot_2.log  (4597 bytes)
+  - logs/07_robot_smalldeliveryrobot_3.log  (2112 bytes)
+  - logs/08_master_agent.log  (1397 bytes)

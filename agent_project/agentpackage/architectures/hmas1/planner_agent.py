@@ -2,9 +2,10 @@
 
 The central LLM proposes a full multi-step mission plan once. Each robot
 votes AGREE or DISAGREE once on that whole plan (no debate). Unanimous
-AGREE executes the STEPs in order. DISAGREE or a different PLAN discards
-the original plan; the fleet then continues as a peer (DMAS) network on
-the same star broker.
+AGREE executes the STEPs in order. After each original work STEP, every
+executor that had a real leg reports STEP_OK or STEP_FAILED; any
+STEP_FAILED drops the original plan and continues as DMAS. DISAGREE or a
+different PLAN at vote time also discards the original plan.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from ...paper_protocol import (
     Environment,
     StepHistory,
 )
-from ...timing import format_elapsed, record_timing
+from ...timing import format_elapsed, mission_timeout_guard, record_timing
 from ..centralized.agent_bus import BusClient, DEFAULT_HOST, DEFAULT_PORT
 from ..dmas.protocol import (
     CONTINUE,
@@ -58,12 +59,14 @@ from .dialogue import (
     build_central_plan_prompt,
     build_execute_dispatch,
     build_plan_vote_prompt,
+    build_step_check_dispatch,
     finish_step,
     is_finish_step,
     looks_agree,
     looks_disagree,
     mission_text,
     parse_hmas1_plan,
+    parse_step_check,
     resolve_participants,
     restates_original_step,
 )
@@ -117,7 +120,7 @@ class CentralPlannerAgent(BaseAgent):
 
 
 class HMAS1Session:
-    """Central plan once, one AGREE/DISAGREE vote, DMAS fallback if rejected."""
+    """Central plan once, one vote, per-STEP executor check, else DMAS."""
 
     def __init__(self, *, bus: BusClient, planner: CentralPlannerAgent):
         self.bus = bus
@@ -369,6 +372,70 @@ class HMAS1Session:
                 peer, reply = future.result()
                 results[peer] = reply
         return results
+
+    def _check_original_step(
+        self,
+        legs: dict[str, str],
+        results: dict[str, str],
+        *,
+        step_index: int,
+        n_steps: int,
+    ) -> str | None:
+        """Ask each executor if its original-plan STEP succeeded.
+
+        Returns a short reason if anyone reports STEP_FAILED (or an
+        unreadable check), else None so the original plan continues.
+        Idle/wait legs skip the check.
+        """
+        working = {
+            peer: leg for peer, leg in legs.items() if not looks_idle(leg)
+        }
+        if not working:
+            return None
+
+        print(
+            f"[step check] original STEP {step_index}: each executor "
+            "reports STEP_OK or STEP_FAILED",
+            flush=True,
+        )
+
+        def _one(peer: str) -> tuple[str, str, str]:
+            message = build_step_check_dispatch(
+                leg=working[peer],
+                report=results.get(peer) or "",
+                step_index=step_index,
+                n_steps=n_steps,
+            )
+            reply = self._ask_robot(
+                peer,
+                message,
+                thread_id=f"step-check-{step_index}",
+                timeout=TURN_TIMEOUT,
+            )
+            return peer, parse_step_check(reply), reply
+
+        failed: list[str] = []
+        with ThreadPoolExecutor(max_workers=max(1, len(working))) as pool:
+            futures = [pool.submit(_one, peer) for peer in working]
+            for future in as_completed(futures):
+                peer, verdict, reply = future.result()
+                preview = " ".join((reply or "").split())[:160]
+                print(f"  [{peer}] {verdict}: {preview}", flush=True)
+                if verdict != "ok":
+                    failed.append(peer)
+
+        if not failed:
+            print(
+                f"[step check] STEP {step_index} accomplished — continue original plan",
+                flush=True,
+            )
+            return None
+        who = ", ".join(sorted(failed))
+        print(
+            f"[step check] STEP {step_index} not accomplished ({who}) — switching to DMAS",
+            flush=True,
+        )
+        return who
 
     def _record(
         self,
@@ -696,6 +763,22 @@ class HMAS1Session:
                 mode="original",
             )
             self.env.refresh()
+            failed = self._check_original_step(
+                legs, results, step_index=step_index, n_steps=n_steps
+            )
+            if failed:
+                return self._pmas_run(
+                    task=task,
+                    participants=participants,
+                    history=history,
+                    transcript=transcript,
+                    executed=executed,
+                    why=(
+                        f"after original STEP {step_index}, {failed} reported "
+                        "STEP_FAILED (the assigned leg was not accomplished). "
+                        "The original plan is dropped; continue as a peer fleet."
+                    ),
+                )
 
         return self._pmas_run(
             task=task,
@@ -714,8 +797,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
             "HMAS-1 planner: one full mission plan ending with FINISHED, "
-            "one AGREE/DISAGREE vote on that plan, DMAS peer fallback if "
-            "anyone rejects it."
+            "one AGREE/DISAGREE vote on that plan, per-STEP executor check, "
+            "DMAS peer fallback if anyone rejects a STEP or the plan."
         )
     )
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -741,8 +824,10 @@ def main() -> None:
     print(
         f"Limits: {MAX_PLAN_STEPS} work STEPs plus a final FINISHED STEP, "
         f"{MAX_SYNTAX_RETRIES} syntax retries. One AGREE/DISAGREE vote on "
-        "the original plan; unanimous AGREE executes it. A DISAGREE or "
-        "new PLAN discards it and continues as DMAS."
+        "the original plan; unanimous AGREE executes it. After each work "
+        "STEP every executor reports STEP_OK or STEP_FAILED; STEP_FAILED "
+        "drops the original plan and continues as DMAS. A DISAGREE or "
+        "new PLAN on the original vote also switches to DMAS."
     )
     print("Type the mission and press Enter. Ctrl+C to exit.\n")
 
@@ -754,7 +839,8 @@ def main() -> None:
             if line.lower() in {"quit", "exit", "q"}:
                 break
             t0 = time.perf_counter()
-            outcome = session.run(line, list(participants))
+            with mission_timeout_guard("hmas1_until_done"):
+                outcome = session.run(line, list(participants))
             elapsed = time.perf_counter() - t0
             print("\n=== mission outcome ===")
             print(json.dumps(
