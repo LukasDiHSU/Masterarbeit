@@ -9,20 +9,23 @@ from .config import Q1_SPECIALIST_IDS, is_q1_platform
 Q1_ROLE_MCP_TOOLS: dict[str, frozenset[str]] = {
     "navigator": frozenset(
         {
-            "get_robot_pose",
             "navigate_to_pose",
             "get_occupancy_map",
-            "drive_distance",
-            "rotate_by",
-            "drive_forward",
         }
     ),
-    "lidar": frozenset({"get_lidar_snapshot", "get_semantic_lidar_objects"}),
+    "lidar": frozenset(
+        {
+            "get_lidar_snapshot",
+            "get_semantic_lidar_objects",
+            "confirm_stop",
+        }
+    ),
     "camera": frozenset(
         {
             "get_semantic_camera_classes",
             "get_camera_image",
             "get_semantic_camera_image",
+            "confirm_stop",
         }
     ),
 }
@@ -49,7 +52,7 @@ def filter_mcp_tools_for_agent(
     extra: Iterable[str] = (),
     blocked: Iterable[str] = (),
 ) -> list[Any]:
-    """Keep remroc filters as-is; on Q1 restrict each specialist to its sensors."""
+    """On Q1 restrict each specialist to its sensors."""
     blocked_set = frozenset(blocked)
     if not is_q1_platform():
         return [t for t in tools if getattr(t, "name", "") not in blocked_set]

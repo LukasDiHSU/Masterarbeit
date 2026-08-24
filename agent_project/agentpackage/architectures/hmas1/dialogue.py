@@ -1,9 +1,10 @@
 """HMAS-1 dialogue helpers.
 
-A central LLM planner proposes a short natural-language plan (one leg per
-robot, DMAS-style). The robots take turns: they follow it (AGREE) unless they
-see an exception (DISAGREE / corrected PLAN). Agreed legs are carried out with
-MCP tools, then the new state opens the next round.
+A central LLM planner proposes a full multi-step mission plan. Each robot
+votes AGREE or DISAGREE once on that whole plan (no debate). Unanimous
+AGREE executes the STEPs in order. After each original work STEP, executors
+report STEP_OK or STEP_FAILED; any STEP_FAILED discards the original plan.
+DISAGREE or a different PLAN at vote time also switches to DMAS.
 """
 
 from __future__ import annotations
@@ -26,13 +27,26 @@ from ...instructions import (
     q1_hmas1_robot_closing,
     q1_hmas1_robot_role,
 )
-from ...paper_protocol import Environment, StepHistory, build_planning_prompt
-from ..dmas.protocol import PLAN, parse_legs, parse_turn, verify_plan
+from ...paper_protocol import MAX_PLAN_STEPS, Environment, StepHistory, build_planning_prompt
+from ..dmas.protocol import parse_legs, verify_plan
 
 EXECUTE_DISPATCH_PREFIX = "EXECUTE_ACTION:"
-_EXECUTE_RE = re.compile(r"^\s*EXECUTE\b", re.IGNORECASE | re.MULTILINE)
-AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE | re.MULTILINE)
-DISAGREE_RE = re.compile(r"^\s*DISAGREE\b", re.IGNORECASE | re.MULTILINE)
+HUDDLE_TURN_PREFIX = "HUDDLE_TURN:"
+STEP_CHECK_PREFIX = "STEP_CHECK:"
+_EXECUTE_RE = re.compile(r"^\s*EXECUTE\b[:\s]*", re.IGNORECASE)
+_PLAN_RE = re.compile(r"^\s*PLAN\b[:\s]*", re.IGNORECASE)
+_STEP_RE = re.compile(r"^STEP\s+(\d+)\s*:?\s*(.*)$", re.IGNORECASE)
+AGREE_RE = re.compile(r"^\s*AGREE\b", re.IGNORECASE)
+DISAGREE_RE = re.compile(r"^\s*DISAGREE\b", re.IGNORECASE)
+STEP_FAILED_RE = re.compile(r"\bSTEP_FAILED\b", re.IGNORECASE)
+STEP_OK_RE = re.compile(r"\bSTEP_OK\b", re.IGNORECASE)
+_FINISH_LINE_RE = re.compile(r"^(finish(?:ed)?|done)\b", re.IGNORECASE)
+_FINISH_LEG_RE = re.compile(
+    r"^(finish(?:ed)?|done|task[_\s-]?complete)\b", re.IGNORECASE
+)
+
+MissionPlan = list[dict[str, str]]
+FINISH_LEG = "FINISHED"
 
 
 def looks_agree(text: str) -> bool:
@@ -43,26 +57,154 @@ def looks_disagree(text: str) -> bool:
     return bool(DISAGREE_RE.search(text or ""))
 
 
+def finish_step(participants: list[str]) -> dict[str, str]:
+    return {peer: FINISH_LEG for peer in participants}
+
+
+def is_finish_leg(leg: str) -> bool:
+    return bool(_FINISH_LEG_RE.match((leg or "").strip()))
+
+
+def is_finish_step(legs: dict[str, str] | None) -> bool:
+    if not legs:
+        return False
+    return all(is_finish_leg(leg) for leg in legs.values())
+
+
 def legs_text(legs: dict[str, str], participants: list[str]) -> str:
+    if is_finish_step(legs):
+        return FINISH_LEG
     return "\n".join(f"{robot}: {legs.get(robot, '(no leg)')}" for robot in participants)
 
 
+def mission_text(steps: MissionPlan, participants: list[str]) -> str:
+    blocks = []
+    for index, legs in enumerate(steps, start=1):
+        blocks.append(f"STEP {index}")
+        blocks.append(legs_text(legs, participants))
+    return "\n".join(blocks)
+
+
+def same_legs(left: dict[str, str], right: dict[str, str], participants: list[str]) -> bool:
+    return legs_text(left, participants) == legs_text(right, participants)
+
+
+def restates_original_step(
+    replacement: MissionPlan,
+    *,
+    current: dict[str, str],
+    remaining: MissionPlan,
+    original: MissionPlan,
+    participants: list[str],
+) -> bool:
+    """True when a PLAN block is the original step/plan, not a new assignment."""
+    rendered = mission_text(replacement, participants)
+    if rendered == mission_text(original, participants):
+        return True
+    if rendered == mission_text(remaining, participants):
+        return True
+    return len(replacement) == 1 and same_legs(replacement[0], current, participants)
+
+
+def _clean_line(line: str) -> str:
+    return (line or "").strip().strip("*_`>#").lstrip("-•* ").strip()
+
+
+def _extract_plan_body(text: str) -> str:
+    """Return the block after PLAN or EXECUTE, or the whole text."""
+    lines = (text or "").splitlines()
+    for index, raw in enumerate(lines):
+        line = _clean_line(raw)
+        match = _PLAN_RE.match(line)
+        if match:
+            rest = line[match.end() :]
+            return "\n".join([rest, *lines[index + 1 :]])
+        match = _EXECUTE_RE.match(line)
+        if match:
+            rest = line[match.end() :]
+            return "\n".join([rest, *lines[index + 1 :]])
+    return text or ""
+
+
+def _chunk_is_finish(chunk: list[str], participants: list[str]) -> bool:
+    """True for a STEP that is only FINISHED (keyword or every leg)."""
+    legs = parse_legs("\n".join(chunk), participants)
+    if legs:
+        return all(is_finish_leg(leg) for leg in legs.values())
+    lines = [_clean_line(line) for line in chunk if _clean_line(line)]
+    return bool(lines) and all(_FINISH_LINE_RE.match(line) for line in lines)
+
+
 def parse_hmas1_plan(
-    text: str, participants: list[str]
-) -> tuple[dict[str, str] | None, list[str]]:
-    """Accept a DMAS-style PLAN or an EXECUTE block with ``Name: leg`` lines."""
-    turn = parse_turn(text, participants)
-    legs = dict(turn.legs) if turn.kind == PLAN else {}
-    if not legs and _EXECUTE_RE.search(text or ""):
-        body = _EXECUTE_RE.split(text or "", maxsplit=1)
-        if len(body) > 1:
-            legs = parse_legs(body[-1], participants)
-    if not legs:
-        return None, []
-    errors = verify_plan(legs, participants)
+    text: str,
+    participants: list[str],
+    *,
+    max_steps: int = MAX_PLAN_STEPS,
+    ensure_finish: bool = False,
+) -> tuple[MissionPlan | None, list[str]]:
+    """Parse a multi-step PLAN. A single block without STEP headers is one step.
+
+    The last STEP may be FINISHED (keyword or every robot's leg). With
+    ``ensure_finish`` a missing last FINISHED STEP is appended.
+    """
+    body = _extract_plan_body(text)
+    lines = body.splitlines()
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    saw_step = False
+    for raw in lines:
+        cleaned = _clean_line(raw)
+        match = _STEP_RE.match(cleaned)
+        if match:
+            saw_step = True
+            if current and any(_clean_line(line) for line in current):
+                chunks.append(current)
+            leftover = (match.group(2) or "").strip()
+            current = [leftover] if leftover else []
+            continue
+        current.append(raw)
+    if current and any(_clean_line(line) for line in current):
+        chunks.append(current)
+    if not saw_step:
+        chunks = [lines]
+
+    steps: MissionPlan = []
+    errors: list[str] = []
+    step_no = 0
+    for chunk in chunks:
+        if _chunk_is_finish(chunk, participants):
+            step_no += 1
+            steps.append(finish_step(participants))
+            continue
+        legs = parse_legs("\n".join(chunk), participants)
+        if not legs:
+            named = any(
+                any(peer.lower() in _clean_line(line).lower() for peer in participants)
+                for line in chunk
+            )
+            if not named:
+                continue
+        step_no += 1
+        step_errors = verify_plan(legs, participants)
+        if step_errors:
+            errors.extend(f"step {step_no}: {err}" for err in step_errors)
+        else:
+            steps.append(legs)
+
     if errors:
         return None, errors
-    return legs, []
+    if not steps:
+        return None, []
+    if any(is_finish_step(step) for step in steps[:-1]):
+        return None, ["FINISHED may only be the last STEP"]
+    if ensure_finish and not is_finish_step(steps[-1]):
+        steps = [*steps, finish_step(participants)]
+    work_steps = sum(1 for step in steps if not is_finish_step(step))
+    if work_steps > max_steps:
+        return None, [
+            f"plan has {work_steps} work STEP blocks but at most {max_steps} remain"
+        ]
+    return steps, []
 
 
 def resolve_participants(recipients: str) -> list[str] | dict[str, Any]:
@@ -112,54 +254,46 @@ def build_central_plan_prompt(
         step_index=step_index,
         role_line=q1_hmas1_planner_role() if is_q1_platform() else hmas1_planner_role(),
         closing_instruction=(
-            q1_hmas1_planner_closing() if is_q1_platform() else hmas1_planner_closing()
+            q1_hmas1_planner_closing(max_steps=MAX_PLAN_STEPS)
+            if is_q1_platform()
+            else hmas1_planner_closing(max_steps=MAX_PLAN_STEPS)
         ),
         syntax_feedback=syntax_feedback,
         include_action_menu=False,
     )
 
 
-def build_turn_prompt(
+def build_plan_vote_prompt(
     *,
     task: str,
     env: Environment,
     history: StepHistory,
     participants: list[str],
     speaker: str,
-    step_index: int,
-    round_idx: int,
-    max_rounds: int,
-    initial_plan: str,
-    dialogue: list[dict[str, str]],
+    original: MissionPlan,
     syntax_feedback: str = "",
 ) -> str:
     others = [p for p in participants if p != speaker]
+    highlighted = "[Original Mission Plan]\n" + mission_text(original, participants)
     return build_planning_prompt(
         task=task,
         env=env,
         history=history,
         participants=participants,
-        step_index=step_index,
+        step_index=1,
         speaker=speaker,
         role_line=(
             q1_hmas1_robot_role(
                 speaker=speaker,
-                order=" -> ".join(participants),
-                round_idx=round_idx,
-                max_rounds=max_rounds,
                 peers=", ".join(others) or "(none)",
             )
             if is_q1_platform()
             else hmas1_robot_role(
                 speaker=speaker,
-                order=" -> ".join(participants),
-                round_idx=round_idx,
-                max_rounds=max_rounds,
                 peers=", ".join(others) or "(none)",
             )
         ),
-        initial_plan=initial_plan,
-        dialogue=dialogue,
+        initial_plan=highlighted,
         closing_instruction=(
             q1_hmas1_robot_closing() if is_q1_platform() else hmas1_robot_closing()
         ),
@@ -168,10 +302,13 @@ def build_turn_prompt(
     )
 
 
-def build_execute_dispatch(leg: str, *, step_index: int) -> str:
+def build_execute_dispatch(
+    leg: str, *, step_index: int, n_steps: int | None = None
+) -> str:
+    total = f"/{n_steps}" if n_steps else ""
     return (
         f"{EXECUTE_DISPATCH_PREFIX} {leg.strip()}\n"
-        f"(planning round {step_index}; the specialists agreed on this plan)"
+        f"(original plan STEP {step_index}{total}; execute this step as written)"
     )
 
 
@@ -184,15 +321,62 @@ def build_execution_prompt(*, speaker: str, nav_id: str, leg: str, round_index: 
     report = Q1_EXECUTION_REPORT if is_q1_platform() else DMAS_EXECUTION_REPORT
     who = "specialists" if is_q1_platform() else "fleet"
     return (
-        f"The {who} agreed on this round (round {round_index}). Carry out YOUR "
-        "leg now, nothing more.\n"
+        f"The {who} agreed to execute STEP {round_index} of the original "
+        "plan. Carry out YOUR leg now, nothing more.\n"
         "\n"
         "[Your Leg]\n"
         f"{leg.strip()}\n"
         "\n"
         "[How]\n"
         f"{how}\n"
+        "- Do not run later STEPs — those are dispatched separately.\n"
         "\n"
         "[Report]\n"
         f"{report}"
     )
+
+
+def build_step_check_dispatch(
+    *,
+    leg: str,
+    report: str,
+    step_index: int,
+    n_steps: int | None = None,
+) -> str:
+    total = f"/{n_steps}" if n_steps else ""
+    return (
+        f"{STEP_CHECK_PREFIX}\n"
+        f"(original plan STEP {step_index}{total})\n"
+        "[Assigned leg]\n"
+        f"{leg.strip()}\n"
+        "\n"
+        "[Your execution report]\n"
+        f"{(report or '').strip()[:1200]}\n"
+        "\n"
+        "[Check]\n"
+        "Did YOU accomplish that assigned leg? Judge from the tools, not hope. "
+        + (
+            "STEP_OK only if the assigned sense or drive actually happened, "
+            "or if your assigned leg was wait/hold and you waited. "
+            "STEP_FAILED if navigation aborted, a required sense returned "
+            "nothing useful, you stopped short, or the assigned work is not done.\n"
+            if is_q1_platform()
+            else (
+                "STEP_OK only if the assigned pickup/drop/arrive actually happened, "
+                "or if your assigned leg was wait/hold and you waited. "
+                "STEP_FAILED if navigation aborted, pickup/drop failed, you stopped "
+                "short, or the assigned work is not done.\n"
+            )
+        )
+        + "Reply with exactly one line: STEP_OK or STEP_FAILED."
+    )
+
+
+def parse_step_check(reply: str) -> str:
+    """Return 'ok' or 'failed'. Ambiguous replies count as failed."""
+    text = reply or ""
+    if STEP_FAILED_RE.search(text):
+        return "failed"
+    if STEP_OK_RE.search(text):
+        return "ok"
+    return "failed"

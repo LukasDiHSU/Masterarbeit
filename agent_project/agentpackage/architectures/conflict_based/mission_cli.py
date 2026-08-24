@@ -16,7 +16,7 @@ from ...config import (
     robot_peer_name,
 )
 from ...instructions import conflict_mission_wrapper, q1_conflict_mission_wrapper
-from ...timing import format_elapsed, record_timing
+from ...timing import format_elapsed, mission_timeout_guard, record_timing
 from .mesh_bus import MeshNode
 
 
@@ -70,18 +70,23 @@ def main() -> None:
             )
             t0 = time.perf_counter()
             results: dict[str, tuple[str, float]] = {}
-            with ThreadPoolExecutor(max_workers=max(1, len(peers))) as pool:
-                futs = {
-                    pool.submit(_send_one, peer, line): peer for peer in peers
-                }
-                for fut in as_completed(futs):
-                    peer, reply, elapsed = fut.result()
-                    results[peer] = (reply, elapsed)
-                    print(
-                        f"\n[{peer}] done in {format_elapsed(elapsed)} ({elapsed:.1f}s)",
-                        flush=True,
-                    )
-                    print(f"[{peer}] {reply}", flush=True)
+            try:
+                with mission_timeout_guard("conflict_until_done"):
+                    with ThreadPoolExecutor(max_workers=max(1, len(peers))) as pool:
+                        futs = {
+                            pool.submit(_send_one, peer, line): peer for peer in peers
+                        }
+                        for fut in as_completed(futs):
+                            peer, reply, elapsed = fut.result()
+                            results[peer] = (reply, elapsed)
+                            print(
+                                f"\n[{peer}] done in {format_elapsed(elapsed)} ({elapsed:.1f}s)",
+                                flush=True,
+                            )
+                            print(f"[{peer}] {reply}", flush=True)
+            except KeyboardInterrupt:
+                print("\nMission interrupted (timeout or Ctrl+C).", flush=True)
+                break
 
             total = time.perf_counter() - t0
             print(

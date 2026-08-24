@@ -1,0 +1,67 @@
+===== MCP Server (shared) =====
+started: 2026-08-24T12:12:52+02:00
+command: AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.mcpserver --host "0.0.0.0" --port "8000"
+
+[shell_pid=32157] MCP Server (shared)
+INFO:     Started server process [32164]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:46926 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46940 - "POST /messages/?session_id=4779610e3f8946019006c16573a55e7c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46940 - "POST /messages/?session_id=4779610e3f8946019006c16573a55e7c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46940 - "POST /messages/?session_id=4779610e3f8946019006c16573a55e7c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46956 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46962 - "POST /messages/?session_id=40c2fdbf0d7f45d58c3b6280589e78f3 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46962 - "POST /messages/?session_id=40c2fdbf0d7f45d58c3b6280589e78f3 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46962 - "POST /messages/?session_id=40c2fdbf0d7f45d58c3b6280589e78f3 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46978 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46994 - "POST /messages/?session_id=672e52114f4441439a4d4ab77a56023b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46994 - "POST /messages/?session_id=672e52114f4441439a4d4ab77a56023b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46994 - "POST /messages/?session_id=672e52114f4441439a4d4ab77a56023b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40244 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40246 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40258 - "POST /messages/?session_id=1564c2b39b594c5eb6426487fc1bbed5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40264 - "POST /messages/?session_id=d495ce5d7e9e4f22b1dc233786df6b34 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40258 - "POST /messages/?session_id=1564c2b39b594c5eb6426487fc1bbed5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40264 - "POST /messages/?session_id=d495ce5d7e9e4f22b1dc233786df6b34 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40258 - "POST /messages/?session_id=1564c2b39b594c5eb6426487fc1bbed5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40264 - "POST /messages/?session_id=d495ce5d7e9e4f22b1dc233786df6b34 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40270 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40278 - "POST /messages/?session_id=8c0447f273cd4fe4be85802a04daed47 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40278 - "POST /messages/?session_id=8c0447f273cd4fe4be85802a04daed47 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40278 - "POST /messages/?session_id=8c0447f273cd4fe4be85802a04daed47 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40278 - "POST /messages/?session_id=8c0447f273cd4fe4be85802a04daed47 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40280 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40286 - "POST /messages/?session_id=8786c5addfa84458b7e8a3f51cc5fea8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40286 - "POST /messages/?session_id=8786c5addfa84458b7e8a3f51cc5fea8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40286 - "POST /messages/?session_id=8786c5addfa84458b7e8a3f51cc5fea8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:56700 - "POST /messages/?session_id=d495ce5d7e9e4f22b1dc233786df6b34 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:40286 - "POST /messages/?session_id=8786c5addfa84458b7e8a3f51cc5fea8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:56712 - "POST /messages/?session_id=1564c2b39b594c5eb6426487fc1bbed5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53612 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53626 - "POST /messages/?session_id=634ba392525e47bebd645dd3fe3cdcdd HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53626 - "POST /messages/?session_id=634ba392525e47bebd645dd3fe3cdcdd HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53626 - "POST /messages/?session_id=634ba392525e47bebd645dd3fe3cdcdd HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46558 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46562 - "POST /messages/?session_id=33b27280799640e79cf3aab5b0b4527d HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46562 - "POST /messages/?session_id=33b27280799640e79cf3aab5b0b4527d HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:46562 - "POST /messages/?session_id=33b27280799640e79cf3aab5b0b4527d HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59258 - "POST /messages/?session_id=33b27280799640e79cf3aab5b0b4527d HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:51866 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51882 - "POST /messages/?session_id=2a8e8e9aaa894832a2a24d648e22ca4f HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:51882 - "POST /messages/?session_id=2a8e8e9aaa894832a2a24d648e22ca4f HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:51882 - "POST /messages/?session_id=2a8e8e9aaa894832a2a24d648e22ca4f HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:54310 - "POST /messages/?session_id=2a8e8e9aaa894832a2a24d648e22ca4f HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:33728 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33736 - "POST /messages/?session_id=f10fe8e2fbbc4e1d82dfcede3cf0a149 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:33736 - "POST /messages/?session_id=f10fe8e2fbbc4e1d82dfcede3cf0a149 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:33736 - "POST /messages/?session_id=f10fe8e2fbbc4e1d82dfcede3cf0a149 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:44314 - "POST /messages/?session_id=f10fe8e2fbbc4e1d82dfcede3cf0a149 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52770 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52776 - "POST /messages/?session_id=a0b7fb8edceb4833aa99127ca251cee9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52776 - "POST /messages/?session_id=a0b7fb8edceb4833aa99127ca251cee9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52776 - "POST /messages/?session_id=a0b7fb8edceb4833aa99127ca251cee9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:41820 - "POST /messages/?session_id=a0b7fb8edceb4833aa99127ca251cee9 HTTP/1.1" 202 Accepted
+
+===== saved: 2026-08-24T12:16:19+02:00 as open_easy_cmas_r2_success =====

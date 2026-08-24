@@ -1,0 +1,139 @@
+===== Agent Trace =====
+started: 2026-08-24T12:38:19+02:00
+command: python -m agentpackage.trace_monitor --host "127.0.0.1" --port "9901"
+
+[shell_pid=42659] Agent Trace
+Agent Trace listening (UDP) on 127.0.0.1:9901
+Showing LLM replies and tool start/end for all agents. Ctrl+C to quit.
+
+[12:38:56] navigator:huddle | LLM | I will stay put (no driving); lidar senses from our current pose and the camera waits this round. Next stop is the nearest rock.
+[12:38:56] navigator:huddle | TURN end | I will stay put (no driving); lidar senses from our current pose and the camera waits this round. Next stop is the nearest rock.
+[12:39:06] lidar:huddle | LLM | I will perform a lidar scan from our current pose to look for the nearest rock; navigator waits and camera waits this round.
+[12:39:06] lidar:huddle | TURN end | I will perform a lidar scan from our current pose to look for the nearest rock; navigator waits and camera waits this round.
+[12:39:11] camera:huddle | LLM | I'll wait; lidar will sense from our current pose and navigator will stay put this round. Next stop is the nearest rock.
+[12:39:11] camera:huddle | TURN end | I'll wait; lidar will sense from our current pose and navigator will stay put this round. Next stop is the nearest rock.
+[12:39:26] navigator:planner | LLM | PLAN navigator: remain at current pose (0.0, -0.01); no driving this round. lidar: perform a semantic lidar scan from current pose to search for the nearest rock and report every detected object as class_id=… class=… x=… y=…. camera: wait this round (no actions).
+[12:39:26] navigator:planner | TURN end | PLAN navigator: remain at current pose (0.0, -0.01); no driving this round. lidar: perform a semantic lidar scan from current pose to search for the nearest rock and report every detected object as class_id=… class=… x=… y=…. camera: wait this round (no actions).
+[12:39:31] lidar:planner | LLM | AGREE
+[12:39:31] lidar:planner | TURN end | AGREE
+[12:39:35] camera:planner | LLM | AGREE
+[12:39:35] camera:planner | TURN end | AGREE
+[12:39:40] lidar | LLM | tool_calls: get_lidar_snapshot({"robot_id": "q1"}); get_semantic_lidar_objects({})
+[12:39:40] lidar | TOOL start get_lidar_snapshot | {"robot_id": "q1"}
+[12:39:40] lidar | TOOL start get_semantic_lidar_objects | {}
+[12:39:44] lidar | TOOL end get_semantic_lidar_objects | {   "success": true,   "frame": "map",   "source": "semantic_cloud",   "fov_deg": 360.0,   "objects": [     {       "class_id": 27,       "class": "tree_crown",       "x": -10.02,       "y": -9.71,       "n_points": 36,       "frame": "map"     },     {       "class_id": 28,       "class": "tree_trunk",       "x": -10.53,       "y": -10.29,       "n_points": 7,       "frame": "map"     },     {       "class_id": 58,       "class": "container",       "x": -9.9,       "y": 10.09,       "n_points": 10,       "frame": "map"     },     {       "class_id": 12,       "class": "car",       "x": 9.27, ...
+[12:39:44] lidar | TOOL end get_lidar_snapshot | {   "success": true,   "frame": "q1_velodyne",   "n_points": 4060,   "min_range_m": 2.32,   "min_range_bearing_deg": -39.2,   "sectors_min_m": {     "front": 2.32,     "left": 2.32,     "right": 2.32,     "rear": 2.32   },   "topic": "/q1_sensor_summary/lidar",   "robot_id": "q1" }
+[12:39:54] lidar | LLM | I performed a semantic lidar scan from the current pose; get_lidar_snapshot and get_semantic_lidar_objects both succeeded. Observed: tree_crown class_id=27 at x=-10.02 y=-9.71; tree_trunk class_id=28 at x=-10.53 y=-10.29; container class_id=58 at x=-9.9 y=10.09; car class_id=12 at x=9.27 y=8.27; rock class_id=40 at x=9.39 y=-10.25; tree_crown class_id=27 at x=-9.88 y=-11.76.
+[12:39:54] lidar | TURN end | I performed a semantic lidar scan from the current pose; get_lidar_snapshot and get_semantic_lidar_objects both succeeded. Observed: tree_crown class_id=27 at x=-10.02 y=-9.71; tree_trunk class_id=28 at x=-10.53 y=-10.29; container class_id=58 at x=-9.9 y=10.09; car class_id=12 at x=9.27 y=8.27; rock class_id=40 at x=9.39 y=-10.25; tree_crown class_id=27 at x=-9.88 y=-11.76.
+[12:40:26] lidar:huddle | LLM | I see the next stop is a rock at 9.39, -10.25. Navigator drives to a viewpoint at least 3 m from that centroid, lidar waits, camera waits.
+[12:40:26] lidar:huddle | TURN end | I see the next stop is a rock at 9.39, -10.25. Navigator drives to a viewpoint at least 3 m from that centroid, lidar waits, camera waits.
+[12:40:37] camera:huddle | LLM | I hear the next stop is the rock at 9.39, -10.25. Navigator drives to a viewpoint at least 3 m from that centroid; lidar waits; I wait.
+[12:40:37] camera:huddle | TURN end | I hear the next stop is the rock at 9.39, -10.25. Navigator drives to a viewpoint at least 3 m from that centroid; lidar waits; I wait.
+[12:40:44] navigator:huddle | LLM | I'll drive to a viewpoint at least 3 m from the rock at 9.39, -10.25. Lidar and camera wait this round.
+[12:40:44] navigator:huddle | TURN end | I'll drive to a viewpoint at least 3 m from the rock at 9.39, -10.25. Lidar and camera wait this round.
+[12:40:59] lidar:planner | LLM | PLAN navigator: navigate_to_pose x=7.36 y=-8.04 lidar: no sensing this round (standby) camera: standby (no actions this round)
+[12:40:59] lidar:planner | TURN end | PLAN navigator: navigate_to_pose x=7.36 y=-8.04 lidar: no sensing this round (standby) camera: standby (no actions this round)
+[12:41:05] camera:planner | LLM | AGREE
+[12:41:05] camera:planner | TURN end | AGREE
+[12:41:12] navigator:planner | LLM | AGREE
+[12:41:12] navigator:planner | TURN end | AGREE
+[12:41:16] lidar | LLM | I waited on standby and performed no sensing this round (no tools called). Therefore there were no tool successes or failures to report. No objects observed.
+[12:41:16] lidar | TURN end | I waited on standby and performed no sensing this round (no tools called). Therefore there were no tool successes or failures to report. No objects observed.
+[12:41:17] camera | LLM | I waited on standby this round and performed no camera actions. No tools were called, so there are no tool successes to report. Observed classes: none (no camera/semantic data collected).
+[12:41:17] camera | TURN end | I waited on standby this round and performed no camera actions. No tools were called, so there are no tool successes to report. Observed classes: none (no camera/semantic data collected).
+[12:41:17] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 7.36, "y": -8.04})
+[12:41:17] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 7.36, "y": -8.04}
+[12:41:41] navigator | TOOL end navigate_to_pose | {   "success": true,   "reached": true,   "robot_id": "q1",   "x": 7.36,   "y": -8.04,   "yaw": 0.0,   "utm_xy": {     "x": 458062.07,     "y": 5429302.64   },   "frame_id": "map",   "nav": "atb_behavior_control",   "status": "succeeded",   "reason": "data: 'BehaviorWaypointNavigation: Waypoint 0 reached.'",   "goal_tolerance_m": 2.5,   "message": "SUCCESS: waypoint reached (ATB accepts within \u00b12.5 m of the goal). Report SUCCESS to the requester. Do NOT compare any pose to the goal or call this a FAILURE \u2014 approximate arrival is correct." }
+[12:41:43] navigator | LLM | I drove Q1 to x=7.36 y=-8.04 using navigate_to_pose; the tool returned success (reached=true, status=succeeded). No sensors were called by me, so I observed no object classes.
+[12:41:43] navigator | TURN end | I drove Q1 to x=7.36 y=-8.04 using navigate_to_pose; the tool returned success (reached=true, status=succeeded). No sensors were called by me, so I observed no object classes.
+[12:42:18] camera:huddle | LLM | I see the next stop is the nearest rock at 9.39, -10.25. Navigator drives; lidar and I wait.
+[12:42:18] camera:huddle | TURN end | I see the next stop is the nearest rock at 9.39, -10.25. Navigator drives; lidar and I wait.
+[12:42:29] navigator:huddle | LLM | I will drive to a viewpoint at least 3 m from the nearest rock (rock at 9.39, -10.25). Lidar and camera wait this round (no sensing).
+[12:42:29] navigator:huddle | TURN end | I will drive to a viewpoint at least 3 m from the nearest rock (rock at 9.39, -10.25). Lidar and camera wait this round (no sensing).
+[12:42:43] lidar:huddle | LLM | I’ll wait this round and not sense. Navigator drives to a viewpoint at least 3.00 m from the nearest rock at 9.39, -10.25. Camera waits.
+[12:42:43] lidar:huddle | TURN end | I’ll wait this round and not sense. Navigator drives to a viewpoint at least 3.00 m from the nearest rock at 9.39, -10.25. Camera waits.
+[12:43:13] camera:planner | LLM | tool_calls: get_camera_image({})
+[12:43:13] camera:planner | TOOL start get_camera_image | {}
+[12:43:14] camera:planner | TOOL end get_camera_image | rgb camera frame (q1_camera_rgb.png, 22646 bytes). Look at this picture. Camera has no xyz — lidar get_semantic_lidar_objects is the only source of object coordinates. [image]
+[12:43:23] camera:planner | LLM | tool_calls: get_semantic_camera_classes({})
+[12:43:23] camera:planner | TOOL start get_semantic_camera_classes | {}
+[12:43:26] camera:planner | TOOL end get_semantic_camera_classes | {   "success": true,   "width": 640,   "height": 480,   "encoding": "rgb8",   "source": "labels_map",   "n_sampled": 25600,   "classes": [     {       "class_id": 40,       "class": "rock",       "pixels": 3449,       "pct": 13.47     }   ],   "topic": "/q1_sensor_summary/camera" }
+[12:43:41] camera:planner | LLM | PLAN navigator: navigate_to_pose x=8.76 y=-7.32 lidar: standby (no sensing this round) camera: get_camera_image and get_semantic_camera_classes (capture and report visible classes)
+[12:43:41] camera:planner | TURN end | PLAN navigator: navigate_to_pose x=8.76 y=-7.32 lidar: standby (no sensing this round) camera: get_camera_image and get_semantic_camera_classes (capture and report visible classes)
+[12:44:08] navigator:planner | LLM | PLAN navigator: navigate_to_pose x=8.765 y=-7.316 lidar: standby (no sensing this round) camera: get_camera_image and get_semantic_camera_classes (capture and report visible classes)
+[12:44:08] navigator:planner | TURN end | PLAN navigator: navigate_to_pose x=8.765 y=-7.316 lidar: standby (no sensing this round) camera: get_camera_image and get_semantic_camera_classes (capture and report visible classes)
+[12:44:33] lidar:planner | LLM | PLAN navigator: navigate_to_pose x=8.765 y=-7.316 lidar: standby (no sensing this round) camera: standby (no sensing this round)
+[12:44:33] lidar:planner | TURN end | PLAN navigator: navigate_to_pose x=8.765 y=-7.316 lidar: standby (no sensing this round) camera: standby (no sensing this round)
+[12:44:53] camera:planner | LLM | AGREE
+[12:44:53] camera:planner | TURN end | AGREE
+[12:45:15] navigator:planner | LLM | AGREE
+[12:45:15] navigator:planner | TURN end | AGREE
+[12:45:20] camera | LLM | I waited on standby this round and performed no sensing or tool calls. No camera tools were used, so there are no observed classes or coordinates to report. confirm_stop was not called.
+[12:45:20] camera | TURN end | I waited on standby this round and performed no sensing or tool calls. No camera tools were used, so there are no observed classes or coordinates to report. confirm_stop was not called.
+[12:45:20] lidar | LLM | I waited on standby and performed no sensing or tool calls this round. No tools were invoked, so there are no observed classes or coordinates to report. No confirm_stop was called.
+[12:45:20] lidar | TURN end | I waited on standby and performed no sensing or tool calls this round. No tools were invoked, so there are no observed classes or coordinates to report. No confirm_stop was called.
+[12:45:24] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 8.765, "y": -7.316})
+[12:45:24] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 8.765, "y": -7.316}
+[12:45:38] navigator | TOOL end navigate_to_pose | {   "success": true,   "reached": true,   "robot_id": "q1",   "x": 8.765,   "y": -7.316,   "yaw": 0.0,   "utm_xy": {     "x": 458063.47500000003,     "y": 5429303.364   },   "frame_id": "map",   "nav": "atb_behavior_control",   "status": "succeeded",   "reason": "data: 'BehaviorWaypointNavigation: Waypoint 0 reached.'",   "goal_tolerance_m": 2.5,   "message": "SUCCESS: waypoint reached (ATB accepts within \u00b12.5 m of the goal). Report SUCCESS to the requester. Do NOT compare any pose to the goal or call this a FAILURE \u2014 approximate arrival is correct." }
+[12:45:39] navigator | LLM | I drove q1 to x=8.765 y=-7.316 using navigate_to_pose; the tool returned success=true and reached=true. No semantic objects were observed by my tools (I only drove; sensing is being done by peers). I did not call confirm_stop.
+[12:45:39] navigator | TURN end | I drove q1 to x=8.765 y=-7.316 using navigate_to_pose; the tool returned success=true and reached=true. No semantic objects were observed by my tools (I only drove; sensing is being done by peers). I did not call confirm_stop.
+[12:46:15] navigator:huddle | LLM | I'll drive toward the next stop—the rock at 9.39, -10.25—and stop at least 3 m from its centroid. Lidar waits this round and camera waits.
+[12:46:15] navigator:huddle | TURN end | I'll drive toward the next stop—the rock at 9.39, -10.25—and stop at least 3 m from its centroid. Lidar waits this round and camera waits.
+[12:46:38] lidar:huddle | LLM | I last saw the rock at 9.39, -10.25. Navigator drives toward that rock (staying ≥3 m from 9.39, -10.25), lidar waits, camera waits.
+[12:46:38] lidar:huddle | TURN end | I last saw the rock at 9.39, -10.25. Navigator drives toward that rock (staying ≥3 m from 9.39, -10.25), lidar waits, camera waits.
+[12:46:47] camera:huddle | LLM | I'll wait this round. Navigator drives toward the rock at 9.39, -10.25, and lidar waits.
+[12:46:47] camera:huddle | TURN end | I'll wait this round. Navigator drives toward the rock at 9.39, -10.25, and lidar waits.
+[12:47:11] navigator:planner | LLM | PLAN navigator: navigate_to_pose robot_id='q1' x=8.845 y=-7.300 yaw=0.0 — drive to a viewpoint 3.0 m from rock centroid (9.39, -10.25) toward current pose (6.26, 6.69). lidar: standby (no sensing this round). camera: standby (no actions this round).
+[12:47:11] navigator:planner | TURN end | PLAN navigator: navigate_to_pose robot_id='q1' x=8.845 y=-7.300 yaw=0.0 — drive to a viewpoint 3.0 m from rock centroid (9.39, -10.25) toward current pose (6.26, 6.69). lidar: standby (no sensing this round). camera: standby (no actions this round).
+[12:47:18] lidar:planner | LLM | AGREE
+[12:47:18] lidar:planner | TURN end | AGREE
+[12:47:24] camera:planner | LLM | AGREE
+[12:47:24] camera:planner | TURN end | AGREE
+[12:47:27] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 8.845, "y": -7.3, "yaw": 0.0})
+[12:47:27] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 8.845, "y": -7.3, "yaw": 0.0}
+[12:47:29] lidar | LLM | I waited on standby and performed no sensing this round (no tool calls). No tools were invoked, so there are no success/failure results to report. Observed objects: none (no semantic lidar data collected).
+[12:47:29] lidar | TURN end | I waited on standby and performed no sensing this round (no tool calls). No tools were invoked, so there are no success/failure results to report. Observed objects: none (no semantic lidar data collected).
+[12:47:30] camera | LLM | I waited in standby this round and performed no actions or tool calls. No tools were invoked, so there are no tool success/failure results to report. No observed classes (empty).
+[12:47:30] camera | TURN end | I waited in standby this round and performed no actions or tool calls. No tools were invoked, so there are no tool success/failure results to report. No observed classes (empty).
+[12:47:41] navigator | TOOL end navigate_to_pose | {   "success": true,   "reached": true,   "robot_id": "q1",   "x": 8.845,   "y": -7.3,   "yaw": 0.0,   "utm_xy": {     "x": 458063.555,     "y": 5429303.38   },   "frame_id": "map",   "nav": "atb_behavior_control",   "status": "succeeded",   "reason": "data: 'BehaviorWaypointNavigation: Waypoint 0 reached.'",   "goal_tolerance_m": 2.5,   "message": "SUCCESS: waypoint reached (ATB accepts within \u00b12.5 m of the goal). Report SUCCESS to the requester. Do NOT compare any pose to the goal or call this a FAILURE \u2014 approximate arrival is correct." }
+[12:47:42] navigator | LLM | I drove Q1 to (8.845, -7.300) yaw=0.0; navigate_to_pose succeeded (status=succeeded, reached=true). I observed no objects (no sensing tools called by me). No confirm_stop calls.
+[12:47:42] navigator | TURN end | I drove Q1 to (8.845, -7.300) yaw=0.0; navigate_to_pose succeeded (status=succeeded, reached=true). I observed no objects (no sensing tools called by me). No confirm_stop calls.
+[12:48:19] lidar:huddle | LLM | I see the next stop is the rock at 9.39, -10.25. Navigator, drive to a viewpoint at least 3 m from (9.39, -10.25); camera and I will wait this round.
+[12:48:19] lidar:huddle | TURN end | I see the next stop is the rock at 9.39, -10.25. Navigator, drive to a viewpoint at least 3 m from (9.39, -10.25); camera and I will wait this round.
+[12:48:31] camera:huddle | LLM | I see the next stop is the rock at 9.39, -10.25. Navigator drives to a viewpoint ≥3 m from (9.39, -10.25); lidar and I will wait this round.
+[12:48:31] camera:huddle | TURN end | I see the next stop is the rock at 9.39, -10.25. Navigator drives to a viewpoint ≥3 m from (9.39, -10.25); lidar and I will wait this round.
+[12:48:51] navigator:huddle | LLM | I'll wait this round; lidar will sense and camera will wait. The next stop is the rock at 9.39, -10.25.
+[12:48:51] navigator:huddle | TURN end | I'll wait this round; lidar will sense and camera will wait. The next stop is the rock at 9.39, -10.25.
+[12:49:17] lidar:planner | LLM | PLAN navigator: wait at current pose x=8.845 y=-7.300 (no driving this round) lidar: perform sensing NOW — call get_lidar_snapshot(robot_id='q1') and get_semantic_lidar_objects() and report every detected object as class_id=… class=… x=… y=…. If Q1 is already stopped at the rock, call confirm_stop('rock'). camera: wait (no actions this round)
+[12:49:17] lidar:planner | TURN end | PLAN navigator: wait at current pose x=8.845 y=-7.300 (no driving this round) lidar: perform sensing NOW — call get_lidar_snapshot(robot_id='q1') and get_semantic_lidar_objects() and report every detected object as class_id=… class=… x=… y=…. If Q1 is already stopped at the rock, call confirm_stop('rock'). camera: wait (no actions this round)
+[12:49:26] camera:planner | LLM | AGREE
+[12:49:26] camera:planner | TURN end | AGREE
+[12:49:35] navigator:planner | LLM | AGREE
+[12:49:35] navigator:planner | TURN end | AGREE
+[12:49:45] lidar | LLM | tool_calls: get_lidar_snapshot({"robot_id": "q1"}); get_semantic_lidar_objects({})
+[12:49:45] lidar | TOOL start get_lidar_snapshot | {"robot_id": "q1"}
+[12:49:45] lidar | TOOL start get_semantic_lidar_objects | {}
+[12:49:47] lidar | TOOL end get_semantic_lidar_objects | {   "success": true,   "frame": "map",   "source": "semantic_cloud",   "fov_deg": 360.0,   "objects": [     {       "class_id": 40,       "class": "rock",       "x": 9.57,       "y": -9.94,       "n_points": 94,       "frame": "map"     },     {       "class_id": 27,       "class": "tree_crown",       "x": -9.54,       "y": -10.24,       "n_points": 21,       "frame": "map"     },     {       "class_id": 27,       "class": "tree_crown",       "x": -11.58,       "y": -9.32,       "n_points": 3,       "frame": "map"     }   ],   "hint": "Semantic lidar is 360\u00b0. Listed x/y are map-frame cent...
+[12:49:48] lidar | TOOL end get_lidar_snapshot | {   "success": true,   "frame": "q1_velodyne",   "n_points": 4168,   "min_range_m": 2.32,   "min_range_bearing_deg": 50.8,   "sectors_min_m": {     "front": 2.32,     "left": 2.32,     "right": 2.32,     "rear": 2.32   },   "topic": "/q1_sensor_summary/lidar",   "robot_id": "q1" }
+[12:49:59] lidar | LLM | I called get_lidar_snapshot(robot_id='q1') and get_semantic_lidar_objects(); both calls succeeded. Observed: rock class_id=40 at x=9.57 y=-9.94; tree_crown class_id=27 at x=-9.54 y=-10.24; tree_crown class_id=27 at x=-11.58 y=-9.32. I did not call confirm_stop('rock') because Q1 is not already stopped at the rock.
+[12:49:59] lidar | TURN end | I called get_lidar_snapshot(robot_id='q1') and get_semantic_lidar_objects(); both calls succeeded. Observed: rock class_id=40 at x=9.57 y=-9.94; tree_crown class_id=27 at x=-9.54 y=-10.24; tree_crown class_id=27 at x=-11.58 y=-9.32. I did not call confirm_stop('rock') because Q1 is not already stopped at the rock.
+[12:50:45] camera:huddle | LLM | Rock at 9.57, -9.94. Navigator drives to a viewpoint ≥3 m from that rock; lidar waits and I (camera) wait.
+[12:50:45] camera:huddle | TURN end | Rock at 9.57, -9.94. Navigator drives to a viewpoint ≥3 m from that rock; lidar waits and I (camera) wait.
+[12:51:04] navigator:huddle | LLM | I drive to a viewpoint that keeps us ≥3 m from the rock at 9.57, -9.94. Lidar waits and camera waits.
+[12:51:04] navigator:huddle | TURN end | I drive to a viewpoint that keeps us ≥3 m from the rock at 9.57, -9.94. Lidar waits and camera waits.
+[12:51:15] lidar:huddle | LLM | I wait this round; navigator drives and camera waits. Next stop is the rock at 9.57, -9.94.
+[12:51:15] lidar:huddle | TURN end | I wait this round; navigator drives and camera waits. Next stop is the rock at 9.57, -9.94.
+[12:51:36] camera:planner | LLM | PLAN navigator: navigate_to_pose robot_id='q1' x=8.776 y=-7.047 yaw=0.0  — drive to a viewpoint ≥3.0 m from rock centroid (9.57, -9.94). lidar: standby (no sensing this round). camera: standby (no sensing this round).
+[12:51:36] camera:planner | TURN end | PLAN navigator: navigate_to_pose robot_id='q1' x=8.776 y=-7.047 yaw=0.0  — drive to a viewpoint ≥3.0 m from rock centroid (9.57, -9.94). lidar: standby (no sensing this round). camera: standby (no sensing this round).
+[12:51:49] navigator:planner | LLM | AGREE
+[12:51:49] navigator:planner | TURN end | AGREE
+[12:51:57] lidar:planner | LLM | AGREE
+[12:51:57] lidar:planner | TURN end | AGREE
+[12:52:01] lidar | LLM | I waited on standby this round and performed no sensing or tool calls. No tools were used or invoked, so there are no tool results to report. Observed objects: none (no lidar scans performed). confirm_stop was not called.
+[12:52:01] lidar | TURN end | I waited on standby this round and performed no sensing or tool calls. No tools were used or invoked, so there are no tool results to report. Observed objects: none (no lidar scans performed). confirm_stop was not called.
+[12:52:02] camera | LLM | I remained on standby and performed no sensing or tool calls this round. No tools were invoked, so there are no tool successes or failures to report. Observed classes: none (no camera or semantic data collected).
+[12:52:02] camera | TURN end | I remained on standby and performed no sensing or tool calls this round. No tools were invoked, so there are no tool successes or failures to report. Observed classes: none (no camera or semantic data collected).
+[12:52:06] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 8.776, "y": -7.047, "yaw": 0.0})
+[12:52:06] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 8.776, "y": -7.047, "yaw": 0.0}
+
+===== saved: 2026-08-24T13:21:25+02:00 as open_medium_dmas_r1_fail_timeout =====

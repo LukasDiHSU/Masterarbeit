@@ -1,0 +1,10 @@
+===== Robot camera =====
+started: 2026-08-24T05:23:08+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 AGENT_MCP_URL=http://127.0.0.1:8000/sse python -m agentpackage.architectures.centralized.robot_agent --robot-id camera --host "127.0.0.1" --port "8765"
+
+[shell_pid=223632] Robot camera
+camera is online.
+Type directly to chat with this robot locally. Use Ctrl+C to exit.
+
+camera> 
+===== saved: 2026-08-24T05:48:48+02:00 as open_medium_cmas_r2_fail_timeout =====

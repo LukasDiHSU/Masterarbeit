@@ -1,0 +1,11 @@
+Run: open_medium_cmas_r2_success
+Logs (8):
+
+  - logs/00_usage_monitor.log  (809858 bytes)
+  - logs/01_agent_trace.log  (18194 bytes)
+  - logs/02_mcp_server_shared.log  (9093 bytes)
+  - logs/03_agent_broker.log  (308 bytes)
+  - logs/04_robot_navigator.log  (1776 bytes)
+  - logs/05_robot_lidar.log  (1419 bytes)
+  - logs/06_robot_camera.log  (1157 bytes)
+  - logs/07_master_agent.log  (1002 bytes)

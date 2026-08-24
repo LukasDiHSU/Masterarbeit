@@ -1,0 +1,33 @@
+===== Robot navigator =====
+started: 2026-08-24T05:23:08+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 AGENT_MCP_URL=http://127.0.0.1:8000/sse python -m agentpackage.architectures.centralized.robot_agent --robot-id navigator --host "127.0.0.1" --port "8765"
+
+[shell_pid=223588] Robot navigator
+navigator is online.
+Type directly to chat with this robot locally. Use Ctrl+C to exit.
+
+navigator> 
+[master -> navigator] report_pose
+[navigator] Received pose from /localization/odometry (frame=map): x=0.013985 m, y=-0.018618 m, yaw=1.570670 rad. robot_id=q1, success=true.
+
+[master -> navigator] navigate_to_pose 7.329 -8.043 0.0
+[navigator] navigate_to_pose completed: success=true, robot_id=q1, commanded=(7.329,-8.043,0.0). Reached pose reported by odometry: x=5.797899 m, y=6.728687 m, yaw=0.707019 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.9003 -7.0235 0.0
+[navigator] navigate_to_pose completed: success=true, robot_id=q1, commanded=(8.9003,-7.0235,0.0). Reached pose reported by odometry: x=6.042176 m, y=6.972991 m, yaw=0.724817 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.9495 -7.0133 0.0
+[navigator] navigate_to_pose completed: success=true, robot_id=q1, commanded=(8.9495,-7.0133,0.0). Reached pose reported by odometry: x=6.086592 m, y=6.975623 m, yaw=0.724839 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.957 -7.010 0.0
+[navigator] navigate_to_pose failed: nav_failed (timeout). Commanded=(8.957,-7.01,0.0). Last reported odometry pose: x=6.071454 m, y=6.995484 m, yaw=0.726291 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.79 -7.3127 0.0
+[navigator] navigate_to_pose completed: success=true, robot_id=q1, commanded=(8.79,-7.3127,0.0). Reached pose reported by odometry: x=6.108828 m, y=6.979871 m, yaw=0.726486 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.943 -6.960 0.0
+[navigator] navigate_to_pose completed: success=true, robot_id=q1, commanded=(8.943,-6.96,0.0). Reached pose reported by odometry: x=6.072395 m, y=6.979887 m, yaw=0.727009 rad. pose frame=map.
+
+[master -> navigator] navigate_to_pose 8.9364 -6.9615 0.0
+
+===== saved: 2026-08-24T05:48:48+02:00 as open_medium_cmas_r2_fail_timeout =====

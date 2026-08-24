@@ -1,0 +1,69 @@
+===== Mission CLI =====
+started: 2026-08-23T21:01:57+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.architectures.dmas.mission_cli --host "127.0.0.1" --base-port "9101" --cli-port "9099"
+
+[shell_pid=118941] Mission CLI
+Mission console online as 'CLI' at 127.0.0.1:9099.
+Fleet: navigator, lidar, camera
+Protocol: first 3 turns of each round are discussion only (no PLAN/AGREE), then PLAN and AGREE (or after 12 turns the last plan is executed) -> one short leg each -> discuss again (at most 12 rounds). Mission ends when every robot says FINISHED.
+Paste a mission prompt and press Enter. Type quit / exit to leave.
+
+mission> ... fleet discussion started (timer running) ...
+--- mission timeout armed: 10m 0.0s (600s) from this prompt ---
+
+--- round 1 discussion ---
+  turn 1: navigator: Next stop is the container. I’ll wait; lidar and camera both sense from our current pose while nobody drives this round.
+  turn 2: lidar: Next stop is the container. I will scan from our current pose while the camera also senses and the navigator waits.
+  turn 3: camera: Next stop is the container. I'll sense from our current pose and lidar will scan as well. Navigator will wait — nobody drives this round.
+  ----- now planning -----
+  turn 4: navigator PLAN (3 legs) -> navigator: stay at current pose (x=0.01, y=-0.01, yaw=1.571); no driving this round.; lidar: perform a semantic lidar scan from the current pose and report every sensed object as class_id=… class=… x=… y=….; camera: perform a camera scan from the current pose and report any detections (do not confirm_stop).
+  turn 5: lidar AGREE (2/3 back the plan)
+  turn 6: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 1 execution ---
+
+  executing round 1: lidar, camera
+  [navigator] waited, no action
+  [lidar] I performed a semantic lidar scan from the current pose; get_lidar_snapshot and get_semantic_lidar_objects both succeeded. Observed: tree_trunk class_id=28 at x=-10.59 y=-10.25; tree_crown class_id=27 at x=-9.97 y=-9.83; container class_id=58 at x=-9.88 y=10.14; car class_id=12 at x=9.28 y=8.24; rock class_id=40 at x=9.37 y=-10.15. I did not call confirm_stop.
+  [camera] I performed a camera scan from the current Q1 pose. get_camera_image and get_semantic_camera_classes both succeeded; the semantic camera reported no classes in the frame (empty). No objects observed; did not call confirm_stop.
+
+--- round 2 discussion ---
+  turn 1: lidar: I see the container at -9.88, 10.14. Navigator drives this round while I wait and the camera waits.
+  turn 2: camera: Container at -9.88, 10.14. Navigator drives this round to a point at least 3 m from that centroid, while lidar waits and I wait.
+  turn 3: navigator: I will drive to a point at least 3 m from the container at (-9.88, 10.14). Lidar waits and camera waits.
+  ----- now planning -----
+  turn 4: lidar PLAN (3 legs) -> navigator: drive to x=-7.78 y=8.00 (≥3 m from container centroid at -9.88,10.14).; lidar: wait (no sensing) this round.; camera: wait (no sensing) this round.
+  turn 5: camera AGREE (2/3 back the plan)
+  turn 6: navigator AGREE
+  agreed (proposed by lidar)
+
+--- round 2 execution ---
+
+  executing round 2: navigator
+  [navigator] I called get_robot_pose (success) and get_occupancy_map (success), then issued navigate_to_pose for robot_id='q1' to x=-7.78 y=8.00. navigate_to_pose returned success; it reported the robot pose after the drive as x=-7.301727603681385 y=-5.6640757242590185. No semantic objects were observed (objects empty). I did not call confirm_stop.
+  [lidar] waited, no action
+  [camera] waited, no action
+
+--- round 3 discussion ---
+  turn 1: camera: Container at -9.88, 10.14. Navigator drives (staying ≥3 m from that centroid), lidar senses, and I wait.
+  turn 2: navigator: I'll drive toward the container at -9.88, 10.14, keeping at least 3 m from that centroid. Lidar waits and camera waits this round.
+  turn 3: lidar: I'll wait while navigator drives, keeping at least 3 m from the container centroid at -9.88, 10.14. Camera waits.
+  ----- now planning -----
+  turn 4: camera PLAN (3 legs) -> navigator: drive to x=-9.40 y=7.18; lidar: wait (no sensing) this round; camera: wait (no sensing) this round
+  turn 5: navigator PLAN (3 legs) -> navigator: drive to x=-9.405 y=7.178; lidar: wait (no sensing) this round; camera: wait (no sensing) this round
+  turn 6: lidar AGREE (2/3 back the plan)
+  turn 7: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 3 execution ---
+
+  executing round 3: navigator
+  [navigator] I drove q1 to x=-9.405 y=7.178 using navigate_to_pose; navigate_to_pose returned success. get_robot_pose and get_occupancy_map succeeded. I observed no semantic-lidar objects (I did not call semantic lidar); objects=empty.
+  [lidar] waited, no action
+  [camera] waited, no action
+
+*** EXPERIMENT TIMEOUT after 10m 0.0s — stopping all experiment processes ***
+
+
+===== saved: 2026-08-23T21:15:43+02:00 as open_easy_dmas_r4_fail_timeout =====

@@ -2,8 +2,7 @@ import os
 import re
 from typing import Any
 
-from .instructions import COORDINATES as COORDINATE_RULE
-from .instructions import STATION_CAPACITY as STATION_CAPACITY_RULE
+from .instructions import Q1_COORDINATES as COORDINATE_RULE
 
 DEFAULT_MODEL = os.getenv("AGENT_MODEL", "openai:gpt-5.4-mini")
 
@@ -144,7 +143,7 @@ DEFAULT_MESH_CLI_PORT = int(os.getenv("AGENT_MESH_CLI_PORT", "9099"))
 AGENTNET_ENTRY_ROBOT = ROBOT_IDS[0]
 DMAS_TURN_ORDER = tuple(ROBOT_IDS)
 
-# STATION_CAPACITY_RULE / COORDINATE_RULE are re-exported from instructions.py.
+# COORDINATE_RULE is re-exported from instructions.py (Q1 coordinate rules).
 
 # --- Usage monitor ----------------------------------------------------------
 DEFAULT_MONITOR_HOST = os.getenv("AGENT_MONITOR_HOST", "127.0.0.1")

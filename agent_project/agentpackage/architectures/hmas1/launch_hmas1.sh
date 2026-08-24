@@ -4,6 +4,7 @@ set -euo pipefail
 # Launches HMAS-1: MCP + broker + AGENT_COUNT robots + planner.
 # Fleet size: Q1 always 3 specialists (navigator, lidar, camera).
 # Remroc: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
+# Optional: --timeout 10  (stop 10 min after you send the mission prompt).
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 ARCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,0 +1,88 @@
+===== Mission CLI =====
+started: 2026-08-24T03:07:15+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.architectures.dmas.mission_cli --host "127.0.0.1" --base-port "9101" --cli-port "9099"
+
+[shell_pid=193560] Mission CLI
+Mission console online as 'CLI' at 127.0.0.1:9099.
+Fleet: navigator, lidar, camera
+Protocol: first 3 turns of each round are discussion only (no PLAN/AGREE), then PLAN and AGREE (or after 12 turns the last plan is executed) -> one short leg each -> discuss again (at most 12 rounds). Mission ends when every robot says FINISHED.
+Paste a mission prompt and press Enter. Type quit / exit to leave.
+
+mission> ... fleet discussion started (timer running) ...
+--- mission timeout armed: 10m 0.0s (600s) from this prompt ---
+
+--- round 1 discussion ---
+  turn 1: navigator: Next stop is the container. I'll drive to an unexplored free cell to look for it, while lidar and camera wait this round.
+  turn 2: lidar: Next stop is the container. I will wait this round and not sense. Navigator drives to an unexplored free cell and camera waits.
+  turn 3: camera: I will wait this round and not sense. Navigator drives to an unexplored free cell to look for the container, and lidar also waits.
+  ----- now planning -----
+  turn 4: navigator PLAN (3 legs) -> navigator: navigate q1 to x=4.00, y=4.00 (yaw=0.0) — drive to this free-cell to search for the container.; lidar: wait this round and do not sense.; camera: wait this round and do not sense.
+  turn 5: lidar AGREE (2/3 back the plan)
+  turn 6: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 1 execution ---
+
+  executing round 1: navigator
+  [navigator] I called get_robot_pose (success) and get_occupancy_map (success), then navigated q1 to x=4.00 y=4.00 yaw=0.0.  
+navigate_to_pose succeeded (waypoint reached); the nav response reported odometry pose x=-1.800528234639205 y=2.801628319114447 yaw=2.5508346718965824.  
+No semantic-lidar or camera object classes were observed (no object coordinates returned).
+  [lidar] waited, no action
+  [camera] waited, no action
+
+--- round 2 discussion ---
+  turn 1: lidar: I'll do a lidar scan now from our current pose; navigator and camera wait this round. Next stop is the container and there is no lidar centroid known yet.
+  turn 2: camera: Next stop is the container. I will wait this round; lidar will sense from our current pose and navigator will wait (no drive).
+  turn 3: navigator: I'll wait this round; lidar will perform the scan and the camera waits. No one drives this round. Next stop is the container.
+  ----- now planning -----
+  turn 4: lidar PLAN (3 legs) -> navigator: wait this round (no driving); lidar: perform a semantic lidar scan now from current pose — call get_lidar_snapshot and get_semantic_lidar_objects (no class filter); report any detected objects (no confirm_stop); camera: wait this round (no sensing)
+  turn 5: camera AGREE (2/3 back the plan)
+  turn 6: navigator AGREE
+  agreed (proposed by lidar)
+
+--- round 2 execution ---
+
+  executing round 2: lidar
+  [navigator] waited, no action
+  [lidar] I ran a lidar snapshot and semantic lidar scan; both tools succeeded. Detected: car class_id=12 at x=9.30 y=7.78; tree_crown class_id=27 at x=-9.86 y=-9.86; rock class_id=40 at x=9.77 y=-9.75; container class_id=58 at x=-9.56 y=10.34.
+  [camera] waited, no action
+
+--- round 3 discussion ---
+  turn 1: camera: I'll wait this round. Navigator drives to a point at least 3.0 m from the container at -9.56, 10.34. Lidar waits.
+  turn 2: navigator: I will drive to a viewpoint at least 3.0 m from the container at -9.56, 10.34. Lidar waits and camera waits this round.
+  turn 3: lidar: I last saw the container at -9.56, 10.34. Navigator drives to a viewpoint at least 3.0 m from that container; I will wait and camera will wait this round.
+  ----- now planning -----
+  turn 4: camera: navigator: navigate q1 to x=-7.408 y=8.247 (yaw=0.0) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+  turn 5: navigator PLAN (3 legs) -> navigator: navigate q1 to x=-7.407 y=8.247 (yaw=0.0); lidar: wait this round (no sensing); camera: wait this round (no sensing)
+  turn 6: lidar AGREE (2/3 back the plan)
+  turn 7: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 3 execution ---
+
+  executing round 3: navigator
+  [navigator] I drove q1 to x=-7.407 y=8.247 yaw=0.0 using navigate_to_pose; navigate_to_pose reported success. get_robot_pose and get_occupancy_map calls succeeded. I observed no objects (no semantic-lidar data called by me). confirmed=false.
+  [lidar] waited, no action
+  [camera] waited, no action
+
+--- round 4 discussion ---
+  turn 1: navigator: I'll hold position (navigator) this round. Lidar senses now and camera waits. Next stop is the container at -9.56, 10.34.
+  turn 2: lidar: I'll sense now; navigator holds position and camera waits. Next stop is the container at -9.56, 10.34.
+  turn 3: camera: I'll wait and not sense this round. Lidar should sense now and navigator hold position. Next stop is the container at -9.56, 10.34.
+  ----- now planning -----
+  turn 4: navigator PLAN (3 legs) -> navigator: navigate q1 to x=-7.45 y=-5.57 yaw=-1.547 (hold current pose).; lidar: perform a semantic lidar scan now (get_lidar_snapshot + get_semantic_lidar_objects) and report any detected objects (class_id, class, x, y); do not call confirm_stop.; camera: wait this round and do not sense.
+  turn 5: lidar AGREE (2/3 back the plan)
+  turn 6: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 4 execution ---
+
+  executing round 4: navigator, lidar
+  [navigator] I drove Q1 to x=-7.45 y=-5.57 yaw=-1.547 using navigate_to_pose; get_robot_pose and get_occupancy_map succeeded and navigate_to_pose reported success. get_semantic_lidar_objects was not called so no objects observed. confirm_stop not called. STEP_OK
+  [lidar] I ran lidar snapshot and semantic lidar; both tools succeeded. Detected container class_id=58 at x=-9.67 y=10.32 and tree_crown class_id=27 at x=-10.27 y=-9.63.
+  [camera] waited, no action
+
+*** EXPERIMENT TIMEOUT after 10m 0.0s — stopping all experiment processes ***
+
+
+===== saved: 2026-08-24T03:17:51+02:00 as open_easy_dmas_r1_fail_timeout =====

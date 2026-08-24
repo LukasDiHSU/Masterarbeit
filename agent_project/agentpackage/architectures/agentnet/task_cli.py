@@ -20,7 +20,7 @@ from ...config import (
     build_peer_table,
     robot_peer_name,
 )
-from ...timing import format_elapsed, record_timing
+from ...timing import format_elapsed, mesh_timeout, mission_timeout_guard, record_timing
 from ..conflict_based.mesh_bus import MeshNode
 from .protocol import ARCHITECTURE, ASK_TIMEOUT, wrap_mission
 
@@ -63,13 +63,17 @@ def main() -> None:
             print(f"... mission handed to {entry} (timer started) ...", flush=True)
             t0 = time.perf_counter()
             try:
-                mesh._wait_for_link(entry, timeout=60.0)
-                reply = mesh.ask(
-                    entry,
-                    wrap_mission(line),
-                    thread_id="mission",
-                    timeout=ASK_TIMEOUT,
-                )
+                with mission_timeout_guard("agentnet_until_done"):
+                    mesh._wait_for_link(entry, timeout=60.0)
+                    reply = mesh.ask(
+                        entry,
+                        wrap_mission(line),
+                        thread_id="mission",
+                        timeout=mesh_timeout(ASK_TIMEOUT),
+                    )
+            except KeyboardInterrupt:
+                print("\nMission interrupted (timeout or Ctrl+C).", flush=True)
+                break
             except Exception as e:
                 reply = f"ERROR: {e}"
             elapsed = time.perf_counter() - t0

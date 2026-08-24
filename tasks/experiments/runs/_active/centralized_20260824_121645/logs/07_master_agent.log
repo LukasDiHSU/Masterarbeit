@@ -1,0 +1,15 @@
+===== Master Agent =====
+started: 2026-08-24T12:16:48+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.architectures.centralized.master_agent --host "127.0.0.1" --port "8765"
+
+[shell_pid=34025] Master Agent
+Persistent chat on thread 'default'. Commands: /exit, /quit, exit, q, quit (or Ctrl+D / Ctrl+C).
+Token usage → usage monitor; LLM/tool traces → agent trace window (not printed here).
+Timer: wall-clock from each message until this agent finishes (final reply = system thinks done).
+Mission timeout: 10m 0.0s after you send a prompt — the experiment is stopped if still running.
+You: Calling model…
+--- mission timeout armed: 10m 0.0s (600s) from this prompt ---
+Mission completed: visited container then rock; both stops confirmed by lidar.
+--- elapsed until done: 2m 31.4s (151.4s) ---
+You: 
+===== saved: 2026-08-24T12:20:34+02:00 as open_easy_cmas_r3_success =====

@@ -1,0 +1,11 @@
+Run: trash
+Logs (8):
+
+  - logs/00_usage_monitor.log  (717993 bytes)
+  - logs/01_agent_trace.log  (26825 bytes)
+  - logs/02_mcp_server_shared.log  (13991 bytes)
+  - logs/03_agent_broker.log  (287 bytes)
+  - logs/04_robot_navigator.log  (5045 bytes)
+  - logs/05_robot_lidar.log  (3733 bytes)
+  - logs/06_robot_camera.log  (3214 bytes)
+  - logs/07_master_agent.log  (770 bytes)

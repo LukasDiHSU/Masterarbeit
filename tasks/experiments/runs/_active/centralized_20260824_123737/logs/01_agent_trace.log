@@ -1,0 +1,8 @@
+===== Agent Trace =====
+started: 2026-08-24T12:37:37+02:00
+command: python -m agentpackage.trace_monitor --host "127.0.0.1" --port "9901"
+
+[shell_pid=42376] Agent Trace
+Agent Trace listening (UDP) on 127.0.0.1:9901
+Showing LLM replies and tool start/end for all agents. Ctrl+C to quit.
+

@@ -9,16 +9,26 @@ testable with scripted replies.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from ...config import AGENT_COUNT, is_q1_platform
 from ...instructions import (
     DMAS_ANSWER_FORMAT,
     DMAS_EXECUTION_REPORT,
+    DMAS_TALK_FORMAT,
+    Q1_DMAS_EXECUTION_REPORT,
     dmas_execution_how,
+    dmas_talk_rules,
     dmas_turn_rules,
+    q1_dmas_execution_how,
+    q1_dmas_talk_rules,
+    q1_dmas_turn_rules,
+    q1_dmas_answer_format,
+    q1_dmas_talk_format,
 )
 
 ARCHITECTURE = "dmas"
@@ -38,16 +48,34 @@ def _env_int(name: str, default: int) -> int:
 MAX_ROUNDS = _env_int("DMAS_MAX_ROUNDS", 12)
 # Turns spent discussing one round; after this the last proposed plan is executed.
 MAX_TURNS_PER_ROUND = _env_int("DMAS_MAX_TURNS_PER_ROUND", 12)
+# First N turns of every discussion round must be natural language (no PLAN/AGREE).
+# Default N is the fleet size so each robot speaks once before anyone PLANs.
+# Leave at least two turns afterwards so someone can PLAN and someone can AGREE.
+# Override with DMAS_MIN_TALK_TURNS if you want a different huddle length.
+def _min_talk_turns() -> int:
+    raw = os.getenv("DMAS_MIN_TALK_TURNS")
+    if raw is None or not str(raw).strip():
+        n = AGENT_COUNT
+    else:
+        try:
+            n = max(1, int(str(raw).strip()))
+        except (TypeError, ValueError):
+            n = AGENT_COUNT
+    return min(n, max(0, MAX_TURNS_PER_ROUND - 2))
+
+
+MIN_TALK_TURNS = _min_talk_turns()
 # Re-asks of the same robot after an unusable or rejected answer.
 MAX_SYNTAX_RETRIES = _env_int("DMAS_MAX_SYNTAX_RETRIES", 2)
 
 TURN_TIMEOUT = float(os.getenv("DMAS_TURN_TIMEOUT", "300"))
-EXECUTE_TIMEOUT = float(os.getenv("DMAS_EXECUTE_TIMEOUT", "900"))
+EXECUTE_TIMEOUT = float(os.getenv("DMAS_EXECUTE_TIMEOUT", "300"))
 
 # Kinds of turn a robot may take.
 PLAN = "plan"
 AGREE = "agree"
 FINISHED = "finished"
+TALK = "talk"
 INVALID = "invalid"
 
 # What the round does after a turn.
@@ -61,6 +89,14 @@ _FINISHED_RE = re.compile(r"^FINISH(?:ED)?\b", re.IGNORECASE)
 _IDLE_RE = re.compile(
     r"^(wait|hold|idle|stay|stand|remain|nothing|none|no action|-|—)\b",
     re.IGNORECASE,
+)
+_MANIP_RE = re.compile(r"\b(pick|pickup|drop|place)\b", re.IGNORECASE)
+# Already standing at/near the named station (approach poses included).
+_ALREADY_THERE_M = float(os.getenv("MCP_MANIP_RADIUS_M", "4.0"))
+NOOP_PLAN_MSG = (
+    "this PLAN would not change the world (everyone waits, or navigator is "
+    "already at the pose it would drive to). If [World State Now] already "
+    "satisfies the Mission goal, answer FINISHED."
 )
 
 
@@ -84,7 +120,12 @@ def _match_participant(token: str, participants: list[str]) -> str | None:
 
 def turn_message(*, round_index: int, turn_index: int, prompt: str) -> str:
     return f"{TURN_PREFIX} " + json.dumps(
-        {"round": round_index, "turn": turn_index, "prompt": prompt},
+        {
+            "round": round_index,
+            "turn": turn_index,
+            "prompt": prompt,
+            "talk_only": in_talk_window(turn_index),
+        },
         ensure_ascii=False,
     )
 
@@ -122,6 +163,9 @@ class Turn:
     def summary(self) -> str:
         if self.kind == PLAN:
             return f"PLAN ({len(self.legs)} legs)"
+        if self.kind == TALK:
+            preview = " ".join((self.raw or "").split())[:80]
+            return f"TALK {preview}" if preview else "TALK"
         return self.kind.upper()
 
 
@@ -140,7 +184,29 @@ def parse_turn(text: str, participants: list[str]) -> Turn:
             return Turn(kind=FINISHED, note=line, raw=text)
         if _AGREE_RE.match(line):
             return Turn(kind=AGREE, note=line, raw=text)
+    if (text or "").strip():
+        return Turn(kind=TALK, raw=text)
     return Turn(kind=INVALID, raw=text)
+
+
+def in_talk_window(turn_index: int) -> bool:
+    return int(turn_index) <= MIN_TALK_TURNS
+
+
+def talk_window_feedback(turn_index: int) -> str:
+    return (
+        f"This is discussion turn {turn_index} of {MIN_TALK_TURNS}. "
+        "PLAN and AGREE are not allowed yet. Speak 1-3 short sentences to "
+        "the other robots — no notes, no tool dump, no PLAN. "
+        "FINISHED is allowed if the goal is already met."
+    )
+
+
+def coerce_talk_window(turn: Turn, turn_index: int) -> Turn:
+    """Keep the words if a robot jumped to PLAN/AGREE during the talk window."""
+    if in_talk_window(turn_index) and turn.kind in (PLAN, AGREE):
+        return Turn(kind=TALK, raw=turn.raw)
+    return turn
 
 
 def parse_legs(text: str, participants: list[str]) -> dict[str, str]:
@@ -162,7 +228,50 @@ def _parse_legs(lines: list[str], participants: list[str]) -> dict[str, str]:
     return legs
 
 
-def verify_plan(legs: dict[str, str], participants: list[str]) -> list[str]:
+def looks_idle(leg: str) -> bool:
+    return bool(_IDLE_RE.match((leg or "").strip()))
+
+
+def _station_ids_in_leg(leg: str, env: Any) -> list[str]:
+    text = (leg or "").lower()
+    found: list[str] = []
+    stations = list(getattr(env, "stations", None) or [])
+    for station in stations:
+        sid = str(station.get("id") or "")
+        if sid and sid.lower() in text and sid not in found:
+            found.append(sid)
+    return found
+
+
+def _already_at(robot: str, station_id: str, env: Any) -> bool:
+    at = env.station_at(robot) if hasattr(env, "station_at") else None
+    if at and at.lower() == station_id.lower():
+        return True
+    pose = env.pose(robot) if hasattr(env, "pose") else None
+    station = env.station(station_id) if hasattr(env, "station") else None
+    if pose is None or station is None:
+        return False
+    return math.hypot(
+        float(pose.get("x", 0.0)) - float(station.get("x", 0.0)),
+        float(pose.get("y", 0.0)) - float(station.get("y", 0.0)),
+    ) <= _ALREADY_THERE_M
+
+
+def _leg_is_noop(leg: str, robot: str, env: Any | None) -> bool:
+    if looks_idle(leg):
+        return True
+    if env is None or _MANIP_RE.search(leg or ""):
+        return False
+    dests = _station_ids_in_leg(leg, env)
+    return bool(dests) and all(_already_at(robot, dest, env) for dest in dests)
+
+
+def verify_plan(
+    legs: dict[str, str],
+    participants: list[str],
+    *,
+    env: Any | None = None,
+) -> list[str]:
     """Rules-based check of a proposed plan; empty list means accepted."""
     errors: list[str] = []
     missing = [p for p in participants if p not in legs]
@@ -171,16 +280,29 @@ def verify_plan(legs: dict[str, str], participants: list[str]) -> list[str]:
             "no leg for " + ", ".join(missing) + " — every robot needs exactly one "
             "line '<RobotName>: <leg>'; write 'wait' for a robot that should hold."
         )
-    if legs and all(_IDLE_RE.match(text) for text in legs.values()):
-        errors.append(
-            "every robot would only wait, so the round would change nothing — "
-            "give at least one robot real work."
-        )
+    if legs and all(_leg_is_noop(text, robot, env) for robot, text in legs.items()):
+        errors.append(NOOP_PLAN_MSG)
     return errors
 
 
-def looks_idle(leg: str) -> bool:
-    return bool(_IDLE_RE.match((leg or "").strip()))
+def _leg_key(leg: str) -> str:
+    if looks_idle(leg):
+        return "wait"
+    return " ".join((leg or "").lower().split())
+
+
+def same_plan(
+    left: dict[str, str],
+    right: dict[str, str],
+    participants: list[str],
+) -> bool:
+    """True when both maps assign the same action to every robot."""
+    if not left or not right:
+        return False
+    return all(
+        _leg_key(left.get(robot, "")) == _leg_key(right.get(robot, ""))
+        for robot in participants
+    )
 
 
 # --- consensus within one round --------------------------------------------
@@ -190,6 +312,7 @@ class Consensus:
 
     A new plan replaces the old one and resets the votes, so a single objection
     is always constructive: whoever disagrees has to propose something better.
+    Restating the same assignments counts as AGREE, not as a new proposal.
     """
 
     def __init__(self, participants: list[str]):
@@ -201,16 +324,28 @@ class Consensus:
 
     def apply(self, speaker: str, turn: Turn) -> str:
         if turn.kind == PLAN:
-            self.proposal = dict(turn.legs)
-            self.proposer = speaker
-            self.agreed = {speaker}
-            self.finished.clear()
-        elif turn.kind == AGREE:
-            self.finished.discard(speaker)
-            if self.proposal:
-                self.agreed.add(speaker)
+            if self.proposal and same_plan(
+                turn.legs, self.proposal, self.participants
+            ):
+                # Same assignments as the table: a restatement is a vote.
+                turn.kind = AGREE
+            else:
+                self.proposal = dict(turn.legs)
+                self.proposer = speaker
+                self.agreed = {speaker}
+                self.finished.clear()
+        if turn.kind == AGREE:
+            if self.finished and not self.proposal:
+                # A FINISHED is already on the table: AGREE means "yes, we are done".
+                self.finished.add(speaker)
+            else:
+                self.finished.discard(speaker)
+                if self.proposal:
+                    self.agreed.add(speaker)
         elif turn.kind == FINISHED:
             self.agreed.discard(speaker)
+            self.proposal = {}
+            self.proposer = ""
             self.finished.add(speaker)
 
         if len(self.finished) == len(self.participants):
@@ -223,8 +358,18 @@ class Consensus:
         return [p for p in self.participants if p not in self.agreed]
 
     def table_text(self) -> str:
+        if self.finished and not self.proposal:
+            names = ", ".join(sorted(self.finished))
+            return (
+                f"{names} said FINISHED (mission complete). "
+                "If [World State Now] meets the goal, answer FINISHED or AGREE. "
+                "Do not put a new PLAN on the table."
+            )
         if not self.proposal:
-            return "(no plan on the table yet — somebody has to propose one)"
+            return (
+                "(no plan on the table yet — argue in plain language, then "
+                "someone must put a PLAN on the table so the others can AGREE)"
+            )
         lines = [f"Proposed by {self.proposer}:"]
         for robot in self.participants:
             lines.append(f"  {robot}: {self.proposal.get(robot, '(no leg)')}")
@@ -246,7 +391,7 @@ class RoundRecord:
     state_changed: bool = True
 
 
-def format_history(records: list[RoundRecord], *, keep: int = 3) -> str:
+def format_history(records: list[RoundRecord], *, keep: int = 8) -> str:
     if not records:
         return "(nothing has been executed yet — this is the first round)"
     lines: list[str] = []
@@ -258,7 +403,7 @@ def format_history(records: list[RoundRecord], *, keep: int = 3) -> str:
         for robot, leg in record.legs.items():
             result = " ".join((record.results.get(robot, "") or "").split())
             lines.append(f"  {robot}: {leg}")
-            lines.append(f"    -> {result[:240] or '(no report)'}")
+            lines.append(f"    -> {result[:480] or '(no report)'}")
         if not record.state_changed:
             lines.append("  ! the world did not change in this round")
     return "\n".join(lines)
@@ -266,17 +411,22 @@ def format_history(records: list[RoundRecord], *, keep: int = 3) -> str:
 
 def format_dialogue(dialogue: list[dict[str, str]]) -> str:
     if not dialogue:
-        return "(nobody has spoken yet this round)"
-    return "\n\n".join(
-        f"{entry['speaker']} ({entry['kind']}):\n{entry['text'].strip()}"
-        for entry in dialogue
-    )
+        return "(nobody has spoken yet this round — you open the huddle)"
+    lines: list[str] = []
+    for entry in dialogue:
+        speaker = entry.get("speaker", "?")
+        kind = (entry.get("kind") or "").lower()
+        text = (entry.get("text") or "").strip()
+        if kind == "plan":
+            lines.append(f"{speaker}:\n{text}")
+        elif kind == "agree":
+            lines.append(f"{speaker}: AGREE")
+        else:
+            lines.append(f"{speaker}: {text}")
+    return "\n".join(lines)
 
 
 # --- prompts ----------------------------------------------------------------
-
-ANSWER_FORMAT = DMAS_ANSWER_FORMAT
-
 
 def build_turn_prompt(
     *,
@@ -288,14 +438,36 @@ def build_turn_prompt(
     dialogue: list[dict[str, str]],
     consensus: Consensus,
     round_index: int,
+    turn_index: int = 1,
     feedback: str = "",
 ) -> str:
-    parts = [
+    talk_only = in_talk_window(turn_index)
+    header = (
         f"You are {speaker}. It is your turn in the fleet discussion "
-        f"(round {round_index} of at most {MAX_ROUNDS}).",
+        f"(round {round_index} of at most {MAX_ROUNDS}, "
+        f"turn {turn_index} of {MAX_TURNS_PER_ROUND})."
+    )
+    if talk_only:
+        header += (
+            f" Turns 1-{MIN_TALK_TURNS} are a spoken huddle: no PLAN, no AGREE, "
+            "no tools."
+        )
+    parts = [
+        header,
         "",
         "[Mission]",
         mission.strip(),
+        "",
+        "[Start vs now]",
+        "The Mission is the original task and the STARTING layout. "
+        "Poses named there are not current. [World State Now] and "
+        "[What Happened In Earlier Rounds] say who already moved. "
+        # BOTTLENECK-only — re-enable for bottleneck worlds:
+        # "Do not send a robot back through the bottleneck (or to a pad) "
+        # "if they already completed that crossing. "
+        "Send whoever still has work this round — several at once if "
+        "jobs do not conflict. If the current state already achieves "
+        "the goal, answer FINISHED.",
         "",
         "[World State Now]",
         state_text.strip(),
@@ -305,19 +477,42 @@ def build_turn_prompt(
         "",
         "[Discussion This Round]",
         format_dialogue(dialogue),
-        "",
-        "[Plan On The Table]",
-        consensus.table_text(),
     ]
+    if not talk_only:
+        parts += [
+            "",
+            "[Plan On The Table]",
+            consensus.table_text(),
+        ]
     if feedback.strip():
         parts += ["", "[Your Last Answer Was Rejected]", feedback.strip()]
     parts += [
         "",
         "[Rules]",
-        dmas_turn_rules(max_turns=MAX_TURNS_PER_ROUND),
+        (
+            (
+                q1_dmas_talk_rules(min_talk_turns=MIN_TALK_TURNS)
+                if is_q1_platform()
+                else dmas_talk_rules(min_talk_turns=MIN_TALK_TURNS)
+            )
+            if talk_only
+            else (
+                q1_dmas_turn_rules(
+                    max_turns=MAX_TURNS_PER_ROUND, min_talk_turns=MIN_TALK_TURNS
+                )
+                if is_q1_platform()
+                else dmas_turn_rules(
+                    max_turns=MAX_TURNS_PER_ROUND, min_talk_turns=MIN_TALK_TURNS
+                )
+            )
+        ),
         "",
         f"[Your Turn: {speaker}]",
-        ANSWER_FORMAT,
+        (
+            (q1_dmas_talk_format() if is_q1_platform() else DMAS_TALK_FORMAT)
+            if talk_only
+            else (q1_dmas_answer_format() if is_q1_platform() else DMAS_ANSWER_FORMAT)
+        ),
     ]
     return "\n".join(parts)
 
@@ -329,16 +524,24 @@ def build_execution_prompt(
     leg: str,
     round_index: int,
 ) -> str:
+    how = (
+        q1_dmas_execution_how(speaker=speaker, nav_id=nav_id)
+        if is_q1_platform()
+        else dmas_execution_how(speaker=speaker, nav_id=nav_id)
+    )
+    report = Q1_DMAS_EXECUTION_REPORT if is_q1_platform() else DMAS_EXECUTION_REPORT
+    who = "specialists" if is_q1_platform() else "fleet"
     return (
-        f"The fleet agreed on this round (round {round_index}). Carry out YOUR "
-        "leg now, nothing more.\n"
+        f"The {who} agreed on this round (round {round_index}). Carry out YOUR "
+        "leg NOW. All peers act in PARALLEL this round — do not wait for "
+        "anyone else to finish.\n"
         "\n"
         "[Your Leg]\n"
         f"{leg.strip()}\n"
         "\n"
         "[How]\n"
-        f"{dmas_execution_how(speaker=speaker, nav_id=nav_id)}\n"
+        f"{how}\n"
         "\n"
         "[Report]\n"
-        f"{DMAS_EXECUTION_REPORT}"
+        f"{report}"
     )

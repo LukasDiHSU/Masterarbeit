@@ -371,7 +371,7 @@ class RobotPeerAgent(BaseAgent):
                         "message": (
                             "Your own summary says the work is not finished, so no "
                             "completion check was sent. Keep working: retry the goal, "
-                            "or use get_events / get_peer_distances and resolve the "
+                            "or use get_events and resolve the "
                             "blocker with the peer once negotiation opens. Call this "
                             "tool again only when you actually finished."
                         ),
@@ -510,8 +510,6 @@ def _poll_events_loop(robot: RobotPeerAgent, stop: threading.Event, interval: fl
         next_index = int(payload.get("next_index", next_index))
         if not events:
             continue
-        held = robot._call_mcp_tool("get_held_boxes", {})
-        held_by = held if isinstance(held, dict) else {}
         for event in events:
             if not isinstance(event, dict):
                 continue
@@ -522,7 +520,7 @@ def _poll_events_loop(robot: RobotPeerAgent, stop: threading.Event, interval: fl
             if stale:
                 continue
             print(f"\n[event] {json.dumps(event, ensure_ascii=False)}")
-            reply = robot.handle_event(event, held_by=held_by)
+            reply = robot.handle_event(event)
             if reply is not None:
                 print(f"[{robot.spec.name} event-response] {reply}")
 

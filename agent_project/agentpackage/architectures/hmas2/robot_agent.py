@@ -18,10 +18,6 @@ _HMAS2_BLOCKED_TOOLS = frozenset(
         "get_events",
         "clear_events",
         "emit_conflict",
-        "get_all_robot_poses",
-        "get_laser_snapshot",
-        "list_worlds",
-        "get_map_info",
     }
 )
 

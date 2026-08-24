@@ -1,0 +1,11 @@
+Run: open_easy_hmas1_r3_fail_timeout
+Logs (8):
+
+  - logs/00_usage_monitor.log  (1111734 bytes)
+  - logs/01_agent_trace.log  (21960 bytes)
+  - logs/02_mcp_server_shared.log  (22623 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_navigator.log  (1255 bytes)
+  - logs/05_robot_lidar.log  (1119 bytes)
+  - logs/06_robot_camera.log  (1780 bytes)
+  - logs/07_planner_hmas_1.log  (10129 bytes)

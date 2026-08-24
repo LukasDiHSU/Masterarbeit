@@ -4,6 +4,7 @@ set -euo pipefail
 # Launches DMAS: MCP + AGENT_COUNT mesh robots + mission CLI.
 # Fleet size: Q1 always 3 specialists (navigator, lidar, camera).
 # Remroc: AGENT_COUNT / AGENTS / --agents (2|4|6|8, default 4).
+# Optional: --timeout 10  (stop 10 min after you send the mission prompt).
 # The CLI chairs turn-taking; robots discuss, execute one short leg, meet again.
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"

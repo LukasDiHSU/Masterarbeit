@@ -1,0 +1,65 @@
+===== Mission CLI =====
+started: 2026-08-23T19:36:36+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.architectures.dmas.mission_cli --host "127.0.0.1" --base-port "9101" --cli-port "9099"
+
+[shell_pid=112102] Mission CLI
+Mission console online as 'CLI' at 127.0.0.1:9099.
+Fleet: navigator, lidar, camera
+Protocol: first 3 turns of each round are discussion only (no PLAN/AGREE), then PLAN and AGREE (or after 12 turns the last plan is executed) -> one short leg each -> discuss again (at most 12 rounds). Mission ends when every robot says FINISHED.
+Paste a mission prompt and press Enter. Type quit / exit to leave.
+
+mission> ... fleet discussion started (timer running) ...
+--- mission timeout armed: 10m 0.0s (600s) from this prompt ---
+
+--- round 1 discussion ---
+  turn 1: navigator: I'll drive to an unexplored free cell toward the northeast quadrant to search for the container. Lidar waits and camera waits this round.
+  turn 2: lidar: Next stop is the container and I have no lidar centroid for it yet. I'll wait this round while navigator drives to an unexplored northeast free cell and camera 
+  turn 3: camera: Next stop is the container. I'll wait and not sense this round; navigator drives to an unexplored northeast free cell and lidar also waits.
+  ----- now planning -----
+  turn 4: navigator PLAN (3 legs) -> navigator: navigate_to_pose(robot_id='q1', x=4.0, y=4.0, yaw=1.219); lidar: wait this round (no sensing); camera: wait this round (no sensing)
+  turn 5: lidar AGREE (2/3 back the plan)
+  turn 6: camera AGREE
+  agreed (proposed by navigator)
+
+--- round 1 execution ---
+
+  executing round 1: navigator
+  [navigator] I drove Q1 to x=4.0 y=4.0 yaw=1.219 using robot_id='q1'; get_robot_pose and get_occupancy_map succeeded and navigate_to_pose succeeded. Semantic objects: none observed by my tools (I did not call semantic lidar). Confirmed=false.
+  [lidar] waited, no action
+  [camera] waited, no action
+
+--- round 2 discussion ---
+  turn 1: lidar: Next stop is the container and I haven't seen it yet. Navigator drives to explore a new free cell while I wait and camera waits.
+  turn 2: camera: Next stop is the container. I wait, lidar waits, and navigator drives to a new free cell to explore.
+  turn 3: navigator: Next stop is the container. I'll drive to a new unexplored free cell to search for it. Lidar waits and camera waits.
+  ----- now planning -----
+  turn 4: lidar PLAN (3 legs) -> navigator: navigate_to_pose(robot_id='q1', x=3.5, y=-2.5, yaw=0.0); lidar: wait this round (no sensing); camera: wait this round (no sensing)
+  turn 5: camera AGREE (2/3 back the plan)
+  turn 6: navigator AGREE
+  agreed (proposed by lidar)
+
+--- round 2 execution ---
+
+  executing round 2: navigator
+  [navigator] I drove Q1 to x=3.5 y=-2.5 yaw=0.0 using navigate_to_pose; the navigate_to_pose tool succeeded. get_robot_pose and get_occupancy_map calls also succeeded. Semantic object detections: none observed (I did not call semantic lidar); confirmed=false.
+  [lidar] waited, no action
+  [camera] waited, no action
+
+--- round 3 discussion ---
+  turn 1: camera: Next stop is the container. I'll wait; lidar senses while navigator drives.
+  turn 2: navigator: I'll drive to explore a free cell for the container; lidar and camera wait this round.
+  turn 3: lidar: Next stop is the container. I will wait and not sense this round while navigator drives to explore a free cell, and camera waits.
+  ----- now planning -----
+  turn 4: camera PLAN (3 legs) -> navigator: navigate_to_pose(robot_id='q1', x=-3.0, y=-2.5, yaw=0.0); lidar: wait this round (no sensing); camera: wait this round (no sensing)
+  turn 5: navigator AGREE (2/3 back the plan)
+  turn 6: lidar AGREE
+  agreed (proposed by camera)
+
+--- round 3 execution ---
+
+  executing round 3: navigator
+
+*** EXPERIMENT TIMEOUT after 10m 0.0s — stopping all experiment processes ***
+
+
+===== saved: 2026-08-23T21:00:55+02:00 as open_easy_dmas_r3_fail_timeout =====

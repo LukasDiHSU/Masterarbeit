@@ -1,0 +1,6 @@
+===== Agent Broker =====
+started: 2026-08-24T05:49:53+02:00
+command: python -m agentpackage.architectures.centralized.agent_broker --host "127.0.0.1" --port "8765"
+
+[shell_pid=227539] Agent Broker
+Broker listening on 127.0.0.1:8765

@@ -1,12 +1,7 @@
 """One DMAS robot: it argues its own case and carries out its own leg.
 
-Two LLMs per robot, so the usage monitor separates coordination from work:
-``SmallDeliveryRobot_i:planner`` speaks in the discussion and may inspect the
-map (stations, poses, held boxes) but cannot drive; ``SmallDeliveryRobot_i``
-executes the agreed leg with the MCP robot tools.
-
-The robot is a pure request/reply peer on the mesh. It never asks anybody
-anything, which is what makes the protocol deadlock-free.
+Two LLMs per robot for planning vs work, plus a tool-free huddle speaker
+for the first spoken turns of each round.
 """
 
 from __future__ import annotations
@@ -26,7 +21,14 @@ from ...config import (
     nav_id_for_tb,
     robot_peer_name,
 )
-from ...instructions import dmas_discussion, dmas_executor, q1_hmas1_executor, q1_hmas1_robot
+from ...instructions import (
+    dmas_discussion,
+    dmas_executor,
+    dmas_huddle,
+    q1_dmas_discussion,
+    q1_dmas_huddle,
+    q1_hmas1_executor,
+)
 from ...mcp_client import load_mcp_tools_safe
 from ...roles import filter_mcp_tools_for_agent
 from ..conflict_based.mesh_bus import MeshNode
@@ -35,50 +37,48 @@ from .protocol import (
     EXECUTE_PREFIX,
     TURN_PREFIX,
     build_execution_prompt,
+    in_talk_window,
     parse_message,
 )
 
-# Event tooling belongs to conflict_based; world switching would break a run.
 _EXECUTOR_BLOCKED_TOOLS = frozenset(
     {
         "get_events",
         "clear_events",
         "emit_conflict",
-        "set_world",
-        "reset_stations",
-        "list_worlds",
     }
 )
 
-# Read-only map/inventory tools for the discussion LLM. No navigate / pickup /
-# drop / set_world — nobody may drive while the fleet is still negotiating.
-_DISCUSSION_MAP_TOOLS = frozenset(
-    {
-        "list_stations",
-        "get_look_poses",
-        "list_available_boxes",
-        "get_station",
-        "get_held_boxes",
-        "get_all_robot_poses",
-        "get_robot_pose",
-        "get_map_info",
-        "rank_stations_by_distance",
-        "distance_to_station",
-    }
-)
+
+class HuddleAgent(BaseAgent):
+    """Spoken huddle turns: no tools, so the model cannot dump a snapshot."""
+
+    def __init__(self, peer_name: str):
+        prompt = (
+            q1_dmas_huddle(name=peer_name, n=AGENT_COUNT)
+            if is_q1_platform()
+            else dmas_huddle(name=peer_name, n=AGENT_COUNT)
+        )
+        super().__init__(
+            AgentSpec(
+                name=f"{peer_name}:huddle",
+                description=f"DMAS huddle speaker of {peer_name}.",
+                system_prompt=prompt,
+            ),
+            architecture=ARCHITECTURE,
+        )
+
+    def _retrieve_tools(self):
+        return []
 
 
 class DiscussionAgent(BaseAgent):
-    """Speaks for this robot in the fleet discussion.
-
-    May look up stations, poses and boxes so legs use real map coordinates.
-    Has no drive or inventory-mutation tools.
-    """
+    """Speaks for this robot in the fleet discussion after the huddle."""
 
     def __init__(self, peer_name: str, nav_id: str, robot_id: str = ""):
         self.robot_id = robot_id
         prompt = (
-            q1_hmas1_robot(name=peer_name, n=AGENT_COUNT, nav_id=nav_id)
+            q1_dmas_discussion(name=peer_name, n=AGENT_COUNT, nav_id=nav_id)
             if is_q1_platform()
             else dmas_discussion(name=peer_name, n=AGENT_COUNT, nav_id=nav_id)
         )
@@ -94,9 +94,7 @@ class DiscussionAgent(BaseAgent):
     @cached_property
     def _mcp_tools_by_name(self) -> dict:
         tools = load_mcp_tools_safe()
-        if is_q1_platform() and self.robot_id:
-            return {t.name: t for t in filter_mcp_tools_for_agent(tools, self.robot_id)}
-        return {t.name: t for t in tools if t.name in _DISCUSSION_MAP_TOOLS}
+        return {t.name: t for t in filter_mcp_tools_for_agent(tools, self.robot_id)}
 
     def _retrieve_tools(self):
         return list(self._mcp_tools_by_name.values())
@@ -142,8 +140,8 @@ class DMASRobot:
         self.nav_id = nav_id_for_tb(robot_id)
         self.name = robot_peer_name(robot_id)
         self.discussion = DiscussionAgent(self.name, self.nav_id, self.robot_id)
+        self.huddle = HuddleAgent(self.name)
         self.executor = ExecutorAgent(self.name, self.nav_id, self.robot_id)
-        # A robot can only do one physical thing at a time.
         self._exec_lock = threading.Lock()
 
     def handle(self, text: str) -> str:
@@ -162,9 +160,9 @@ class DMASRobot:
         round_index = int(payload.get("round", 0))
         turn_index = int(payload.get("turn", 0))
         prompt = str(payload.get("prompt", ""))
-        # The prompt carries the whole round, so every turn starts from a clean
-        # thread instead of seeing its own earlier turns twice.
-        return self.discussion.invoke(prompt, thread_id=f"r{round_index}-t{turn_index}")
+        talk_only = bool(payload.get("talk_only", in_talk_window(turn_index)))
+        agent = self.huddle if talk_only else self.discussion
+        return agent.invoke(prompt, thread_id=f"r{round_index}-t{turn_index}")
 
     def run_leg(self, payload: dict) -> str:
         round_index = int(payload.get("round", 0))
@@ -221,13 +219,12 @@ def main() -> None:
     def handle_message(msg: dict) -> None:
         if msg.get("type") != "agent_request":
             return
-        # Keep the link's reader thread free while the LLM works.
         threading.Thread(target=serve, args=(msg,), daemon=True).start()
 
     mesh.on_message(handle_message)
 
     print(f"{my_name} online at {my_host}:{my_port} (nav id {robot.nav_id}).")
-    print("DMAS robot: discusses each round, then executes only its own leg.")
+    print("DMAS robot: huddle, then plan/agree, then execute only its own leg.")
     print("Waiting for the fleet. Ctrl+C to exit.\n")
 
     try:

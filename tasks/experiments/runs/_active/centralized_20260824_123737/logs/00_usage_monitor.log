@@ -1,0 +1,174 @@
+===== Usage Monitor =====
+started: 2026-08-24T12:37:37+02:00
+command: python -m agentpackage.monitor --host "127.0.0.1" --port "9900"
+
+[shell_pid=42350] Usage Monitor
+Usage monitor listening (UDP) on 127.0.0.1:9900
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0
+[2J[H=== Agent usage monitor === (Ctrl+C to quit)
+
+AGENT            ARCHITECTURE     MESSAGES  LLM CALLS    IN TOK   OUT TOK  TOTAL TOK
+------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+TOTAL            0 agent(s)              0          0         0         0          0

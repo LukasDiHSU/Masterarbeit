@@ -1,0 +1,11 @@
+Run: open_medium_hmas1_r2_fail_hallucinatio
+Logs (8):
+
+  - logs/00_usage_monitor.log  (1964065 bytes)
+  - logs/01_agent_trace.log  (35291 bytes)
+  - logs/02_mcp_server_shared.log  (30788 bytes)
+  - logs/03_agent_broker.log  (319 bytes)
+  - logs/04_robot_navigator.log  (2143 bytes)
+  - logs/05_robot_lidar.log  (2828 bytes)
+  - logs/06_robot_camera.log  (2657 bytes)
+  - logs/07_planner_hmas_1.log  (14198 bytes)

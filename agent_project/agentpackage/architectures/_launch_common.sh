@@ -25,19 +25,14 @@ EXPERIMENT_LOG_DIR=""
 EXPERIMENT_PID_FILE=""
 EXPERIMENT_META_FILE=""
 
-# Active map for MCP (items/{AGENT_WORLD}.json). Q1 semantic tour uses open.
-# Set it in agent_project/.env or before launch, e.g.
-#   AGENT_WORLD=open ./launch_hmas1.sh --agents 3
+# Occupancy map id for get_occupancy_map (worlds/maps/{AGENT_WORLD}.yaml).
 AGENT_WORLD="${AGENT_WORLD:-open}"
 export AGENT_WORLD
 
-# A typo here is invisible later: the MCP server falls back to the built-in
-# A–D stations and every agent plans on landmarks that are not on the map.
-_AGENT_WORLD_ITEMS="${AGENT_WORLDS_DIR:-$REPO_ROOT/worlds}/items/$AGENT_WORLD.json"
-if [ ! -f "$_AGENT_WORLD_ITEMS" ]; then
-  echo "WARNING: no landmarks file for AGENT_WORLD='$AGENT_WORLD'" >&2
-  echo "         expected $_AGENT_WORLD_ITEMS" >&2
-  echo "         get_look_poses / list_stations will fall back to built-in landmarks." >&2
+_AGENT_WORLD_MAP="${AGENT_WORLDS_DIR:-$REPO_ROOT/worlds}/maps/$AGENT_WORLD.yaml"
+if [ ! -f "$_AGENT_WORLD_MAP" ]; then
+  echo "WARNING: no occupancy map for AGENT_WORLD='$AGENT_WORLD'" >&2
+  echo "         expected $_AGENT_WORLD_MAP" >&2
 fi
 
 _slugify() {
@@ -89,7 +84,8 @@ init_experiment_session() {
   "started_at": "$(date -Iseconds)",
   "project_root": "$PROJECT_ROOT",
   "status": "running",
-  "model": "${AGENT_MODEL:-}"
+  "model": "${AGENT_MODEL:-}",
+  "timeout_sec": ${EXPERIMENT_TIMEOUT_SEC:-null}
 }
 EOF
 
@@ -107,9 +103,12 @@ When you want to stop and keep this trial:
   ./agentpackage/architectures/save_experiment.sh <your_run_name> --stop
 EOF
 
-  export EXPERIMENT_SESSION_DIR EXPERIMENT_LOG_DIR EXPERIMENT_SESSION_ID
+  export EXPERIMENT_SESSION_DIR EXPERIMENT_LOG_DIR EXPERIMENT_SESSION_ID EXPERIMENT_TIMEOUT_SEC
   echo "Experiment logging → $EXPERIMENT_SESSION_DIR"
   echo "  Save later: ./agentpackage/architectures/save_experiment.sh <run_name> [--stop]"
+  if [[ -n "${EXPERIMENT_TIMEOUT_SEC:-}" ]]; then
+    echo "  Mission timeout: ${EXPERIMENT_TIMEOUT_SEC}s (starts when you send the prompt, not at launch)"
+  fi
 }
 
 launch_window() {
@@ -138,7 +137,7 @@ launch_window() {
   } >"$logfile"
 
   # Record shell PID, stream stdout/stderr through tee, then keep the tab open.
-  wrapped="cd \"$PROJECT_ROOT\" && [ -f .venv/bin/activate ] && source .venv/bin/activate; export PYTHONUNBUFFERED=1; export EXPERIMENT_SESSION_DIR=\"$EXPERIMENT_SESSION_DIR\"; export EXPERIMENT_LOG_DIR=\"$EXPERIMENT_LOG_DIR\"; echo \$\$ >> \"$EXPERIMENT_PID_FILE\"; echo \"[shell_pid=\$\$] $title\" >> \"$logfile\"; set +e; { $cmd; } 2>&1 | tee -a \"$logfile\"; echo; echo \"[exit] \$(date -Iseconds)\" | tee -a \"$logfile\"; exec bash"
+  wrapped="cd \"$PROJECT_ROOT\" && [ -f .venv/bin/activate ] && source .venv/bin/activate; export PYTHONUNBUFFERED=1; export EXPERIMENT_SESSION_DIR=\"$EXPERIMENT_SESSION_DIR\"; export EXPERIMENT_LOG_DIR=\"$EXPERIMENT_LOG_DIR\"; export EXPERIMENT_TIMEOUT_SEC=\"${EXPERIMENT_TIMEOUT_SEC:-}\"; echo \$\$ >> \"$EXPERIMENT_PID_FILE\"; echo \"[shell_pid=\$\$] $title\" >> \"$logfile\"; set +e; { $cmd; } 2>&1 | tee -a \"$logfile\"; echo; echo \"[exit] \$(date -Iseconds)\" | tee -a \"$logfile\"; exec bash"
 
   if [[ "$USE_TABS" -eq 1 ]]; then
     case "$TERMINAL" in

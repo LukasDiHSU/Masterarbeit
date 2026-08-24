@@ -1,0 +1,8 @@
+===== Agent Broker =====
+started: 2026-08-24T02:12:36+02:00
+command: python -m agentpackage.architectures.centralized.agent_broker --host "127.0.0.1" --port "8765"
+
+[shell_pid=177892] Agent Broker
+Broker listening on 127.0.0.1:8765
+
+===== saved: 2026-08-24T02:21:32+02:00 as open_easy_hmas2_r2_success =====

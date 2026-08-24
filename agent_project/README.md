@@ -79,11 +79,11 @@ recorded terminal shells.
 
 ## Shared building blocks
 
-- `agentpackage/mcpserver.py` — FastMCP server: `get_robot_pose`,
-  `get_occupancy_map` (yaml + walls-only grid), `navigate_to_pose`
+- `agentpackage/mcpserver.py` — FastMCP server: `get_occupancy_map`
+  (yaml + walls-only grid), `navigate_to_pose`
   (ATB waypoints), `rotate_by` / `drive_forward` / `drive_distance` (cmd_vel), `get_lidar_snapshot`,
   `get_semantic_lidar_objects`, `get_camera_image` (RGB still),
-  `get_semantic_camera_image`, `get_semantic_camera_classes`, plus conflict events.
+  `get_semantic_camera_image`, `get_semantic_camera_classes`, `confirm_stop`, plus conflict events.
 - `agentpackage/mcp_client.py` — loads those MCP tools into LangChain agents
   (Q1 planners get `get_occupancy_map` only — no planted object coords).
 - `agentpackage/BaseAgents.py` — thin wrapper around

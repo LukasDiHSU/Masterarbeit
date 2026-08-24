@@ -1,0 +1,11 @@
+Run: open_easy_hmas2_r4_success
+Logs (8):
+
+  - logs/00_usage_monitor.log  (721577 bytes)
+  - logs/01_agent_trace.log  (55247 bytes)
+  - logs/02_mcp_server_shared.log  (12112 bytes)
+  - logs/03_agent_broker.log  (308 bytes)
+  - logs/04_robot_navigator.log  (23227 bytes)
+  - logs/05_robot_lidar.log  (22936 bytes)
+  - logs/06_robot_camera.log  (20136 bytes)
+  - logs/07_planner_hmas_2.log  (1061 bytes)

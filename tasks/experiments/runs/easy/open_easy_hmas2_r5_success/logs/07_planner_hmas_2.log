@@ -1,0 +1,21 @@
+===== Planner (HMAS-2) =====
+started: 2026-08-24T02:58:49+02:00
+command: AGENT_COUNT=3 AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.architectures.hmas2.planner_agent --host "127.0.0.1" --port "8765"
+
+[shell_pid=189403] Planner (HMAS-2)
+Persistent chat on thread 'default'. Commands: /exit, /quit, exit, q, quit (or Ctrl+D / Ctrl+C).
+Token usage → usage monitor; LLM/tool traces → agent trace window (not printed here).
+Timer: wall-clock from each message until this agent finishes (final reply = system thinks done).
+Mission timeout: 10m 0.0s after you send a prompt — the experiment is stopped if still running.
+You: Calling model…
+--- mission timeout armed: 10m 0.0s (600s) from this prompt ---
+Mission complete: visited container then rock (both confirmed).
+
+Summary:
+- Order visited: container (confirmed=true), then rock (confirmed=true).
+- All required confirm_stop checks completed before moving on.
+
+If you want the full log of poses, sensor detections, or the map cells used for exploration, I can provide that.
+--- elapsed until done: 6m 19.4s (379.4s) ---
+You: 
+===== saved: 2026-08-24T03:05:56+02:00 as open_easy_hmas2_r5_success =====

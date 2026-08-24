@@ -1,0 +1,14 @@
+{
+  "session_id": "dmas_20260823_210154",
+  "architecture": "dmas",
+  "agent_count": 3,
+  "agent_world": "open",
+  "agent_platform": "q1",
+  "started_at": "2026-08-23T21:01:54+02:00",
+  "project_root": "/home/lukas/GitHub/Masterarbeit/agent_project",
+  "status": "stopped",
+  "model": "openai:gpt-5-mini",
+  "timeout_sec": 600,
+  "saved_as": "open_easy_dmas_r4_fail_timeout",
+  "saved_at": "2026-08-23T21:15:43.526208+02:00"
+}

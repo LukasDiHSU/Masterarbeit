@@ -15,8 +15,28 @@ if [ ! -f "$_AGENT_PROJECT_DIR/.env" ] && [ -f "$_AGENT_PROJECT_DIR/.env.example
        "its values are NOT read). Using the shell environment." >&2
 fi
 
+_parse_timeout_to_sec() {
+  # Bare number = minutes. Also 15m / 15min, 90s / 90sec, 1h / 1hr.
+  local raw="${1,,}"
+  raw="${raw// /}"
+  local n unit
+  if [[ ! "$raw" =~ ^([0-9]+)([a-z]*)$ ]]; then
+    return 1
+  fi
+  n="${BASH_REMATCH[1]}"
+  unit="${BASH_REMATCH[2]}"
+  case "$unit" in
+    ""|m|min|mins|minute|minutes) echo $((n * 60)) ;;
+    s|sec|secs|second|seconds) echo "$n" ;;
+    h|hr|hrs|hour|hours) echo $((n * 3600)) ;;
+    *) return 1 ;;
+  esac
+}
+
 parse_agent_count() {
   local requested="${AGENTS:-${AGENT_COUNT:-4}}"
+  local timeout_raw="${EXPERIMENT_TIMEOUT:-}"
+  local existing_sec="${EXPERIMENT_TIMEOUT_SEC:-}"
   LAUNCH_ARGS=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -32,12 +52,45 @@ parse_agent_count() {
         requested="${1#*=}"
         shift
         ;;
+      --timeout)
+        if [[ $# -lt 2 ]]; then
+          echo "error: --timeout requires a value (e.g. 15, 15m, 90s, 1h)" >&2
+          return 1
+        fi
+        timeout_raw="$2"
+        shift 2
+        ;;
+      --timeout=*)
+        timeout_raw="${1#*=}"
+        shift
+        ;;
       *)
         LAUNCH_ARGS+=("$1")
         shift
         ;;
     esac
   done
+
+  EXPERIMENT_TIMEOUT_SEC=""
+  if [[ -n "$timeout_raw" ]]; then
+    local parsed
+    parsed="$(_parse_timeout_to_sec "$timeout_raw")" || {
+      echo "error: --timeout must look like 15, 15m, 90s, or 1h (got ${timeout_raw})" >&2
+      return 1
+    }
+    if [[ "$parsed" -le 0 ]]; then
+      echo "error: --timeout must be > 0 (got ${timeout_raw})" >&2
+      return 1
+    fi
+    EXPERIMENT_TIMEOUT_SEC="$parsed"
+  elif [[ -n "$existing_sec" ]]; then
+    if [[ ! "$existing_sec" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+      echo "error: EXPERIMENT_TIMEOUT_SEC must be seconds (got ${existing_sec})" >&2
+      return 1
+    fi
+    EXPERIMENT_TIMEOUT_SEC="$existing_sec"
+  fi
+  export EXPERIMENT_TIMEOUT_SEC
 
   case "$requested" in
     2|3|4|6|8)

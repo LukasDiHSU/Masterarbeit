@@ -1,0 +1,10 @@
+Run: open_medium_dmas_r2_fail_timeout
+Logs (7):
+
+  - logs/00_usage_monitor.log  (2396632 bytes)
+  - logs/01_agent_trace.log  (20728 bytes)
+  - logs/02_mcp_server_shared.log  (14910 bytes)
+  - logs/03_dmas_camera.log  (2211 bytes)
+  - logs/04_dmas_lidar.log  (2286 bytes)
+  - logs/05_dmas_navigator.log  (3572 bytes)
+  - logs/06_mission_cli.log  (8021 bytes)

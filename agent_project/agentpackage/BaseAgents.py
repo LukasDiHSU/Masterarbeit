@@ -18,7 +18,12 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from .config import DEFAULT_MODEL, build_chat_model
 from .monitor import report_tokens, report_trace
-from .timing import format_elapsed, record_timing
+from .timing import (
+    experiment_timeout_sec,
+    format_elapsed,
+    mission_timeout_guard,
+    record_timing,
+)
 
 
 @dataclass(slots=True)
@@ -499,6 +504,13 @@ class BaseAgent:
                 "Timer: wall-clock from each message until this agent finishes "
                 "(final reply = system thinks done)."
             )
+            limit = experiment_timeout_sec()
+            if limit is not None:
+                print(
+                    f"Mission timeout: {format_elapsed(limit)} after you send a "
+                    "prompt — the experiment is stopped if still running.",
+                    flush=True,
+                )
         while True:
             try:
                 line = input(prompt).strip()
@@ -511,8 +523,13 @@ class BaseAgent:
                 break
             t0 = time.perf_counter() if timing_label else None
             print("Calling model…", flush=True)
+            label = timing_label or "mission_until_done"
             try:
-                reply = self.invoke(line, thread_id=thread_id)
+                with mission_timeout_guard(label):
+                    reply = self.invoke(line, thread_id=thread_id)
+            except KeyboardInterrupt:
+                print("\nMission interrupted (timeout or Ctrl+C).", flush=True)
+                break
             except Exception as e:
                 print(f"[error] {type(e).__name__}: {e}", flush=True)
                 continue

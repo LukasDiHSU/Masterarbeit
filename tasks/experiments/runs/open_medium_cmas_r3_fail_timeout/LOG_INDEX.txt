@@ -1,0 +1,11 @@
+Run: open_medium_cmas_r3_fail_timeout
+Logs (8):
+
+  - logs/00_usage_monitor.log  (1419964 bytes)
+  - logs/01_agent_trace.log  (47511 bytes)
+  - logs/02_mcp_server_shared.log  (18152 bytes)
+  - logs/03_agent_broker.log  (313 bytes)
+  - logs/04_robot_navigator.log  (2030 bytes)
+  - logs/05_robot_lidar.log  (6513 bytes)
+  - logs/06_robot_camera.log  (2783 bytes)
+  - logs/07_master_agent.log  (878 bytes)

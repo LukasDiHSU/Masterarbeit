@@ -1,0 +1,73 @@
+===== Agent Trace =====
+started: 2026-08-23T19:36:32+02:00
+command: python -m agentpackage.trace_monitor --host "127.0.0.1" --port "9901"
+
+[shell_pid=111952] Agent Trace
+Agent Trace listening (UDP) on 127.0.0.1:9901
+Showing LLM replies and tool start/end for all agents. Ctrl+C to quit.
+
+[19:37:24] navigator:huddle | LLM | I'll drive to an unexplored free cell toward the northeast quadrant to search for the container. Lidar waits and camera waits this round.
+[19:37:24] navigator:huddle | TURN end | I'll drive to an unexplored free cell toward the northeast quadrant to search for the container. Lidar waits and camera waits this round.
+[19:37:31] lidar:huddle | LLM | Next stop is the container and I have no lidar centroid for it yet. I'll wait this round while navigator drives to an unexplored northeast free cell and camera waits too.
+[19:37:31] lidar:huddle | TURN end | Next stop is the container and I have no lidar centroid for it yet. I'll wait this round while navigator drives to an unexplored northeast free cell and camera waits too.
+[19:37:37] camera:huddle | LLM | Next stop is the container. I'll wait and not sense this round; navigator drives to an unexplored northeast free cell and lidar also waits.
+[19:37:37] camera:huddle | TURN end | Next stop is the container. I'll wait and not sense this round; navigator drives to an unexplored northeast free cell and lidar also waits.
+[19:37:45] navigator:planner | LLM | tool_calls: get_occupancy_map({"world_id": "open"})
+[19:37:45] navigator:planner | TOOL start get_occupancy_map | {"world_id": "open"}
+[19:37:45] navigator:planner | TOOL end get_occupancy_map | {   "success": true,   "world_id": "open",   "yaml": {     "image": "open.pgm",     "resolution": 0.05,     "origin": [       -20.0,       -20.0,       0.0     ],     "negate": 0,     "occupied_thresh": 0.65,     "free_thresh": 0.196,     "mode": "trinary"   },   "files": {     "map_yaml": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.yaml",     "map_pgm": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.pgm"   },   "occupancy": {     "cell_m": 1.0,     "cols": 40,     "rows": 40,     "x_min": -20.0,     "y_min": -20.0,     "x_max": 20.0,     "y_max": 20.0,     "legend": "# wall  . free  ...
+[19:37:54] navigator:planner | LLM | PLAN navigator: navigate_to_pose(robot_id='q1', x=4.0, y=4.0, yaw=1.219) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:37:54] navigator:planner | TURN end | PLAN navigator: navigate_to_pose(robot_id='q1', x=4.0, y=4.0, yaw=1.219) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:37:57] lidar:planner | LLM | AGREE
+[19:37:57] lidar:planner | TURN end | AGREE
+[19:38:00] camera:planner | LLM | AGREE
+[19:38:00] camera:planner | TURN end | AGREE
+[19:38:04] navigator | LLM | tool_calls: get_robot_pose({"robot_id": "q1"})
+[19:38:04] navigator | TOOL start get_robot_pose | {"robot_id": "q1"}
+[19:38:57] navigator | TOOL end get_robot_pose | {   "x": -0.8116180982906371,   "y": -0.7941232295706868,   "yaw": 1.2204553818283228,   "frame_id": "local",   "source": "/localization/odometry",   "success": true,   "robot_id": "q1" }
+[19:38:57] navigator | LLM | tool_calls: get_occupancy_map({"world_id": ""})
+[19:38:57] navigator | TOOL start get_occupancy_map | {"world_id": ""}
+[19:38:58] navigator | TOOL end get_occupancy_map | {   "success": true,   "world_id": "open",   "yaml": {     "image": "open.pgm",     "resolution": 0.05,     "origin": [       -20.0,       -20.0,       0.0     ],     "negate": 0,     "occupied_thresh": 0.65,     "free_thresh": 0.196,     "mode": "trinary"   },   "files": {     "map_yaml": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.yaml",     "map_pgm": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.pgm"   },   "occupancy": {     "cell_m": 1.0,     "cols": 40,     "rows": 40,     "x_min": -20.0,     "y_min": -20.0,     "x_max": 20.0,     "y_max": 20.0,     "legend": "# wall  . free  ...
+[19:39:00] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 4.0, "y": 4.0, "yaw": 1.219})
+[19:39:00] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 4.0, "y": 4.0, "yaw": 1.219}
+[19:40:08] navigator | TOOL end navigate_to_pose | {   "success": true,   "robot_id": "q1",   "x": 4.0,   "y": 4.0,   "yaw": 1.219,   "utm_xy": {     "x": 458058.71,     "y": 5429314.68   },   "frame_id": "map",   "nav": "atb_behavior_control",   "status": "succeeded",   "reason": "data: 'BehaviorWaypointNavigation: Waypoint 0 reached.'",   "pose": {     "x": -2.229990808526054,     "y": 2.431624583899975,     "yaw": 2.4129500268555097,     "frame_id": "local",     "source": "/localization/odometry",     "success": true,     "robot_id": "q1"   } }
+[19:40:09] navigator | LLM | I drove Q1 to x=4.0 y=4.0 yaw=1.219 using robot_id='q1'; get_robot_pose and get_occupancy_map succeeded and navigate_to_pose succeeded. Semantic objects: none observed by my tools (I did not call semantic lidar). Confirmed=false.
+[19:40:09] navigator | TURN end | I drove Q1 to x=4.0 y=4.0 yaw=1.219 using robot_id='q1'; get_robot_pose and get_occupancy_map succeeded and navigate_to_pose succeeded. Semantic objects: none observed by my tools (I did not call semantic lidar). Confirmed=false.
+[19:41:17] lidar:huddle | LLM | Next stop is the container and I haven't seen it yet. Navigator drives to explore a new free cell while I wait and camera waits.
+[19:41:17] lidar:huddle | TURN end | Next stop is the container and I haven't seen it yet. Navigator drives to explore a new free cell while I wait and camera waits.
+[19:41:23] camera:huddle | LLM | Next stop is the container. I wait, lidar waits, and navigator drives to a new free cell to explore.
+[19:41:23] camera:huddle | TURN end | Next stop is the container. I wait, lidar waits, and navigator drives to a new free cell to explore.
+[19:41:35] navigator:huddle | LLM | Next stop is the container. I'll drive to a new unexplored free cell to search for it. Lidar waits and camera waits.
+[19:41:35] navigator:huddle | TURN end | Next stop is the container. I'll drive to a new unexplored free cell to search for it. Lidar waits and camera waits.
+[19:41:56] lidar:planner | LLM | PLAN navigator: navigate_to_pose(robot_id='q1', x=3.5, y=-2.5, yaw=0.0) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:41:56] lidar:planner | TURN end | PLAN navigator: navigate_to_pose(robot_id='q1', x=3.5, y=-2.5, yaw=0.0) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:42:00] camera:planner | LLM | AGREE
+[19:42:00] camera:planner | TURN end | AGREE
+[19:42:09] navigator:planner | LLM | AGREE
+[19:42:09] navigator:planner | TURN end | AGREE
+[19:42:16] navigator | LLM | tool_calls: get_robot_pose({"robot_id": "q1"})
+[19:42:16] navigator | TOOL start get_robot_pose | {"robot_id": "q1"}
+[19:42:44] navigator | TOOL end get_robot_pose | {   "x": -2.2683291276618838,   "y": 2.4147580370008948,   "yaw": 2.4159374723144933,   "frame_id": "map",   "source": "/localization/odometry",   "success": true,   "robot_id": "q1" }
+[19:42:45] navigator | LLM | tool_calls: get_occupancy_map({"world_id": ""})
+[19:42:45] navigator | TOOL start get_occupancy_map | {"world_id": ""}
+[19:42:46] navigator | TOOL end get_occupancy_map | {   "success": true,   "world_id": "open",   "yaml": {     "image": "open.pgm",     "resolution": 0.05,     "origin": [       -20.0,       -20.0,       0.0     ],     "negate": 0,     "occupied_thresh": 0.65,     "free_thresh": 0.196,     "mode": "trinary"   },   "files": {     "map_yaml": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.yaml",     "map_pgm": "/home/lukas/GitHub/Masterarbeit/worlds/maps/open.pgm"   },   "occupancy": {     "cell_m": 1.0,     "cols": 40,     "rows": 40,     "x_min": -20.0,     "y_min": -20.0,     "x_max": 20.0,     "y_max": 20.0,     "legend": "# wall  . free  ...
+[19:42:47] navigator | LLM | tool_calls: navigate_to_pose({"robot_id": "q1", "x": 3.5, "y": -2.5, "yaw": 0.0})
+[19:42:47] navigator | TOOL start navigate_to_pose | {"robot_id": "q1", "x": 3.5, "y": -2.5, "yaw": 0.0}
+[19:44:00] navigator | TOOL end navigate_to_pose | {   "success": true,   "robot_id": "q1",   "x": 3.5,   "y": -2.5,   "yaw": 0.0,   "utm_xy": {     "x": 458058.21,     "y": 5429308.18   },   "frame_id": "map",   "nav": "atb_behavior_control",   "status": "succeeded",   "reason": "data: 'BehaviorWaypointNavigation: Waypoint 0 reached.'",   "pose": {     "x": 0.5730318966088817,     "y": 5.214051467366517,     "yaw": -0.597161942266155,     "frame_id": "local",     "source": "/localization/odometry",     "success": true,     "robot_id": "q1"   } }
+[19:44:02] navigator | LLM | I drove Q1 to x=3.5 y=-2.5 yaw=0.0 using navigate_to_pose; the navigate_to_pose tool succeeded. get_robot_pose and get_occupancy_map calls also succeeded. Semantic object detections: none observed (I did not call semantic lidar); confirmed=false.
+[19:44:02] navigator | TURN end | I drove Q1 to x=3.5 y=-2.5 yaw=0.0 using navigate_to_pose; the navigate_to_pose tool succeeded. get_robot_pose and get_occupancy_map calls also succeeded. Semantic object detections: none observed (I did not call semantic lidar); confirmed=false.
+[19:45:17] camera:huddle | LLM | Next stop is the container. I'll wait; lidar senses while navigator drives.
+[19:45:17] camera:huddle | TURN end | Next stop is the container. I'll wait; lidar senses while navigator drives.
+[19:45:30] navigator:huddle | LLM | I'll drive to explore a free cell for the container; lidar and camera wait this round.
+[19:45:30] navigator:huddle | TURN end | I'll drive to explore a free cell for the container; lidar and camera wait this round.
+[19:45:44] lidar:huddle | LLM | Next stop is the container. I will wait and not sense this round while navigator drives to explore a free cell, and camera waits.
+[19:45:44] lidar:huddle | TURN end | Next stop is the container. I will wait and not sense this round while navigator drives to explore a free cell, and camera waits.
+[19:46:08] camera:planner | LLM | PLAN navigator: navigate_to_pose(robot_id='q1', x=-3.0, y=-2.5, yaw=0.0) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:46:08] camera:planner | TURN end | PLAN navigator: navigate_to_pose(robot_id='q1', x=-3.0, y=-2.5, yaw=0.0) lidar: wait this round (no sensing) camera: wait this round (no sensing)
+[19:46:17] navigator:planner | LLM | AGREE
+[19:46:17] navigator:planner | TURN end | AGREE
+[19:46:20] lidar:planner | LLM | AGREE
+[19:46:20] lidar:planner | TURN end | AGREE
+[19:46:27] navigator | LLM | tool_calls: get_robot_pose({"robot_id": "q1"})
+[19:46:27] navigator | TOOL start get_robot_pose | {"robot_id": "q1"}
+
+===== saved: 2026-08-23T21:00:55+02:00 as open_easy_dmas_r3_fail_timeout =====

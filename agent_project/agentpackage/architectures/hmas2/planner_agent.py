@@ -35,6 +35,7 @@ class PlannerAgent(BaseAgent):
             ),
             architecture="HMAS-2",
         )
+        self._require_mission_done = True
 
     def invoke(self, message: str, thread_id: str = "default") -> str:
         self._active_thread_id = thread_id
@@ -188,12 +189,26 @@ class PlannerAgent(BaseAgent):
                 return json.dumps(resolved)
             return json.dumps(self._ask_many(resolved, message), ensure_ascii=False, indent=2)
 
+        @tool
+        def report_mission_done(summary: str) -> str:
+            """Call only after every ordered stop is confirmed. Required before any user-facing final answer.
+
+            Args:
+                summary: Short confirmation of the completed tour (classes visited, in order).
+            """
+            self._mission_done_this_turn = True
+            return json.dumps(
+                {"ok": True, "recorded": True, "summary": summary},
+                ensure_ascii=False,
+            )
+
         return [
             *self._map_tools,
             collect_feedback,
             ask_robot,
             ask_all_robots,
             ask_selected_robots,
+            report_mission_done,
         ]
 
 

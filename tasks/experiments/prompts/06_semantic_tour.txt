@@ -5,10 +5,10 @@ AGENT_PLATFORM=q1 AGENT_WORLD=open. Specialists (navigator, lidar, camera) alrea
 know their own tools from their system instructions — do not paste tool recipes here.
 
 === EASY — copy the next line only ===
-You are on the open arena (world: open) with one Q1 robot. Complete this tour in order: 1) nearest barrel, 2) nearest rock. Keep at least 4 m from an object when you stop in front of it. Keep working until both stops are visited. You can only sense when you are not moving. Report only after both stops are reached.
+You are on the open arena (world: open) with one Q1 robot. On the map is supposed to be a container and a rock. Find the container first and drive to it. After you visited the container, drive to the rock. Keep at least 3 m from an object — never navigate to its centroid. Keep working until both stops are visited. You can only sense when you are not moving. After stopping at each object, have lidar or camera confirm the visit with confirm_stop before continuing. Report only after both stops are confirmed.
 
 === MEDIUM — copy the next line only ===
-You are on the open arena (world: open) with one Q1 robot. Complete this tour in order: 1) nearest rock, 2) nearest barrel, 3) nearest car. Keep at least 4 m from an object when you stop in front of it. Keep working until all three stops are visited. A single far-away scan is not done. Report only after all three stops are reached.
+You are on the open arena (world: open) with one Q1 robot. Complete this tour in order: 1) nearest rock, 2) nearest container, 3) nearest car. Keep at least 3 m from an object — never navigate to its centroid. Keep working until all three stops are visited. You can only sense when you are not moving. After stopping at each object, have lidar or camera confirm the visit with confirm_stop before continuing. Report only after all three stops are confirmed.
 
 === HARD — copy the next line only ===
-You are on the open arena (world: open) with one Q1 robot. Complete this tour in order: 1) nearest rock, 2) nearest barrel, 3) nearest car, 4) nearest container. Keep at least 4 m from an object when you stop in front of it. Keep working until all four stops are visited. A single far-away scan is not done. Report only after all four stops are reached.
+You are on the open arena (world: open) with one Q1 robot. Complete this tour in order: 1) nearest rock, 2) nearest container, 3) nearest car, 4) nearest container. Keep at least 3 m from an object — never navigate to its centroid. Keep working until all four stops are visited. You can only sense when you are not moving. After stopping at each object, have lidar or camera confirm the visit with confirm_stop before continuing. Report only after all four stops are confirmed.

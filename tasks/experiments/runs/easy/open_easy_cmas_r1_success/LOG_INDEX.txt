@@ -1,0 +1,11 @@
+Run: open_easy_cmas_r1_success
+Logs (8):
+
+  - logs/00_usage_monitor.log  (318581 bytes)
+  - logs/01_agent_trace.log  (11900 bytes)
+  - logs/02_mcp_server_shared.log  (6073 bytes)
+  - logs/03_agent_broker.log  (306 bytes)
+  - logs/04_robot_navigator.log  (878 bytes)
+  - logs/05_robot_lidar.log  (2047 bytes)
+  - logs/06_robot_camera.log  (1293 bytes)
+  - logs/07_master_agent.log  (919 bytes)

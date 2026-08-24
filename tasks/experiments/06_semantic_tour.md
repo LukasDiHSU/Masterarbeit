@@ -9,7 +9,7 @@ Specialists (always these three; `AGENT_PLATFORM=q1`):
 
 | Name | Role |
 |---|---|
-| `navigator` | Drive Q1 (`get_robot_pose`, `get_occupancy_map`, `navigate_to_pose`, `rotate_by`, `drive_forward`); AgentNet chair |
+| `navigator` | Drive Q1 (`get_occupancy_map`, `navigate_to_pose`); AgentNet chair |
 | `lidar` | Range from `/q1_velodyne/points` plus 360° class centroids from `/q1_velodyne_semantic/points` |
 | `camera` | Forward vision: RGB still (`get_camera_image`), semantic color still, GOOSE class histogram. No xyz |
 
@@ -29,8 +29,8 @@ Legal coordinates (agent-facing):
 
 | Source | Tool | Use |
 |---|---|---|
-| Self | `get_robot_pose` | Where Q1 is now (if this fails, assume spawn `(0, 0)`) |
 | Occupancy | `get_occupancy_map` | Arena walls / free space — **not** object locations |
+| Drive result | `navigate_to_pose` reply | Last arrived pose if present; else assume spawn `(0, 0)` |
 | Sensed object | `get_semantic_lidar_objects` | Map-frame centroid when close — **only** object x/y |
 
 See [00_common.md](00_common.md) for entry points, metrics, and protocol.

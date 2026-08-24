@@ -1,0 +1,97 @@
+===== MCP Server (shared) =====
+started: 2026-08-24T11:23:02+02:00
+command: AGENT_WORLD=open AGENT_PLATFORM=q1 python -m agentpackage.mcpserver --host "0.0.0.0" --port "8000"
+
+[shell_pid=20526] MCP Server (shared)
+INFO:     Started server process [20533]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:58164 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58180 - "POST /messages/?session_id=af609fcec105457187e554c25b36abd9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58180 - "POST /messages/?session_id=af609fcec105457187e554c25b36abd9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58180 - "POST /messages/?session_id=af609fcec105457187e554c25b36abd9 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58182 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58192 - "POST /messages/?session_id=20f0792eb1d0450996e86622fb53c28b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58192 - "POST /messages/?session_id=20f0792eb1d0450996e86622fb53c28b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58192 - "POST /messages/?session_id=20f0792eb1d0450996e86622fb53c28b HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50560 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50570 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50582 - "POST /messages/?session_id=a3e473106d43411abf4edfcbc2a8b364 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50598 - "POST /messages/?session_id=744c71be53404b0386e848ea5a16d6d4 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50582 - "POST /messages/?session_id=a3e473106d43411abf4edfcbc2a8b364 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50598 - "POST /messages/?session_id=744c71be53404b0386e848ea5a16d6d4 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50582 - "POST /messages/?session_id=a3e473106d43411abf4edfcbc2a8b364 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50598 - "POST /messages/?session_id=744c71be53404b0386e848ea5a16d6d4 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50582 - "POST /messages/?session_id=a3e473106d43411abf4edfcbc2a8b364 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50598 - "POST /messages/?session_id=744c71be53404b0386e848ea5a16d6d4 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:34672 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34684 - "POST /messages/?session_id=052a3e985dbb4150b664854cd0e6231a HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:34684 - "POST /messages/?session_id=052a3e985dbb4150b664854cd0e6231a HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:34684 - "POST /messages/?session_id=052a3e985dbb4150b664854cd0e6231a HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:44272 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44276 - "POST /messages/?session_id=d8a37fce04714e318fe65beca9c8ae4c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:44276 - "POST /messages/?session_id=d8a37fce04714e318fe65beca9c8ae4c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:44276 - "POST /messages/?session_id=d8a37fce04714e318fe65beca9c8ae4c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53406 - "POST /messages/?session_id=d8a37fce04714e318fe65beca9c8ae4c HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53422 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53434 - "POST /messages/?session_id=aa14fbadbd984bff9106ea0d490f157e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53434 - "POST /messages/?session_id=aa14fbadbd984bff9106ea0d490f157e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53434 - "POST /messages/?session_id=aa14fbadbd984bff9106ea0d490f157e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:48832 - "POST /messages/?session_id=aa14fbadbd984bff9106ea0d490f157e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:60222 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60230 - "POST /messages/?session_id=9fd754d421f849f3b7309d78e7f24197 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:60230 - "POST /messages/?session_id=9fd754d421f849f3b7309d78e7f24197 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:60230 - "POST /messages/?session_id=9fd754d421f849f3b7309d78e7f24197 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:52824 - "POST /messages/?session_id=9fd754d421f849f3b7309d78e7f24197 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58276 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58278 - "POST /messages/?session_id=81d33e5982de42a2b9edd56c9cf94a03 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58278 - "POST /messages/?session_id=81d33e5982de42a2b9edd56c9cf94a03 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58278 - "POST /messages/?session_id=81d33e5982de42a2b9edd56c9cf94a03 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58292 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58300 - "POST /messages/?session_id=c02cee2c5feb408ba32a0f1dd979bf97 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58300 - "POST /messages/?session_id=c02cee2c5feb408ba32a0f1dd979bf97 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58300 - "POST /messages/?session_id=c02cee2c5feb408ba32a0f1dd979bf97 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58300 - "POST /messages/?session_id=c02cee2c5feb408ba32a0f1dd979bf97 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58314 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58316 - "POST /messages/?session_id=8b9997a348a040a2ac7672b87e02bb54 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58316 - "POST /messages/?session_id=8b9997a348a040a2ac7672b87e02bb54 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58316 - "POST /messages/?session_id=8b9997a348a040a2ac7672b87e02bb54 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:58316 - "POST /messages/?session_id=8b9997a348a040a2ac7672b87e02bb54 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:42332 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42334 - "POST /messages/?session_id=ccc056e27ca14ab0b1db98fd83a025d8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:42334 - "POST /messages/?session_id=ccc056e27ca14ab0b1db98fd83a025d8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:42334 - "POST /messages/?session_id=ccc056e27ca14ab0b1db98fd83a025d8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:35688 - "POST /messages/?session_id=ccc056e27ca14ab0b1db98fd83a025d8 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59200 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59214 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59230 - "POST /messages/?session_id=4344a38681a54584b41619ec294c1dd5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59242 - "POST /messages/?session_id=fdfdfeba28284f3080e366773be8eb0e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59230 - "POST /messages/?session_id=4344a38681a54584b41619ec294c1dd5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59242 - "POST /messages/?session_id=fdfdfeba28284f3080e366773be8eb0e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59230 - "POST /messages/?session_id=4344a38681a54584b41619ec294c1dd5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59242 - "POST /messages/?session_id=fdfdfeba28284f3080e366773be8eb0e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59230 - "POST /messages/?session_id=4344a38681a54584b41619ec294c1dd5 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:59242 - "POST /messages/?session_id=fdfdfeba28284f3080e366773be8eb0e HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:57948 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57950 - "POST /messages/?session_id=44546c8e02c849cc992fb35d3d437f17 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:57950 - "POST /messages/?session_id=44546c8e02c849cc992fb35d3d437f17 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:57950 - "POST /messages/?session_id=44546c8e02c849cc992fb35d3d437f17 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:49790 - "POST /messages/?session_id=44546c8e02c849cc992fb35d3d437f17 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50042 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50052 - "POST /messages/?session_id=2a9d19f17dad43389112eca74902b119 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50052 - "POST /messages/?session_id=2a9d19f17dad43389112eca74902b119 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50052 - "POST /messages/?session_id=2a9d19f17dad43389112eca74902b119 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50052 - "POST /messages/?session_id=2a9d19f17dad43389112eca74902b119 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50066 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50080 - "POST /messages/?session_id=0721e33672394115901725c1163b3064 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50080 - "POST /messages/?session_id=0721e33672394115901725c1163b3064 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50080 - "POST /messages/?session_id=0721e33672394115901725c1163b3064 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50080 - "POST /messages/?session_id=0721e33672394115901725c1163b3064 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50086 - "GET /sse HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50088 - "POST /messages/?session_id=7906925e48c6429dab9ed82ff3197425 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50088 - "POST /messages/?session_id=7906925e48c6429dab9ed82ff3197425 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:50088 - "POST /messages/?session_id=7906925e48c6429dab9ed82ff3197425 HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:56956 - "POST /messages/?session_id=7906925e48c6429dab9ed82ff3197425 HTTP/1.1" 202 Accepted
+
+===== saved: 2026-08-24T11:32:55+02:00 as open_medium_cmas_r2_success =====

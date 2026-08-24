@@ -1,0 +1,12 @@
+{
+  "session_id": "hmas2_20260824_155437",
+  "architecture": "hmas2",
+  "agent_count": 3,
+  "agent_world": "open",
+  "agent_platform": "q1",
+  "started_at": "2026-08-24T15:54:37+02:00",
+  "project_root": "/home/lukas/GitHub/Masterarbeit/agent_project",
+  "status": "running",
+  "model": "openai:gpt-5-mini",
+  "timeout_sec": 900
+}

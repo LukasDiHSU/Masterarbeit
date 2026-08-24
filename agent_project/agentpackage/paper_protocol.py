@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .config import ROBOT_IDS, is_q1_platform, nav_id_for_tb, robot_peer_name
-from .instructions import GROUND_TRUTH, Q1_GROUND_TRUTH
+from .instructions import Q1_GROUND_TRUTH
 from .mcp_client import call_mcp_tool
 
 
@@ -140,6 +140,8 @@ class Environment:
         self.stations: list[dict[str, Any]] = []
         self.poses: dict[str, dict[str, float]] = {}
         self.held: dict[str, str | None] = {}
+        self.confirmed_stops: list[str] = []
+        self.last_seen_objects: list[dict[str, Any]] = []
         self.last_error: str = ""
 
     def refresh(self) -> None:
@@ -174,19 +176,77 @@ class Environment:
             self.last_error = "" if stations else f"list_stations: {stations_payload}"
 
     def _refresh_q1(self) -> None:
-        pose_payload = call_mcp_tool("get_robot_pose", {"robot_id": "q1"})
+        progress_payload = call_mcp_tool("get_mission_progress")
         poses: dict[str, dict[str, float]] = {}
-        if isinstance(pose_payload, dict) and pose_payload.get("success"):
-            poses["q1"] = {
-                "x": float(pose_payload.get("x", 0.0)),
-                "y": float(pose_payload.get("y", 0.0)),
-                "yaw": float(pose_payload.get("yaw", 0.0)),
-            }
+        confirmed: list[str] = []
+        last_seen: list[dict[str, Any]] = []
+        if isinstance(progress_payload, dict) and progress_payload.get("success"):
+            pose_entry = progress_payload.get("pose")
+            if isinstance(pose_entry, dict):
+                try:
+                    poses["q1"] = {
+                        "x": float(pose_entry.get("x", 0.0)),
+                        "y": float(pose_entry.get("y", 0.0)),
+                        "yaw": float(pose_entry.get("yaw", 0.0)),
+                    }
+                except (TypeError, ValueError):
+                    pass
+            confirmed = [
+                str(s) for s in (progress_payload.get("confirmed_stops") or []) if s
+            ]
+            for entry in progress_payload.get("last_seen_objects") or []:
+                if isinstance(entry, dict):
+                    last_seen.append(dict(entry))
         with self._lock:
             self.stations = []
             self.poses = poses
             self.held = {}
+            self.confirmed_stops = confirmed
+            self.last_seen_objects = last_seen
             self.last_error = ""
+
+    def _q1_state_text(self) -> str:
+        with self._lock:
+            poses = dict(self.poses)
+            world = self.world_id
+            confirmed = list(getattr(self, "confirmed_stops", []) or [])
+            last_seen = list(getattr(self, "last_seen_objects", []) or [])
+        lines = [
+            f"World: {world or 'open'}",
+            "One Q1 robot. Specialists: navigator, lidar, camera "
+            "(not a multi-robot fleet; no stations or boxes).",
+        ]
+        pose = poses.get("q1")
+        if pose:
+            lines.append(
+                f"Q1 pose: ({round(pose['x'], 2)}, {round(pose['y'], 2)}), "
+                f"yaw={round(float(pose.get('yaw', 0.0)), 3)}"
+            )
+        else:
+            lines.append("Q1 pose: (unknown — assume spawn 0, 0)")
+        if confirmed:
+            lines.append("Confirmed stops (done): " + ", ".join(confirmed))
+        else:
+            lines.append("Confirmed stops (done): (none yet)")
+        if last_seen:
+            bits = []
+            for obj in last_seen:
+                label = str(obj.get("class") or obj.get("class_id") or "object")
+                try:
+                    bits.append(
+                        f"{label} at ({float(obj['x']):.2f}, {float(obj['y']):.2f})"
+                    )
+                except (KeyError, TypeError, ValueError):
+                    bits.append(label)
+            lines.append("Last lidar-seen objects: " + "; ".join(bits))
+        else:
+            lines.append("Last lidar-seen objects: (none yet)")
+        lines.append(
+            "Object x/y come only from lidar when close (or Last lidar-seen "
+            "above). Occupancy is walls/free space, not objects. Do not invent "
+            "coordinates."
+        )
+        return "\n".join(lines)
 
     def station(self, station_id: str) -> dict[str, Any] | None:
         wanted = (station_id or "").strip().lower()
@@ -257,29 +317,6 @@ class Environment:
             lines.append(f"  - {robot} at {where}{standing}, carrying {carrying}")
         return "\n".join(lines)
 
-    def _q1_state_text(self) -> str:
-        with self._lock:
-            poses = dict(self.poses)
-            world = self.world_id
-        lines = [
-            f"World: {world or 'open'}",
-            "One Q1 robot. Specialists: navigator, lidar, camera "
-            "(not a multi-robot fleet; no stations or boxes).",
-        ]
-        pose = poses.get("q1")
-        if pose:
-            lines.append(
-                f"Q1 pose: ({round(pose['x'], 2)}, {round(pose['y'], 2)}), "
-                f"yaw={round(float(pose.get('yaw', 0.0)), 3)}"
-            )
-        else:
-            lines.append("Q1 pose: (unknown — assume spawn 0, 0)")
-        lines.append(
-            "Object x/y come only from lidar when close. Occupancy is walls/free "
-            "space, not objects. Do not invent coordinates."
-        )
-        return "\n".join(lines)
-
     def available_actions(self, robot: str) -> list[str]:
         """Every action this robot may be assigned in the current state.
 
@@ -315,10 +352,9 @@ class Environment:
         if is_q1_platform():
             lines = [
                 "Available actions this step — use EXACTLY these strings. "
-                "Navigator may also navigate(x,y,yaw) to a centroid that "
-                "get_semantic_lidar_objects already returned, or to a free "
-                "cell from get_occupancy_map (to get closer — never a guessed "
-                "object pose):"
+                "Navigator may navigate(x,y,yaw) ≥3 m from a lidar centroid "
+                "(never the centroid). get_occupancy_map is optional for "
+                "explore / blocked goals — not before every drive:"
             ]
         else:
             lines = [
@@ -447,11 +483,9 @@ def execute_action(action: Action) -> dict[str, Any]:
             }
         tool_name = {
             "camera": "get_semantic_camera_classes",
-            "navigator": "get_robot_pose",
-        }.get(role, "get_robot_pose")
+            "navigator": "get_occupancy_map",
+        }.get(role, "get_occupancy_map")
         args: dict[str, Any] = {}
-        if tool_name in {"get_lidar_snapshot", "get_robot_pose"}:
-            args["robot_id"] = nav
         result = call_mcp_tool(tool_name, args)
         ok = not (isinstance(result, dict) and result.get("error"))
         return {
@@ -500,12 +534,11 @@ def execute_action(action: Action) -> dict[str, Any]:
                 "action": action.text(),
                 "error": "unknown_station",
             }
-        pose = call_mcp_tool("get_robot_pose", {"robot_id": nav})
-        if isinstance(pose, dict) and pose.get("success"):
-            goal = approach_pose(station, float(pose["x"]), float(pose["y"]))
-        else:
-            goal = approach_pose(station, float(station.get("x", 0.0)) + 1.0,
-                                 float(station.get("y", 0.0)))
+        goal = approach_pose(
+            station,
+            float(station.get("x", 0.0)) + 1.0,
+            float(station.get("y", 0.0)),
+        )
         result = call_mcp_tool(
             "navigate_to_pose",
             {"robot_id": nav, "x": goal["x"], "y": goal["y"], "yaw": goal["yaw"]},
@@ -924,7 +957,7 @@ def build_planning_prompt(
     parts += [
         "",
         "[Ground Truth]",
-        Q1_GROUND_TRUTH if is_q1_platform() else GROUND_TRUTH,
+        Q1_GROUND_TRUTH,
     ]
     if initial_plan.strip():
         parts += ["", "[Central Planner Initial Plan]", initial_plan.strip()]

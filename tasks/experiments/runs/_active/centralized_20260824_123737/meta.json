@@ -1,0 +1,12 @@
+{
+  "session_id": "centralized_20260824_123737",
+  "architecture": "centralized",
+  "agent_count": 3,
+  "agent_world": "open",
+  "agent_platform": "q1",
+  "started_at": "2026-08-24T12:37:37+02:00",
+  "project_root": "/home/lukas/GitHub/Masterarbeit/agent_project",
+  "status": "running",
+  "model": "openai:gpt-5-mini",
+  "timeout_sec": 900
+}
