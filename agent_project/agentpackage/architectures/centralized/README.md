@@ -1,33 +1,88 @@
-# Centralized architecture (star / hub-and-spoke)
+# Zentralisierte Architektur (Stern / Hub-and-Spoke)
+
+Paper-Referenz: CMAS (Centralized Multi-Agent System) nach Chen et al.
+
+## Topologie
 
 ```
                  ┌────────────┐
    user ───────► │   master   │
                  └─────┬──────┘
-              ask_robot │  (only the master has delegation tools)
+              ask_robot │  (Nur Master hat Delegations-Tools)
         ┌──────────┬────────┼──────────┐
         ▼          ▼        ▼          ▼
-   SmallDeliveryRobot_0  SmallDeliveryRobot_1  SmallDeliveryRobot_2  SmallDeliveryRobot_3      (workers only)
+   SmallDeliveryRobot_0  SDR_1  SDR_2  SDR_3      (Nur Worker)
         │          │        │          │
         └──────────┴───┬────┴──────────┘
                         ▼
-                 central broker (agent_bus.py)
+                 Zentraler Broker (agent_bus.py)
 ```
 
-- **Broker (`agent_bus.py` / `agent_broker.py`)**: a single TCP process that
-  every agent registers with by name. It forwards a message's `to` field to
-  that agent's connection — agents never connect to each other directly.
-- **`master_agent.py`**: the only agent with delegation tools
-  (`ask_robot`, `ask_all_robots`,
-  `ask_selected_robots_parallel`). It is the single point of coordination
-  and the single point of failure: if the master or the broker goes down,
-  the fleet cannot coordinate at all.
-- **`robot_agent.py`**: purely reactive workers. They only ever answer
-  `agent_request` messages that arrive from the broker and reply to
-  whichever `from` sent them — they have no tools to talk to each other.
+## Komponenten
 
-This is the architecture carried over unchanged (module names aside) from
-the Studienarbeit; it is the baseline the `conflict_based` and `hmas1`
-(HMAS-1) architectures build on.
+| Komponente | Datei | Beschreibung |
+|------------|-------|-------------|
+| **Broker** | `agent_bus.py` / `agent_broker.py` | Zentraler TCP-Prozess für Nachrichtenweiterleitung |
+| **Master** | `master_agent.py` | Einziger Agent mit Delegations-Tools |
+| **Worker** | `robot_agent.py` | Reaktive Roboter ohne Peer-Kommunikation |
 
-Run: `./launch_centralized.sh` (optional `--agents 2|4|6|8`)
+## Broker-Funktionsweise
+
+- Jeder Agent registriert sich beim Broker mit seinem Namen
+- Der Broker leitet Nachrichten anhand des `to`-Feldes weiter
+- Agenten verbinden sich **nie** direkt miteinander
+
+## Master-Agent
+
+Einziger Agent mit Delegations-Tools:
+
+| Tool | Beschreibung |
+|------|-------------|
+| `ask_robot` | Anfrage an einen bestimmten Roboter |
+| `ask_all_robots` | Anfrage an alle Roboter (sequenziell) |
+| `ask_selected_robots_parallel` | Parallele Anfrage an ausgewählte Roboter |
+
+Der Master ist der **einzige Koordinationspunkt** und damit auch der
+**einzige Single-Point-of-Failure**: Fällt Master oder Broker aus,
+kann die Flotte nicht mehr koordiniert werden.
+
+## Worker-Roboter
+
+- Rein reaktiv: Beantworten nur eingehende `agent_request`-Nachrichten
+- Antworten an den `from`-Absender der Anfrage
+- Haben **keine** Tools zur Peer-Kommunikation
+- Haben MCP-Tools für Robotersteuerung (Navigation, Pick/Drop)
+
+## Baseline-Status
+
+Diese Architektur ist die aus der Studienarbeit übernommene Baseline.
+Die `conflict_based`, `hmas1` und `hmas2` Architekturen bauen darauf auf.
+
+## Starten
+
+```bash
+./launch_centralized.sh --agents 4  # 2, 4, 6, oder 8 Roboter
+```
+
+Dies startet:
+1. MCP-Server
+2. Zentralen Broker
+3. N Roboter-Worker
+4. 1 Master-Agent
+5. Usage Monitor
+6. Agent Trace
+
+## Token/Kommunikations-Hypothese
+
+- **Vorteil**: Klare Struktur, minimale Verhandlung
+- **Nachteil**: Alle Nachrichten laufen über Master → hoher Token-Verbrauch bei großen Flotten
+- **Risiko**: Single-Point-of-Failure bei Master oder Broker
+
+## Vergleich mit anderen Architekturen
+
+| Aspekt | Zentralisiert | HMAS-2 | Konflikt-basiert |
+|--------|---------------|--------|------------------|
+| Topologie | Stern | Stern + Feedback | Mesh (bei Events) |
+| Planungsautorität | Master | Planner (mit Review) | Alle Peers |
+| Robustheit | Niedrig (SPOF) | Niedrig (SPOF) | Hoch |
+| Token pro Mission | Hoch | Mittel-Hoch | Variabel |

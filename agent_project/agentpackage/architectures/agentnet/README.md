@@ -1,35 +1,43 @@
-# AgentNet architecture (DMAS variant)
+# AgentNet-Architektur (DMAS-Variante)
 
-Paper mapping (Chen et al., arXiv:2309.15943, Fig. 3a): fully decentralized
-multi-robot planning. There is **no central planner**. The robots take turns
-until they agree on the next few actions, execute that chunk, and meet again
-with the new state.
+Paper-Referenz (Chen et al., arXiv:2309.15943, Fig. 3a): Vollständig dezentrale
+Multi-Roboter-Planung. Es gibt **keinen zentralen Planer**. Die Roboter
+wechseln sich ab, bis sie sich auf die nächsten Aktionen einigen, führen
+diesen Chunk aus und treffen sich dann mit dem neuen Zustand wieder.
 
-AgentNet here is that DMAS loop on the existing peer-to-peer mesh (not the
-Yang et al. router/executor network).
+AgentNet ist dieser DMAS-Loop auf dem bestehenden Peer-to-Peer Mesh
+(nicht das Yang et al. Router/Executor-Netzwerk).
+
+## Ablauf
 
 ```
-   user ──► SmallDeliveryRobot_0 (chairs turn-taking only)
+   user ──► SmallDeliveryRobot_0 (leitet nur die Reihenfolge)
                      │
-              discuss in order  _0 → _1 → … → _0 → …
+              Diskussion in Reihenfolge  _0 → _1 → … → _0 → …
                      │
-              first valid EXECUTE chunk
+              erster gültiger EXECUTE chunk
                      │
-              each robot runs its next 1..K actions
+              jeder Roboter führt seine nächsten 1..K Aktionen aus
                      │
-              meet again ──► until every robot says FINISHED
+              erneutes Treffen ──► bis jeder Roboter FINISHED sagt
 ```
 
-- **`protocol.py`**: prompts, chunk size (`AGENTNET_CHUNK_STEPS`, default 2),
-  mission wrapping.
-- **`session.py`**: the loop — discuss, verify, dispatch, reconvene.
-- **`net_agent.py`**: one mesh node. Dialogue uses the LLM; agreed actions run
-  as MCP primitives with no extra LLM call.
-- **`task_cli.py`**: human entry. The mission always goes to
-  `SmallDeliveryRobot_0`; the CLI waits until the fleet reports back.
-- **Transport**: `MeshNode` from `../conflict_based/mesh_bus.py`.
+## Komponenten
 
-Answer formats, strictly parsed:
+| Datei | Beschreibung |
+|-------|-------------|
+| `protocol.py` | Prompts, Chunk-Größe (`AGENTNET_CHUNK_STEPS`), Mission-Wrapping |
+| `session.py` | Der Loop: Diskussion, Validierung, Dispatch, Reconvene |
+| `net_agent.py` | Ein Mesh-Knoten; Dialog nutzt LLM, Aktionen sind MCP-Primitiven |
+| `task_cli.py` | Human Entry; Mission geht immer zu `SmallDeliveryRobot_0` |
+
+## Transport
+
+Verwendet `MeshNode` aus `../conflict_based/mesh_bus.py`.
+
+## Antwort-Formate (strikt geparst)
+
+### EXECUTE (Aktionen für jeden Roboter)
 
 ```
 EXECUTE
@@ -37,20 +45,81 @@ SmallDeliveryRobot_0: move_to(station_A); pick(station_A)
 SmallDeliveryRobot_1: move_to(station_C); wait()
 ```
 
+### FINISHED (Mission beendet)
+
 ```
 FINISHED
 ```
 
-A chunk is rejected unless every robot has a line, every action is in the
-available list at that step (later actions are checked against the state the
-earlier ones would leave), two robots do not share a station in the same
-step, and the first step is not all `wait()`. After a rejected EXECUTE the
-same speaker gets the reason and one retry.
+## Chunk-Validierung
 
-The mission ends only when **every** robot replies `FINISHED` in the same
-discussion round. One robot saying it is not enough.
+Ein Chunk wird abgelehnt, wenn:
 
-Agent 0 only chairs the speaking order. It does not propose a privileged
-plan; it speaks in the same turn as everyone else.
+- Nicht jeder Roboter eine Zeile hat
+- Eine Aktion nicht in der verfügbaren Liste ist
+- Zwei Roboter dieselbe Station im gleichen Schritt teilen
+- Der erste Schritt nur aus `wait()` besteht
 
-Run: `./launch_agentnet.sh` (optional `--agents 2|4|6|8`)
+Nach einem abgelehnten EXECUTE bekommt der gleiche Sprecher den Grund
+und **einen** Retry.
+
+## Missions-Ende
+
+Die Mission endet **nur** wenn **jeder** Roboter `FINISHED` in derselben
+Diskussionsrunde antwortet. Ein einzelner Roboter, der FINISHED sagt, reicht nicht.
+
+## Rolle von Robot 0
+
+`SmallDeliveryRobot_0` leitet nur die Sprechreihenfolge:
+
+- Spricht im gleichen Turn wie alle anderen
+- Schlägt keinen privilegierten Plan vor
+- Ist kein Planner, nur Moderator
+
+## Konfiguration
+
+| Parameter | Standard | Beschreibung |
+|-----------|----------|--------------|
+| `AGENTNET_CHUNK_STEPS` | 2 | Maximale Aktionen pro Roboter pro Chunk |
+
+## Starten
+
+```bash
+./launch_agentnet.sh --agents 4  # 2, 4, 6, oder 8 Roboter
+```
+
+## Token/Kommunikations-Hypothese
+
+### Vorteile
+
+- **Keine Single-Point-of-Failure**: Kein zentraler Planer
+- **Inkrementelle Planung**: Kleine Chunks reduzieren Planungsfehler
+- **Geteiltes Wissen**: Alle Roboter sehen den aktuellen Zustand
+
+### Nachteile
+
+- **Overhead bei einfachen Missionen**: Volle Diskussion auch bei trivialen Aufgaben
+- **Serialisierte Diskussion**: Wartezeit bei vielen Robotern
+- **Konsens-Overhead**: Jeder Roboter muss FINISHED sagen
+
+## Vergleich mit anderen Architekturen
+
+| Aspekt | AgentNet | DMAS | Konflikt-basiert |
+|--------|----------|------|------------------|
+| Planung | Fixe Runden | Kontinuierlich | Bei Events |
+| Chunks | Kurz (1-2 Aktionen) | Variabel | Vollständige Aufgaben |
+| Konsens | Jede Runde | Bei Konflikten | Bei Events |
+| Struktur | Sehr strukturiert | Flexibel | Reaktiv |
+
+## Unterschied zu DMAS
+
+Beide sind dezentral, aber:
+
+| AgentNet | DMAS |
+|----------|------|
+| Fixe Diskussionsrunden | Kontinuierliche Planung |
+| Kurze Chunks → Ausführung → neue Runde | Verhandlung bei Bedarf |
+| Sehr strukturiert | Flexibel |
+
+AgentNet ist strukturierter und vorhersagbarer, DMAS ist flexibler
+und kann bei wenigen Konflikten effizienter sein.
