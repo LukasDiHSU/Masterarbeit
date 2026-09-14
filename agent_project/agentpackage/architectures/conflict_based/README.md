@@ -1,37 +1,111 @@
-# Conflict-based architecture
+# Konflikt-basierte Architektur
+
+## Konzept
 
 ```
-   R1 plan/move alone     R2 plan/move alone     R3 plan/move alone
+   R1 plant/fährt allein     R2 plant/fährt allein     R3 plant/fährt allein
             │                      │                      │
-            └──────── only if event involves them ────────┘
+            └──────── Verhandlung NUR wenn Event sie betrifft ────────┘
                               │
                     CONFLICT / box_missing
                               │
-                         R1 ↔ R2 negotiate
+                         R1 ↔ R2 verhandeln
                               │
-                         R3 stays silent
+                         R3 bleibt still
 ```
 
-- **Solo by default.** Each `robot_peer_agent` works alone with MCP tools.
-  Peer talk is `negotiate_with` on conflict events only.
-- **Before ending:** `report_done_and_confirm(summary)` tells every peer what
-  this robot did and collects AGREE/DISAGREE on whether the fleet mission is
-  finished. The agent may claim done only if `all_agree` is true.
-- **Event gate.** A background poller reads the MCP event log. Tool failures
-  (nav abort, box_missing, station_occupied, drive_failed, …) emit events.
-  When an event’s participants include this peer — including a
-  `blocking_robot` on nav failure — negotiation unlocks **only** toward that
-  subset via `negotiate_with` / `end_negotiation`.
-- **Mesh transport** (`mesh_bus.py`) stays as the point-to-point channel for
-  those gated negotiations — not as a always-on chat fabric.
-- **`mission_cli.py`**: mesh name `CLI`. Paste a prompt (no command prefix) —
-  it is sent to **all** robots in parallel as solo missions. They negotiate
-  on conflict events and must `report_done_and_confirm` before finishing.
+## Kernprinzipien
 
-## Token / communication hypothesis
+1. **Solo by Default**: Jeder `robot_peer_agent` arbeitet allein mit MCP-Tools
+2. **Event-getriggerte Verhandlung**: Peer-Talk nur bei Konflikt-Events
+3. **Minimale Kommunikation**: Verhandlung nur zwischen betroffenen Peers
 
-Event-triggered coordination should use fewer inter-agent messages and LLM
-tokens than round-based shared-pool deliberation when conflicts are sparse,
-while still negotiating when bottlenecks / missing boxes involve a subset.
+## Komponenten
 
-Run: `./launch_conflict_based.sh` (optional `--agents 2|4|6|8`)
+| Datei | Beschreibung |
+|-------|-------------|
+| `robot_peer_agent.py` | Peer-Agent mit Solo-Modus und Verhandlungs-Tools |
+| `mesh_bus.py` | Peer-to-Peer Mesh-Transport |
+| `mission_cli.py` | CLI zum Starten von Missionen |
+| `launch_conflict_based.sh` | Startet alle Komponenten |
+
+## Verhandlungs-Tools
+
+| Tool | Beschreibung |
+|------|-------------|
+| `negotiate_with` | Verhandlung mit einem spezifischen Peer starten |
+| `end_negotiation` | Aktive Verhandlung beenden |
+| `report_done_and_confirm` | Mission abschließen und Fleet-Konsens prüfen |
+
+## Abschluss-Protokoll
+
+Bevor ein Agent seine Mission beendet:
+
+```python
+report_done_and_confirm(summary)
+```
+
+- Teilt allen Peers mit, was dieser Roboter getan hat
+- Sammelt AGREE/DISAGREE zur Frage "Ist die Fleet-Mission fertig?"
+- Agent darf nur bei `all_agree=True` beenden
+
+## Event-Gate
+
+Ein Hintergrund-Poller liest das MCP-Event-Log. Tool-Fehler emittieren Events:
+
+| Event | Trigger |
+|-------|---------|
+| `nav_abort` | Navigation abgebrochen |
+| `box_missing` | Box nicht gefunden |
+| `station_occupied` | Station bereits belegt |
+| `drive_failed` | Direkte Fahrt fehlgeschlagen |
+| `blocking_robot` | Anderer Roboter blockiert |
+
+Wenn ein Event einen Peer betrifft (inkl. `blocking_robot` bei Nav-Fehler),
+wird Verhandlung **nur** zu diesem Subset freigeschaltet.
+
+## Mesh-Transport (`mesh_bus.py`)
+
+- Point-to-Point Kanal für event-getriggerte Verhandlungen
+- **Nicht** ein always-on Chat-Fabric
+- Verbindungen werden bei Bedarf aufgebaut
+
+## Mission-CLI (`mission_cli.py`)
+
+- Mesh-Name: `CLI`
+- Prompt eingeben (kein Kommando-Prefix) → wird an **alle** Roboter parallel gesendet
+- Roboter verhandeln bei Konflikt-Events
+- Müssen `report_done_and_confirm` vor Abschluss aufrufen
+
+## Token/Kommunikations-Hypothese
+
+> Event-getriggerte Koordination sollte weniger Inter-Agenten-Nachrichten
+> und LLM-Tokens verbrauchen als rundenbasierte Shared-Pool-Deliberation,
+> wenn Konflikte selten sind — während bei Engstellen/fehlenden Boxen
+> nur das betroffene Subset verhandelt.
+
+### Erwartete Vorteile
+
+- **Sparse Konflikte**: Wenig Overhead, da meist Solo-Arbeit
+- **Frequent Konflikte**: Nur betroffene Peers verhandeln
+- **Robustheit**: Kein Single-Point-of-Failure
+
+### Erwartete Nachteile
+
+- **Hohe Konfliktdichte**: Viele parallele Verhandlungen
+- **Komplexe Koordination**: Schwieriger bei globalen Constraints
+
+## Starten
+
+```bash
+./launch_conflict_based.sh --agents 4  # 2, 4, 6, oder 8 Roboter
+```
+
+## Vergleich mit anderen Architekturen
+
+| Aspekt | Konflikt-basiert | Zentralisiert | AgentNet |
+|--------|-----------------|---------------|----------|
+| Default-Modus | Solo | Warten auf Master | Diskussion |
+| Verhandlung | Bei Events | Nie (Master entscheidet) | Jede Runde |
+| Overhead (sparse) | Minimal | Hoch | Mittel |
+| Overhead (dense) | Variabel | Hoch | Konstant |

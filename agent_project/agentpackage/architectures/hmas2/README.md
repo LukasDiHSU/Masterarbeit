@@ -1,34 +1,146 @@
-# HMAS-2 architecture (central plan → local feedback → execute)
+# HMAS-2 Architektur (Zentraler Plan → Lokales Feedback → Ausführung)
 
-Paper mapping (Chen et al.): HMAS-2 is the hybrid variant of **CMAS**. A
-central LLM proposes the fleet plan; each robot has a local LLM that checks
-its assigned action and returns **AGREE** / **DISAGREE**. On disagreement the
-central agent re-plans. Only after consensus does the planner send
-**EXECUTE** instructions. Robots never talk to each other — traffic stays on
-the centralized star broker.
+Paper-Referenz (Chen et al.): HMAS-2 ist die hybride Variante von **CMAS**.
+Ein zentrales LLM schlägt den Flottenplan vor; jeder Roboter hat ein lokales
+LLM, das seine zugewiesene Aktion prüft und **AGREE** / **DISAGREE** zurückgibt.
+Bei Ablehnung plant der zentrale Agent neu. Erst nach Konsens sendet der
+Planner **EXECUTE**-Anweisungen. Roboter reden nie miteinander — der Verkehr
+bleibt auf dem zentralisierten Stern-Broker.
+
+## Topologie
 
 ```
                          ┌──────────────┐
                   user ► │   planner    │
                          └──────┬───────┘
-                collect_feedback │ / ask_* (broker)
+                collect_feedback │ / ask_* (Broker)
               ┌─────┬─────┴─────┬─────┐
               ▼     ▼           ▼     ▼
             SDR_0 SDR_1       SDR_2  SDR_3
-           (review AGREE/DISAGREE, then execute)
+           (Review AGREE/DISAGREE, dann Execute)
 ```
 
-- **Central planner** (`planner_agent.py`): drafts one fleet plan, calls
-  `collect_feedback` (sends a `PLAN REVIEW REQUEST`), revises until
-  `all_agree`, then sends execute messages with `ask_robot` /
-  `ask_all_robots` / `ask_selected_robots`.
-- **Local robots** (`robot_agent.py`): on review, prefer zero tools (at most
-  `rank_stations_by_distance` once) and reply `AGREE:` / `DISAGREE:`; on
-  execute, navigate/hold with minimal tools. Event tools (`get_events`) are
-  for conflict-based only and are not exposed here. No peer messaging.
-- **Transport**: reuses `architectures/centralized/agent_bus.py` + broker.
+## Komponenten
 
-Contrast with **HMAS-1** (central full mission plan; per-STEP AGREE; DISAGREE/new PLAN → PMAS peers)
-and plain **centralized** / CMAS (central assigns with no local review loop).
+| Datei | Beschreibung |
+|-------|-------------|
+| `planner_agent.py` | Zentraler Planner mit Plan-Draft und Feedback-Collection |
+| `robot_agent.py` | Lokaler Reviewer und Executor |
+| `launch_hmas2.sh` | Startet alle Komponenten |
 
-Run: `./launch_hmas2.sh` (optional `--agents 2|4|6|8`)
+## Planner-Agent
+
+### Plan-Phase
+
+1. Entwirft einen Flottenplan
+2. Ruft `collect_feedback` auf (sendet `PLAN REVIEW REQUEST`)
+3. Sammelt AGREE/DISAGREE von allen Robotern
+4. Bei Ablehnung: Überarbeitet Plan und wiederholt
+
+### Execute-Phase
+
+Nach `all_agree`:
+
+```python
+ask_robot(robot_id, "EXECUTE: navigate to station_A and pick")
+# oder
+ask_all_robots("EXECUTE: ...")
+# oder
+ask_selected_robots(["SDR_0", "SDR_1"], "EXECUTE: ...")
+```
+
+## Roboter-Agenten
+
+### Review-Phase
+
+- Empfangen `PLAN REVIEW REQUEST` mit zugewiesener Aktion
+- Prüfen mit minimalem Tool-Einsatz (max. `rank_stations_by_distance` einmal)
+- Antworten mit:
+  - `AGREE: <Begründung>` — Zuweisung akzeptiert
+  - `DISAGREE: <Begründung>` — Zuweisung abgelehnt
+
+### Execute-Phase
+
+- Empfangen `EXECUTE`-Anweisung
+- Führen Navigation/Hold mit minimalen Tools aus
+- **Keine** Event-Tools (`get_events`) — die sind nur für Konflikt-basiert
+
+### Keine Peer-Kommunikation
+
+Roboter haben **keine** Tools zur Peer-Kommunikation.
+Alle Nachrichten laufen über den Planner.
+
+## Feedback-Loop
+
+```
+Planner: PLAN REVIEW REQUEST
+         Robot_0: go to A, pick box
+         Robot_1: go to B, wait
+         
+Robot_0: AGREE: Station A is closest to me
+Robot_1: DISAGREE: Station B is blocked
+
+Planner: (überarbeitet Plan)
+         PLAN REVIEW REQUEST
+         Robot_0: go to A, pick box
+         Robot_1: go to C, wait
+
+Robot_0: AGREE
+Robot_1: AGREE
+
+Planner: EXECUTE (an alle)
+```
+
+## Transport
+
+Verwendet `architectures/centralized/agent_bus.py` + Broker (Stern-Topologie).
+
+## Kontrast zu anderen Architekturen
+
+| Architektur | Besonderheit |
+|-------------|-------------|
+| **HMAS-2** | Zentraler Plan mit lokalem Review-Loop |
+| HMAS-1 | Zentraler Plan; bei Ablehnung PMAS-Peers |
+| Zentralisiert/CMAS | Zentraler Plan ohne lokalen Review-Loop |
+| DMAS | Kein zentraler Planner |
+
+## Starten
+
+```bash
+./launch_hmas2.sh --agents 4  # 2, 4, 6, oder 8 Roboter
+```
+
+## Token/Kommunikations-Hypothese
+
+### Vorteile
+
+- **Lokale Validierung**: Roboter können unrealistische Pläne ablehnen
+- **Iterative Verbesserung**: Plan wird durch Feedback verbessert
+- **Strukturierte Koordination**: Klarer Ablauf ohne Chaos
+
+### Nachteile
+
+- **Overhead bei schlechten Plänen**: Viele Feedback-Loops bei ungeeignetem Initial-Plan
+- **Single-Point-of-Failure**: Planner-Ausfall stoppt alles
+- **Keine Peer-Hilfe**: Roboter können sich nicht gegenseitig helfen
+
+## Vergleich mit HMAS-1
+
+| Aspekt | HMAS-1 | HMAS-2 |
+|--------|--------|--------|
+| Feedback-Typ | Einmal über ganzen Plan | Iterativ bis Konsens |
+| Bei Ablehnung | DMAS-Fallback (Peers) | Planner plant neu |
+| Roboter-Rolle | Abstimmung + ggf. Peer-Planung | Nur Review + Execute |
+| Komplexität | Höher (zwei Modi) | Niedriger (ein Modus) |
+| Flexibilität | Höher (DMAS-Escape) | Niedriger (Planner-abhängig) |
+
+## Typischer Ablauf
+
+1. **User** gibt Mission ein
+2. **Planner** erstellt Initial-Plan
+3. **Planner** sendet `PLAN REVIEW REQUEST` an alle Roboter
+4. **Roboter** antworten mit AGREE/DISAGREE
+5. Bei DISAGREE: Zurück zu Schritt 2
+6. Bei alle AGREE: **Planner** sendet `EXECUTE`
+7. **Roboter** führen ihre Aktionen aus
+8. **Mission beendet**

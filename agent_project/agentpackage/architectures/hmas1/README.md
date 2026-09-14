@@ -1,45 +1,116 @@
-# HMAS-1 architecture (full central plan → one vote → execute, else DMAS)
+# HMAS-1 Architektur (Zentraler Plan → Abstimmung → Ausführung, sonst DMAS)
 
-Paper mapping (Chen et al., arXiv:2309.15943, Fig. 3b): HMAS-1 is the hybrid
-variant of **DMAS**. A central LLM proposes a **full natural-language mission
-plan** (ordered `STEP` blocks, e.g. pick, then drop). The **last STEP is
-always `FINISHED`**. Each robot votes **once** on that whole plan
-(`AGREE` / `DISAGREE`) with **no debate**. Unanimous `AGREE` executes the
-work STEPs in order. After each original work STEP, every executor that
-actually moved reports `STEP_OK` or `STEP_FAILED`; any `STEP_FAILED` drops
-the original plan. The `FINISHED` STEP then ends the mission if all checks
-passed. `DISAGREE` or a **different `PLAN` discards the original mission
-plan**; the fleet then continues as a **peer (DMAS) network** on the same
-star broker (the planner no longer proposes).
+Paper-Referenz (Chen et al., arXiv:2309.15943, Fig. 3b): HMAS-1 ist die hybride
+Variante von **DMAS**. Ein zentrales LLM schlägt einen **vollständigen
+natürlichsprachlichen Missionsplan** vor (geordnete `STEP`-Blöcke, z.B. pick,
+dann drop). Der **letzte STEP ist immer `FINISHED`**. Jeder Roboter stimmt
+**einmal** über den gesamten Plan ab (`AGREE` / `DISAGREE`) **ohne Debatte**.
+Einstimmiges `AGREE` führt die Arbeits-STEPs der Reihe nach aus.
+
+## Ablauf
 
 ```
-   central planner → full mission (STEP 1 .. k, FINISHED)     [once]
+   Zentraler Planner → Vollständige Mission (STEP 1 .. k, FINISHED)     [einmal]
         │
-        ▼  one AGREE / DISAGREE each (in parallel, no huddle)
-   all AGREE ──► execute STEP 1 → STEP_OK/FAILED check ──► … ──► FINISHED
+        ▼  je ein AGREE / DISAGREE (parallel, kein Huddle)
+   alle AGREE ──► STEP 1 ausführen → STEP_OK/FAILED check ──► … ──► FINISHED
         │                         │
-        │                         any STEP_FAILED
-        DISAGREE / new PLAN       │
+        │                         irgendein STEP_FAILED
+        DISAGREE / neuer PLAN     │
         ▼                         ▼
-   original plan dropped ──► DMAS: huddle, then PLAN/AGREE/FINISHED until done
+   Originalplan verworfen ──► DMAS: Huddle, dann PLAN/AGREE/FINISHED bis fertig
 ```
 
-- **Planner** (`planner_agent.py`): proposes the original mission once (map
-  tools only), appending `FINISHED` if the model omitted it. After a rejected
-  plan or a failed per-STEP executor check it stays silent; `HMAS1Session`
-  chairs DMAS turn-taking.
-- **Robots** (`robot_agent.py`): discussion LLM for the original vote / DMAS
-  talk (read-only map tools); huddle LLM for spoken DMAS turns; executor LLM
-  per dispatched work STEP and the following `STEP_OK` / `STEP_FAILED` check.
-- **Helpers** (`dialogue.py`): multi-step PLAN parser, one-shot vote prompt.
-- **Transport**: `architectures/centralized/agent_bus.py` (star broker only).
-  DMAS fallback is the DMAS protocol over that star, not a second mesh.
+## Komponenten
 
-A work `STEP` leg is ordinary language. Inside one STEP a leg is at most one
-drive plus at most one pick or drop.
+| Datei | Beschreibung |
+|-------|-------------|
+| `planner_agent.py` | Zentraler Planner (nur Map-Tools) |
+| `robot_agent.py` | Roboter mit Abstimmungs- und Ausführungs-LLM |
+| `dialogue.py` | Multi-Step PLAN Parser, One-Shot Vote Prompt |
+| `session.py` | HMAS-1 Session-Steuerung |
+| `launch_hmas1.sh` | Startet alle Komponenten |
 
-Limits: `PAPER_MAX_PLAN_STEPS` (12) executed work STEPs, `PAPER_MAX_SYNTAX_RETRIES`
-(3). Hitting a limit before FINISH falls through to DMAS. Hitting a DMAS limit
-ends the mission as a failure.
+## Planner-Agent
 
-Run: `./launch_hmas1.sh` (optional `--agents 2|4|6|8`)
+- Schlägt die Original-Mission **einmal** vor (nur Map-Tools)
+- Hängt `FINISHED` an, falls das Modell es vergessen hat
+- Nach abgelehntem Plan oder fehlgeschlagenem STEP bleibt er still
+- `HMAS1Session` übernimmt dann DMAS Turn-Taking
+
+## Roboter-Agenten
+
+Drei verschiedene LLM-Kontexte:
+
+| Kontext | Verwendung |
+|---------|-----------|
+| **Discussion LLM** | Original-Abstimmung / DMAS-Talk (Read-Only Map-Tools) |
+| **Huddle LLM** | Gesprochene DMAS-Turns |
+| **Executor LLM** | Dispatched Work STEP + folgende STEP_OK/FAILED Prüfung |
+
+## Abstimmungs-Protokoll
+
+```
+Planner: STEP 1: Robot_0 goes to A, picks up box
+         STEP 2: Robot_1 goes to B
+         STEP 3: FINISHED
+
+Robot_0: AGREE (oder DISAGREE mit Begründung)
+Robot_1: AGREE (oder DISAGREE mit Begründung)
+```
+
+### Bei einstimmigem AGREE
+
+1. STEP 1 wird ausgeführt
+2. Jeder Executor, der sich bewegt hat, meldet `STEP_OK` oder `STEP_FAILED`
+3. Bei `STEP_FAILED`: Plan verworfen → DMAS
+4. Bei alle `STEP_OK`: Weiter mit STEP 2
+5. `FINISHED` STEP beendet die Mission
+
+### Bei DISAGREE oder neuem PLAN
+
+- Originalplan wird verworfen
+- Flotte wechselt zu **DMAS-Modus** (Peer-Netzwerk)
+- Planner ist nun still
+- Peers verhandeln gleichberechtigt
+
+## Limits
+
+| Parameter | Wert | Beschreibung |
+|-----------|------|--------------|
+| `PAPER_MAX_PLAN_STEPS` | 12 | Maximale ausgeführte Arbeits-STEPs |
+| `PAPER_MAX_SYNTAX_RETRIES` | 3 | Syntax-Wiederholungen |
+
+Limits erreichen → DMAS-Fallback. DMAS-Limit erreichen → Mission als Fehlschlag beenden.
+
+## STEP-Format
+
+Ein Work-STEP ist gewöhnliche Sprache. Innerhalb eines STEPs maximal:
+- Eine Fahrt
+- Plus maximal ein Pick oder Drop
+
+## Transport
+
+Verwendet `architectures/centralized/agent_bus.py` (nur Stern-Broker).
+DMAS-Fallback nutzt das DMAS-Protokoll über diesen Stern, **nicht** ein zweites Mesh.
+
+## Starten
+
+```bash
+./launch_hmas1.sh --agents 4  # 2, 4, 6, oder 8 Roboter
+```
+
+## Token/Kommunikations-Hypothese
+
+- **Optimaler Fall**: Planner erstellt guten Plan → wenige Tokens, schnelle Ausführung
+- **Pessimaler Fall**: Plan wird abgelehnt → DMAS-Overhead zusätzlich zum Planungsversuch
+- **Robustheit**: DMAS-Fallback fängt Planner-Fehler ab
+
+## Vergleich mit HMAS-2
+
+| Aspekt | HMAS-1 | HMAS-2 |
+|--------|--------|--------|
+| Abstimmung | Einmal über ganzen Plan | Pro Zyklus bis Konsens |
+| Feedback-Loop | Nein | Ja (AGREE/DISAGREE → Neuplanung) |
+| Fallback | DMAS (vollständig dezentral) | Keiner (Planner plant weiter) |
+| Roboter-Autonomie | Hoch (bei Fallback) | Niedrig (nur Review) |
